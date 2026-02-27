@@ -94,6 +94,18 @@
       <el-main>
         <router-view :key="route.fullPath"></router-view>
       </el-main>
+      
+      <el-footer class="footer">
+        <div class="icp-info">
+          <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener noreferrer">
+            滇ICP备2026001884号
+          </a>
+          <span class="divider">|</span>
+          <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener noreferrer">
+            滇ICP备2026001884号-2
+          </a>
+        </div>
+      </el-footer>
     </el-container>
   </el-container>
   <router-view v-else :key="route.fullPath"></router-view>
@@ -168,5 +180,34 @@ const logout = () => {
 .el-main {
   background-color: #f0f2f5;
   padding: 20px;
+}
+
+.footer {
+  background-color: white;
+  border-top: 1px solid #e6e6e6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 40px !important;
+}
+
+.icp-info {
+  font-size: 12px;
+  color: #666;
+}
+
+.icp-info a {
+  color: #666;
+  text-decoration: none;
+  transition: color 0.3s;
+}
+
+.icp-info a:hover {
+  color: #409eff;
+}
+
+.icp-info .divider {
+  margin: 0 10px;
+  color: #ccc;
 }
 </style>

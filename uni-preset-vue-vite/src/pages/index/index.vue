@@ -307,9 +307,9 @@
             </view>
           </view>
           <view class="leaderboard-footer" @click="goToRanking">
-            <view>查看完整榜单</view>
-            <SvgIcon name="arrow-right" size="20" fill="#666" />
-          </view>
+          <view>查看完整榜单</view>
+          <SvgIcon name="arrow-right" size="20" fill="#666" />
+        </view>
         </view>
       </view>
     </view>
