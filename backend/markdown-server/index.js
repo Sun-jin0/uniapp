@@ -1,8 +1,13 @@
 const express = require('express');
+const https = require('https');
+const http = require('http');
+const fs = require('fs');
+const path = require('path');
 const mathjax = require('mathjax-node');
 
 const app = express();
-const PORT = 8001;
+const HTTP_PORT = 8001;
+const HTTPS_PORT = 8443;
 
 // 配置 mathjax-node
 mathjax.config({
@@ -96,10 +101,41 @@ app.get('/', async (req, res) => {
 
 // 健康检查
 app.get('/health', (req, res) => {
-    res.json({ status: 'ok' });
+    res.json({ status: 'ok', https: true });
 });
 
-app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Markdown server is running on port ${PORT}`);
-    console.log(`Test: http://localhost:${PORT}?tex=hello`);
+// SSL 证书路径（请根据实际情况修改）
+const SSL_CERT_PATH = process.env.SSL_CERT_PATH || '/www/wwwroot/ssl/yizhancs.cn_bundle.crt';
+const SSL_KEY_PATH = process.env.SSL_KEY_PATH || '/www/wwwroot/ssl/yizhancs.cn.key';
+
+// 检查证书文件是否存在
+let httpsOptions = null;
+try {
+    if (fs.existsSync(SSL_CERT_PATH) && fs.existsSync(SSL_KEY_PATH)) {
+        httpsOptions = {
+            cert: fs.readFileSync(SSL_CERT_PATH),
+            key: fs.readFileSync(SSL_KEY_PATH)
+        };
+        console.log('SSL certificates loaded successfully');
+    } else {
+        console.log('SSL certificates not found, running HTTP only');
+        console.log(`Expected cert at: ${SSL_CERT_PATH}`);
+        console.log(`Expected key at: ${SSL_KEY_PATH}`);
+    }
+} catch (error) {
+    console.error('Error loading SSL certificates:', error.message);
+}
+
+// 启动 HTTP 服务
+http.createServer(app).listen(HTTP_PORT, '0.0.0.0', () => {
+    console.log(`HTTP server is running on port ${HTTP_PORT}`);
+    console.log(`Test: http://localhost:${HTTP_PORT}?tex=hello`);
 });
+
+// 启动 HTTPS 服务（如果证书存在）
+if (httpsOptions) {
+    https.createServer(httpsOptions, app).listen(HTTPS_PORT, '0.0.0.0', () => {
+        console.log(`HTTPS server is running on port ${HTTPS_PORT}`);
+        console.log(`Test: https://localhost:${HTTPS_PORT}?tex=hello`);
+    });
+}
