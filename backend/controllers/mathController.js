@@ -1523,28 +1523,61 @@ const replacePaperQuestion = async (req, res) => {
     if (papers.length === 0) throw new Error('试卷不存在');
     
     const config = typeof papers[0].Config === 'string' ? JSON.parse(papers[0].Config) : papers[0].Config;
-    const { scope } = config;
+    const scope = config?.scope || [];
 
-    // 获取当前已有的题目ID，避免重复
-    const [currentQuestions] = await connection.query('SELECT QuestionID FROM math_generated_paper_questions WHERE PaperID = ?', [paperId]);
-    const currentIds = currentQuestions.map(q => q.QuestionID);
-
-    // 获取原题型
-    const [oldQ] = await connection.query('SELECT QuestionType FROM math_questions WHERE QuestionID = ?', [oldQuestionId]);
+    // 获取原题的详细信息（包括考点）
+    const [oldQ] = await connection.query(
+      `SELECT q.QuestionID, q.QuestionType, qd.LinkedKnowledgePointID as PointID
+       FROM math_questions q
+       LEFT JOIN math_questiondetails qd ON q.QuestionID = qd.QuestionID
+       WHERE q.QuestionID = ?`,
+      [oldQuestionId]
+    );
+    
+    if (oldQ.length === 0) throw new Error('原题不存在');
+    
     const targetType = oldQ[0]?.QuestionType || '选择题';
+    const targetPointId = oldQ[0]?.PointID;
 
-    // 寻找备选题目
+    // 寻找备选题目 - 使用子查询排除已存在的题目
     let pool = [];
     for (const item of scope) {
       const { bookId, chapters } = item;
-      const [questions] = await connection.query(
-        `SELECT bq.QuestionID, bq.BookID, bq.BookChapter
+      
+      // 如果chapters为空数组，表示选择全本书籍
+      let query = `SELECT bq.QuestionID, bq.BookID, bq.BookChapter
          FROM math_bookquestions bq
          JOIN math_questions q ON bq.QuestionID = q.QuestionID
-         WHERE bq.BookID = ? AND bq.BookChapter IN (?) AND q.QuestionType = ? AND q.QuestionID NOT IN (?)
-         ORDER BY RAND() LIMIT 10`,
-        [bookId, chapters, targetType, currentIds]
-      );
+         WHERE bq.BookID = ?`;
+      
+      let params = [bookId];
+      
+      if (Array.isArray(chapters) && chapters.length > 0) {
+        query += ` AND bq.BookChapter IN (?)`;
+        params.push(chapters);
+      }
+      
+      // 如果有考点信息，优先按考点匹配
+      if (targetPointId) {
+        query += ` AND q.QuestionID IN (
+          SELECT QuestionID FROM math_questiondetails WHERE LinkedKnowledgePointID = ?
+        )`;
+        params.push(targetPointId);
+      }
+      
+      query += ` AND q.QuestionType = ?
+           AND q.QuestionID NOT IN (
+             SELECT QuestionID 
+             FROM math_generated_paper_questions 
+             WHERE PaperID = ? 
+               AND QuestionID REGEXP '^[0-9]+$'
+           )
+         ORDER BY RAND() 
+         LIMIT 10`;
+      
+      params.push(targetType, paperId);
+      
+      const [questions] = await connection.query(query, params);
       pool = pool.concat(questions);
     }
 
