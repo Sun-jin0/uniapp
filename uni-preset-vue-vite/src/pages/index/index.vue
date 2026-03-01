@@ -1575,7 +1575,7 @@ page {
 /* 轮播图 */
 .banner {
   width: calc(100% - 20rpx);
-  height: 220rpx;
+  height: 228rpx;
   margin: 0 10rpx 8rpx;
   border-radius: 24rpx;
   overflow: hidden;
