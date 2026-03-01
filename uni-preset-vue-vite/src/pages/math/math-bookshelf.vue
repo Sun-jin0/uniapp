@@ -25,58 +25,34 @@
         <div class="tools-grid">
           <navigator :url="`/pages/math/math-smart-paper-config?subjectId=${selectedSubjectId}`" class="tool-btn tool-test">
             <div class="tool-btn-icon">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                <polyline points="14 2 14 8 20 8"></polyline>
-                <line x1="16" y1="13" x2="8" y2="13"></line>
-                <line x1="16" y1="17" x2="8" y2="17"></line>
-                <polyline points="10 9 9 9 8 9"></polyline>
-              </svg>
+              <SvgIcon name="edit" size="32" fill="#fff" />
             </div>
             <span class="tool-btn-text">组卷</span>
           </navigator>
           <!-- 搜题功能 -->
           <div class="tool-btn tool-search" @click="openSearchModal">
             <div class="tool-btn-icon">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <circle cx="11" cy="11" r="8"></circle>
-                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-              </svg>
+              <SvgIcon name="settings" size="32" fill="#2196f3" />
             </div>
             <span class="tool-btn-text">搜题</span>
           </div>
           <navigator :url="`/pages/math/math-practice?subjectId=${selectedSubjectId}`" class="tool-btn tool-bank">
             <div class="tool-btn-icon">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                <polyline points="14 2 14 8 20 8"></polyline>
-                <line x1="16" y1="13" x2="8" y2="13"></line>
-                <line x1="16" y1="17" x2="8" y2="17"></line>
-                <polyline points="10 9 9 9 8 9"></polyline>
-              </svg>
+              <SvgIcon name="books" size="32" fill="#fff" />
             </div>
             <span class="tool-btn-text">试卷</span>
           </navigator>
           <!-- 考点刷题 -->
           <navigator url="/pages/math/math-knowledge-point-practice" class="tool-btn tool-knowledge">
             <div class="tool-btn-icon">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <circle cx="12" cy="12" r="10"></circle>
-                <circle cx="12" cy="12" r="3"></circle>
-                <line x1="12" y1="2" x2="12" y2="9"></line>
-                <line x1="12" y1="15" x2="12" y2="22"></line>
-                <line x1="2" y1="12" x2="9" y2="12"></line>
-                <line x1="15" y1="12" x2="22" y2="12"></line>
-              </svg>
+              <SvgIcon name="brain" size="32" fill="#fff" />
             </div>
             <span class="tool-btn-text">考点</span>
           </navigator>
           <!-- 我的收藏 -->
           <navigator url="/pages/math/math-my-favorites" class="tool-btn tool-favorites">
             <div class="tool-btn-icon">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
-              </svg>
+              <SvgIcon name="star" size="32" fill="#fff" />
             </div>
             <span class="tool-btn-text">收藏</span>
           </navigator>
@@ -209,6 +185,7 @@
 import { ref, onMounted, computed, getCurrentInstance } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
 import { request } from '../../api/request';
+import SvgIcon from '@/components/SvgIcon/SvgIcon.vue';
 
 const subjects = ref(uni.getStorageSync('math_subjects') || []);
 const selectedSubjectId = ref(uni.getStorageSync('math_selected_subject_id') || null);
