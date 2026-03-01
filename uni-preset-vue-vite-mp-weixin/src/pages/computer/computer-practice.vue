@@ -22,6 +22,23 @@ const currentIndex = ref(0);
 const loading = ref(true);
 const pageOptions = ref({});
 
+// 虚拟滚动配置 - 只渲染当前题目和前后各1题
+const VIRTUAL_SCROLL_BUFFER = 1;
+
+// 判断题目是否应该渲染（在当前可视范围内）
+const shouldRenderQuestion = (index) => {
+  if (questions.value.length <= 5) return true; // 题目少时全部渲染
+  const diff = Math.abs(index - currentIndex.value);
+  return diff <= VIRTUAL_SCROLL_BUFFER;
+};
+
+// 判断题目是否在预加载范围内（前后各2题）
+const shouldPreloadQuestion = (index) => {
+  if (questions.value.length <= 5) return true;
+  const diff = Math.abs(index - currentIndex.value);
+  return diff <= VIRTUAL_SCROLL_BUFFER + 1;
+};
+
 onLoad((options) => {
   console.log('[Computer Practice] Received Options:', options);
   pageOptions.value = options || {};
@@ -1789,8 +1806,17 @@ const submitFeedback = async () => {
       easing-function="linear"
     >
       <swiper-item v-for="(question, qIndex) in questions" :key="question.question_id || qIndex">
+        <!-- 占位符：不在渲染范围内时显示简单占位 -->
+        <view v-if="!shouldPreloadQuestion(qIndex)" class="question-placeholder">
+          <view class="placeholder-content">
+            <text class="placeholder-text">题目 {{ qIndex + 1 }}</text>
+            <text class="placeholder-hint">滑动查看</text>
+          </view>
+        </view>
         <scroll-view 
+          v-else
           class="swiper-scroll" 
+          :class="{ 'swiper-scroll-hidden': !shouldRenderQuestion(qIndex) }"
           scroll-y 
           :enable-back-to-top="true" 
           :show-scrollbar="false"
@@ -2398,6 +2424,36 @@ const submitFeedback = async () => {
 </template>
 
 <style lang="scss" scoped>
+// 虚拟滚动相关样式
+.question-placeholder {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #f5f7fa;
+  
+  .placeholder-content {
+    text-align: center;
+    color: #999;
+    
+    .placeholder-text {
+      font-size: 36rpx;
+      display: block;
+      margin-bottom: 20rpx;
+    }
+    
+    .placeholder-hint {
+      font-size: 28rpx;
+      color: #bbb;
+    }
+  }
+}
+
+.swiper-scroll-hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
 .container {
   height: 100vh;
   background-color: #f5f7fa;
