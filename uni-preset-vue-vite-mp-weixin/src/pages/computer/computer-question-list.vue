@@ -225,9 +225,9 @@ const filterQuestions = () => {
     result = result.filter(q => selectedTypes.value.includes(q.exercise_type_name));
   }
   
-  // 只做真题筛选 (exam_code 为 408)
+  // 只做真题筛选 (exam_code 为 408 且 from_school 为 全国统考)
   if (onlyRealExam.value) {
-    result = result.filter(q => q.exam_code === '408');
+    result = result.filter(q => q.exam_code === '408' && q.from_school === '全国统考');
   }
   
   filteredQuestions.value = result;

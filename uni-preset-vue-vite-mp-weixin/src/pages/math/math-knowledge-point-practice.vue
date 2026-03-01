@@ -25,7 +25,7 @@
       <view v-else class="tree-list">
         <view v-for="subject in filteredTree" :key="subject.id" class="subject-item">
           <view class="subject-header" @tap="toggleSubject(subject.id)">
-            <text class="arrow" :class="{ expanded: expandedSubjects.has(subject.id) }">></text>
+            <view class="arrow" :class="{ expanded: expandedSubjects.has(subject.id) }"></view>
             <text class="subject-name">{{ subject.name }}</text>
             <text class="subject-count">{{ getSubjectCount(subject) }}</text>
           </view>
@@ -33,21 +33,21 @@
           <view v-show="expandedSubjects.has(subject.id)" class="chapter-list">
             <view v-for="chapter in subject.chapters" :key="chapter.id" class="chapter-item">
               <view class="chapter-header" @tap="toggleChapter(chapter.id)">
-                <text class="arrow" :class="{ expanded: expandedChapters.has(chapter.id) }">></text>
+                <view class="arrow" :class="{ expanded: expandedChapters.has(chapter.id) }"></view>
                 <text class="chapter-name">{{ chapter.name }}</text>
                 <text class="chapter-count">{{ chapter.points?.length || 0 }}</text>
               </view>
               
               <view v-show="expandedChapters.has(chapter.id)" class="point-list">
-                <view 
-                  v-for="point in chapter.points" 
-                  :key="point.id" 
+                <view
+                  v-for="point in chapter.points"
+                  :key="point.id"
                   class="point-item"
                   @tap="goToQuestions(point)"
                 >
                   <text class="point-name">{{ point.name }}</text>
                   <text class="point-count">{{ point.questionCount }}题</text>
-                  <text class="point-arrow">></text>
+                  <view class="point-arrow"></view>
                 </view>
               </view>
             </view>
@@ -224,10 +224,19 @@ onMounted(() => {
 }
 
 .arrow {
-  font-size: 12px;
-  color: #969799;
+  width: 12px;
+  height: 12px;
   margin-right: 8px;
   transition: transform 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.arrow::after {
+  content: '>';
+  font-size: 12px;
+  color: #969799;
 }
 
 .arrow.expanded {
@@ -302,6 +311,15 @@ onMounted(() => {
 }
 
 .point-arrow {
+  width: 12px;
+  height: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.point-arrow::after {
+  content: '>';
   font-size: 12px;
   color: #c8c9cc;
 }
