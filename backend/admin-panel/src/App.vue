@@ -180,6 +180,7 @@ const logout = () => {
 .el-main {
   background-color: #f0f2f5;
   padding: 20px;
+  overflow-y: auto;
 }
 
 .footer {
@@ -188,7 +189,8 @@ const logout = () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 40px !important;
+  height: 40px;
+  flex-shrink: 0;
 }
 
 .icp-info {

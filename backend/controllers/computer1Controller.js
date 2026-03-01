@@ -570,7 +570,18 @@ const getChapterById = async (req, res) => {
 const getQuestions = async (req, res) => {
   try {
     const { chapterId, tagId, majorId, examGroupId } = req.query;
-    let query = 'SELECT q.question_id, q.exercise_type, q.exercise_type_name, q.stem, q.level, q.total_score, q.from_school, q.exam_time, q.exam_code, q.exam_full_name, c.chapter_name, s.subject_name as major_name, p_info.paper_name as exam_paper_name FROM computer1_question q LEFT JOIN computer1_chapter c ON q.chapter_id = c.chapter_id LEFT JOIN computer1_subject s ON q.major_id = s.major_id LEFT JOIN (SELECT pq.question_id, MAX(p.title) as paper_name FROM computer1_paper_question pq JOIN computer1_paper p ON pq.paper_id = p.id GROUP BY pq.question_id) p_info ON q.question_id = p_info.question_id';
+    // 修改查询：只查询 paper_type = 1（真题卷）的题目
+    let query = `SELECT q.question_id, q.exercise_type, q.exercise_type_name, q.stem, q.level, q.total_score, q.from_school, q.exam_time, q.exam_code, q.exam_full_name, c.chapter_name, s.subject_name as major_name, p_info.paper_name as exam_paper_name 
+      FROM computer1_question q 
+      LEFT JOIN computer1_chapter c ON q.chapter_id = c.chapter_id 
+      LEFT JOIN computer1_subject s ON q.major_id = s.major_id 
+      LEFT JOIN (
+        SELECT pq.question_id, MAX(p.title) as paper_name 
+        FROM computer1_paper_question pq 
+        JOIN computer1_paper p ON pq.paper_id = p.id 
+        WHERE p.paper_type = 1
+        GROUP BY pq.question_id
+      ) p_info ON q.question_id = p_info.question_id`;
     const params = [];
 
     if (tagId) {
@@ -583,12 +594,15 @@ const getQuestions = async (req, res) => {
       query += ' WHERE q.major_id = ?';
       params.push(majorId);
     } else if (examGroupId) {
-      // 检查是否是试卷 ID (在 computer1_paper 表中存在)
-      const [paperExists] = await mysqlPool.query('SELECT id, title FROM computer1_paper WHERE id = ?', [examGroupId]);
-      
+      // 检查是否是试卷 ID (在 computer1_paper 表中存在，且 paper_type = 1)
+      const [paperExists] = await mysqlPool.query('SELECT id, title FROM computer1_paper WHERE id = ? AND paper_type = 1', [examGroupId]);
+
       if (paperExists.length > 0) {
         // 如果是试卷 ID，从关联表获取题目，并按 sort_order 排序
-        query = 'SELECT q.question_id, q.exercise_type, q.exercise_type_name, q.stem, q.level, q.total_score, q.from_school, q.exam_time, q.exam_code, q.exam_full_name, c.chapter_name, s.subject_name as major_name, ? as exam_paper_name FROM computer1_question q LEFT JOIN computer1_chapter c ON q.chapter_id = c.chapter_id LEFT JOIN computer1_subject s ON q.major_id = s.major_id';
+        query = `SELECT q.question_id, q.exercise_type, q.exercise_type_name, q.stem, q.level, q.total_score, q.from_school, q.exam_time, q.exam_code, q.exam_full_name, c.chapter_name, s.subject_name as major_name, ? as exam_paper_name 
+          FROM computer1_question q 
+          LEFT JOIN computer1_chapter c ON q.chapter_id = c.chapter_id 
+          LEFT JOIN computer1_subject s ON q.major_id = s.major_id`;
         query += ' JOIN computer1_paper_question pq ON q.question_id = pq.question_id WHERE pq.paper_id = ? ORDER BY pq.sort_order ASC';
         params.push(paperExists[0].title, examGroupId);
         const [questions] = await mysqlPool.query(query, params);
