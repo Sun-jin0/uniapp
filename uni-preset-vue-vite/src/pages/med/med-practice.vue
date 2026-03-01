@@ -1700,7 +1700,7 @@ const playVideo = (url) => {
 
 .progress-section {
   background: #fff;
-  padding: 12rpx 24rpx;
+  padding: 16rpx 24rpx;
   
   .progress-info {
     display: flex;
@@ -2330,14 +2330,14 @@ const playVideo = (url) => {
     gap: 16rpx;
     
     .nav-btn {
-      padding: 10rpx 24rpx;
+      padding: 14rpx 24rpx;
       border-radius: 36rpx;
       font-size: 24rpx;
       font-weight: 500;
       border: 2rpx solid #4db6ac;
       color: #4db6ac;
       transition: all 0.2s;
-      
+
       &.next { background: #4db6ac; color: #fff; }
       &.disabled { opacity: 0.3; }
       &:active:not(.disabled) { transform: scale(0.95); }

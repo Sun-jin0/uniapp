@@ -2752,7 +2752,7 @@ const submitFeedback = async () => {
 
 .progress-section {
   background: #fff;
-  padding: 12rpx 24rpx;
+  padding: 16rpx 24rpx;
   
   .progress-info {
     display: flex;
@@ -3591,14 +3591,14 @@ const submitFeedback = async () => {
     gap: 16rpx;
     
     .nav-btn {
-      padding: 14rpx 32rpx;
+      padding: 18rpx 32rpx;
       border-radius: 36rpx;
       font-size: 26rpx;
       font-weight: 500;
       border: 2rpx solid var(--primary-color);
       color: var(--primary-color);
       transition: all 0.2s;
-      
+
       &.next { background: var(--primary-color); color: #fff; }
       &.disabled { opacity: 0.3; }
       &:active:not(.disabled) { transform: scale(0.95); }

@@ -3041,7 +3041,7 @@ const goBack = () => {
 }
 
 .progress-section {
-  padding: 10rpx 30rpx; // 减小内边距
+  padding: 14rpx 30rpx; // 减小内边距
   background-color: #fff;
   box-shadow: 0 2rpx 10rpx rgba(0,0,0,0.05);
   .progress-info {
@@ -3767,14 +3767,14 @@ const goBack = () => {
     gap: 16rpx;
     
     .nav-btn {
-      padding: 10rpx 24rpx;
+      padding: 14rpx 24rpx;
       border-radius: 36rpx;
       font-size: 24rpx;
       font-weight: 500;
       border: 2rpx solid #4db6ac;
       color: #4db6ac;
       transition: all 0.2s;
-      
+
       &.next { background: #4db6ac; color: #fff; }
       &.disabled { opacity: 0.3; }
       &:active:not(.disabled) { transform: scale(0.95); }
