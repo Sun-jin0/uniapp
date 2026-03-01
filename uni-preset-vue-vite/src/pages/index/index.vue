@@ -1495,6 +1495,8 @@ onShow(() => {
   checkLoginStatus();
   loadLastPracticeSubject();
   loadAllHomeData();
+  // 刷新首页卡片数据
+  initHomepageCards();
 });
 
 // 初始化公告数据
