@@ -118,34 +118,46 @@ const getLeaderboard = async (req, res) => {
 
     const [rankList] = await pool.query(sql, params);
 
-    // 获取当前用户排名
+    // 获取当前用户排名 - 使用兼容MySQL 5.7的写法
     if (period === 'all') {
+      // 全部时间：使用子查询计算排名
       rankSql = `
-        SELECT rank_num as \`rank\`, value, avatar FROM (
-          SELECT id, ` + valueField + ` as value, avatar,
-                 RANK() OVER (ORDER BY ` + valueField + ` DESC) as rank_num
-          FROM users u
-          WHERE u.status = 1
-        ) as ranks WHERE id = ?
+        SELECT 
+          (SELECT COUNT(*) + 1 FROM users u2 WHERE u2.` + valueField + ` > u.` + valueField + ` AND u2.status = 1) as \`rank\`,
+          u.` + valueField + ` as value,
+          u.avatar
+        FROM users u
+        WHERE u.id = ? AND u.status = 1
       `;
       console.log('period=all rankSql:', rankSql);
     } else {
+      // 按时间段：使用子查询计算排名
+      const days = period === 'week' ? 7 : (period === 'day' ? 1 : 30);
       rankSql = `
-        SELECT rank_num as \`rank\`, value, avatar FROM (
-          SELECT u.id, COALESCE(SUM(a.` + valueField + `), 0) as value, u.avatar,
-                 RANK() OVER (ORDER BY COALESCE(SUM(a.` + valueField + `), 0) DESC) as rank_num
-          FROM users u 
-          LEFT JOIN answer_records a ON u.id = a.userId AND a.createdAt >= DATE_SUB(CURDATE(), INTERVAL ` + (period === 'week' ? 7 : 30) + ` DAY)
-          WHERE u.status = 1
-          GROUP BY u.id, u.avatar
-        ) as ranks WHERE id = ?
+        SELECT 
+          (SELECT COUNT(DISTINCT userId) + 1 FROM (
+            SELECT userId, SUM(` + valueField + `) as total
+            FROM answer_records
+            WHERE createdAt >= DATE_SUB(CURDATE(), INTERVAL ` + days + ` DAY)
+            GROUP BY userId
+            HAVING total > COALESCE((SELECT SUM(` + valueField + `) FROM answer_records WHERE userId = ? AND createdAt >= DATE_SUB(CURDATE(), INTERVAL ` + days + ` DAY)), 0)
+          ) t) as \`rank\`,
+          COALESCE((SELECT SUM(` + valueField + `) FROM answer_records WHERE userId = ? AND createdAt >= DATE_SUB(CURDATE(), INTERVAL ` + days + ` DAY)), 0) as value,
+          (SELECT avatar FROM users WHERE id = ?) as avatar
       `;
     }
     
     // 如果没有 userId，不查询用户排名
     let userRank = [{ rank: '-', value: 0 }];
     if (userId) {
-      const [rankResult] = await pool.query(rankSql, [userId]);
+      let rankParams;
+      if (period === 'all') {
+        rankParams = [userId];
+      } else {
+        // period !== 'all' 时需要3个参数：userId, userId, userId
+        rankParams = [userId, userId, userId];
+      }
+      const [rankResult] = await pool.query(rankSql, rankParams);
       userRank = rankResult;
     }
 
