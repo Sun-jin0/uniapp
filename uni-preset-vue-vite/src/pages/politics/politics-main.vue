@@ -27,7 +27,7 @@
               @click="goToBook(book)"
             >
               <view class="item-text">{{ book.title || book.name || '未命名书籍' }}</view>
-              <view class="item-arrow">></view>
+              <view class="item-arrow"></view>
             </view>
             <view v-if="!section.books || section.books.length === 0" class="empty-hint">
               暂无书籍
@@ -44,13 +44,13 @@
               @click="goToBook(book)"
             >
               <view class="item-text">{{ book.title || book.name || '未命名书籍' }}</view>
-              <view class="item-arrow">></view>
+              <view class="item-arrow"></view>
             </view>
             <view v-if="!section.books || section.books.length === 0" class="empty-hint">
               暂无书籍
             </view>
           </view>
-          
+
           <!-- 查看更多按钮 - 当书籍数量超过显示行数时显示 -->
           <view 
             v-if="section.books && section.books.length > (section.display_rows || 1) * 2" 
@@ -469,6 +469,10 @@ const goToBook = (book) => {
   color: #ccc;
   font-size: 14px;
   font-weight: 300;
+}
+
+.item-arrow::after {
+  content: '>';
 }
 
 .empty-hint {
