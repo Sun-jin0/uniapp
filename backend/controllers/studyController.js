@@ -144,7 +144,7 @@ const getLeaderboard = async (req, res) => {
           SELECT u.id, COALESCE(SUM(a.` + valueField + `), 0) as value, u.avatar,
                  RANK() OVER (ORDER BY COALESCE(SUM(a.` + valueField + `), 0) DESC) as rank_num
           FROM users u 
-          LEFT JOIN answer_records a ON u.id = a.userId ${timeFilter}
+          LEFT JOIN answer_records a ON u.id = a.userId AND a.createdAt >= DATE_SUB(CURDATE(), INTERVAL ` + (period === 'week' ? 7 : 30) + ` DAY)
           WHERE u.status = 1
           GROUP BY u.id, u.avatar
         ) as ranks WHERE id = ?
