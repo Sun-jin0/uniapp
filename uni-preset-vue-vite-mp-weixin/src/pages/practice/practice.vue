@@ -223,7 +223,7 @@ const navigateToDetail = (item) => {
 
 .sidebar-item {
   position: relative;
-  padding: 34rpx 20rpx;
+  padding: 38rpx 20rpx;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -286,7 +286,7 @@ const navigateToDetail = (item) => {
 .item-card {
   background-color: #ffffff;
   border-radius: 12rpx;
-  padding: 24rpx 30rpx;
+  padding: 28rpx 30rpx;
   margin-bottom: 16rpx;
   display: flex;
   align-items: center;
