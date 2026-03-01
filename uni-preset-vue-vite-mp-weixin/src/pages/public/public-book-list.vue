@@ -303,7 +303,7 @@ const goBack = () => {
   flex-shrink: 0;
   .sidebar-item {
     position: relative;
-    padding: 24rpx 16rpx;
+    padding: 28rpx 16rpx;
     font-size: 26rpx;
     color: #666;
     text-align: center;
@@ -381,7 +381,7 @@ const goBack = () => {
   .book-item {
     display: flex;
     align-items: center;
-    padding: 12rpx 16rpx;
+    padding: 16rpx 16rpx;
     background-color: #fff;
     border-radius: 8rpx;
     margin-bottom: 8rpx;
