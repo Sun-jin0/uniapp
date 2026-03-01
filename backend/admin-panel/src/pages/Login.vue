@@ -48,8 +48,8 @@ const handleLogin = async () => {
     if (valid) {
       loading.value = true
       try {
-        // 使用后端统一的登录接口
-        const response = await axios.post('/api/user/login', loginForm)
+        // 使用服务器登录接口
+        const response = await axios.post('https://yizhancs.cn/api/user/login', loginForm)
         const res = response.data
         
         if (res.code === 0 || res.code === 200) {

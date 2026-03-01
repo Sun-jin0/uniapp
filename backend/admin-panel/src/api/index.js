@@ -2,7 +2,7 @@ import axios from 'axios'
 import { ElMessage } from 'element-plus'
 
 const service = axios.create({
-  baseURL: '/api',
+  baseURL: 'https://yizhancs.cn/api',
   timeout: 10000
 })
 

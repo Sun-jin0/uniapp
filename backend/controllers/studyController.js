@@ -63,9 +63,23 @@ const getStudyStats = async (req, res) => {
 };
 
 const getLeaderboard = async (req, res) => {
+  let sql = '';
+  let rankSql = '';
+  
   try {
-    const { type = 'questions', period = 'week' } = req.query; // type: questions, points; period: week, month, all
+    const { type = 'questions', period = 'week' } = req.query;
     const userId = req.userId;
+    
+    console.log('getLeaderboard called:', { type, period, userId });
+    
+    // 测试数据库连接
+    try {
+      const [testResult] = await pool.query('SELECT 1 as test');
+      console.log('Database connection test:', testResult);
+    } catch (dbError) {
+      console.error('Database connection failed:', dbError);
+      return res.status(500).json(errorResponse('数据库连接失败: ' + dbError.message));
+    }
 
     let timeFilter = '';
     const params = [];
@@ -79,14 +93,16 @@ const getLeaderboard = async (req, res) => {
     }
 
     // 根据类型选择统计字段
+    // users表使用 total_questions, answer_records表使用 totalQuestions
     let valueField = '';
-    if (period === 'all') {
-      valueField = type === 'points' ? 'totalScore' : 'total_questions';
+    if (type === 'points') {
+      valueField = 'totalScore';
     } else {
-      valueField = type === 'points' ? 'totalScore' : 'totalQuestions';
+      // 题目数量：users表用 total_questions, answer_records表用 totalQuestions
+      valueField = period === 'all' ? 'total_questions' : 'totalQuestions';
     }
-
-    let sql = '';
+    
+    console.log('valueField:', valueField, 'period:', period);
     
     if (period === 'all') {
       // 全部时间：直接从 users 表获取
@@ -113,7 +129,6 @@ const getLeaderboard = async (req, res) => {
     const [rankList] = await pool.query(sql, params);
 
     // 获取当前用户排名
-    let rankSql = '';
     if (period === 'all') {
       rankSql = `
         SELECT rank_num as \`rank\`, value, avatar FROM (
@@ -136,7 +151,12 @@ const getLeaderboard = async (req, res) => {
       `;
     }
     
-    const [userRank] = await pool.query(rankSql, [userId]);
+    // 如果没有 userId，不查询用户排名
+    let userRank = [{ rank: '-', value: 0 }];
+    if (userId) {
+      const [rankResult] = await pool.query(rankSql, [userId]);
+      userRank = rankResult;
+    }
 
     res.json(successResponse({
       list: rankList,
@@ -144,7 +164,10 @@ const getLeaderboard = async (req, res) => {
     }));
   } catch (error) {
     console.error('获取排行榜失败:', error);
-    res.status(500).json(errorResponse('服务器错误'));
+    console.error('错误详情:', error.message);
+    console.error('SQL:', sql);
+    console.error('rankSql:', rankSql);
+    res.status(500).json(errorResponse('服务器错误: ' + error.message));
   }
 };
 
