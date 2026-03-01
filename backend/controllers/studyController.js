@@ -81,17 +81,6 @@ const getLeaderboard = async (req, res) => {
       return res.status(500).json(errorResponse('数据库连接失败: ' + dbError.message));
     }
 
-    let timeFilter = '';
-    const params = [];
-    
-    if (period === 'day') {
-      timeFilter = 'AND DATE(a.createdAt) = CURDATE()';
-    } else if (period === 'week') {
-      timeFilter = 'AND a.createdAt >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)';
-    } else if (period === 'month') {
-      timeFilter = 'AND a.createdAt >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)';
-    }
-
     // 根据类型选择统计字段
     // users表使用 total_questions, answer_records表使用 totalQuestions
     let valueField = '';
@@ -115,10 +104,11 @@ const getLeaderboard = async (req, res) => {
       `;
     } else {
       // 按时间段：从 answer_records 表统计
+      const days = period === 'week' ? 7 : (period === 'day' ? 1 : 30);
       sql = `
         SELECT u.id, u.username, u.nickname, u.avatar, COALESCE(SUM(a.` + valueField + `), 0) as value 
         FROM users u 
-        LEFT JOIN answer_records a ON u.id = a.userId ${timeFilter}
+        LEFT JOIN answer_records a ON u.id = a.userId AND a.createdAt >= DATE_SUB(CURDATE(), INTERVAL ` + days + ` DAY)
         WHERE u.status = 1
         GROUP BY u.id, u.username, u.nickname, u.avatar
         ORDER BY value DESC 
@@ -138,6 +128,7 @@ const getLeaderboard = async (req, res) => {
           WHERE u.status = 1
         ) as ranks WHERE id = ?
       `;
+      console.log('period=all rankSql:', rankSql);
     } else {
       rankSql = `
         SELECT rank_num as \`rank\`, value, avatar FROM (
