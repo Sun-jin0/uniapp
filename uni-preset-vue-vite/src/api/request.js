@@ -1,17 +1,17 @@
 // 根据运行环境设置基础 URL
 const getBaseUrl = () => {
   // #ifdef H5
-  // H5 环境使用本地后端
-  return 'http://localhost:3000/api';
+  // H5 环境使用服务器后端
+  return 'https://yizhancs.cn/api';
   // #endif
-  
+
   // #ifdef MP-WEIXIN
-  // 微信小程序使用本地后端（需要配置不校验域名）
-  return 'http://localhost:3000/api';
+  // 微信小程序使用服务器后端
+  return 'https://yizhancs.cn/api';
   // #endif
-  
-  // 默认使用本地后端
-  return 'http://localhost:3000/api';
+
+  // 默认使用服务器后端
+  return 'https://yizhancs.cn/api';
 };
 
 export const BASE_URL = getBaseUrl();
