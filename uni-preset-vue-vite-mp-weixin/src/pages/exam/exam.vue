@@ -164,13 +164,17 @@ const fetchMaterials = async (reset = false) => {
   
   loading.value = true;
   try {
-    const res = await $api.publicApi.getNotices({
-      category: currentCategory.value === '全部' ? undefined : currentCategory.value,
+    const params = {
       sort: currentSort.value,
       keyword: searchKeyword.value,
       page: page.value,
       size: 10
-    });
+    };
+    // 只有当不是"全部"时才添加 category 参数
+    if (currentCategory.value !== '全部') {
+      params.category = currentCategory.value;
+    }
+    const res = await $api.publicApi.getNotices(params);
     
     if (res.code === 0) {
       let list = res.data || [];
