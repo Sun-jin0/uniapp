@@ -1279,7 +1279,7 @@ const submitNote = async () => {
     if (editingNote.value) {
       // 修改笔记
       res = await publicApi.updateQuestionNote({
-        id: editingNote.value.id,
+        noteId: editingNote.value.id,
         content: addNoteContent.value,
         isPublic: isPublicNote.value ? 1 : 0
       });
@@ -1368,7 +1368,7 @@ const deleteNote = async (noteId) => {
     success: async (res) => {
       if (res.confirm) {
         try {
-          const response = await publicApi.deleteQuestionNote({ id: noteId });
+          const response = await publicApi.deleteQuestionNote({ noteId: noteId });
           if (response.code === 0) {
             uni.showToast({ title: '删除成功', icon: 'success' });
             const question = questions.value[currentIndex.value];

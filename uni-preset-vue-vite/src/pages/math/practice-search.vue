@@ -41,13 +41,13 @@
               <span v-else-if="item.BusType" class="bus-type-label">
                 {{ item.BusType }}
               </span>
-              <span v-if="item.Title" class="detail-title" v-html="transformContextString(item.Title)"></span>
+              <span v-if="item.Title" class="detail-title" v-html="parseTextWithLatexForMp(item.Title)"></span>
               <hr style="border:0; border-top:1px solid var(--light-border-color); margin:8px 0;">
             </div>
-            <div class="details-section-content" v-if="item.Context" v-html="transformContextString(item.Context)"></div>
+            <div class="details-section-content" v-if="item.Context" v-html="parseTextWithLatexForMp(item.Context)"></div>
           </div>
         </div>
-        
+
         <div v-if="hasKnowledgePoints" class="section-header">
           <h2>考点与知识点</h2>
         </div>
@@ -57,12 +57,12 @@
               {{ group.type === '考点' ? '🟠 ' : '🔴 ' }}{{ group.type }}
             </div>
             <div v-for="(item, idx) in group.items" :key="idx" class="knowledge-point-item">
-              <div v-if="item.Title" class="kp-item-title" v-html="transformContextString(item.Title)"></div>
-              <div v-else-if="item._question_code && item._question_code.Title" class="kp-item-title" v-html="transformContextString(item._question_code.Title)"></div>
-              <div v-if="item.Context" class="kp-content" v-html="transformContextString(item.Context)"></div>
-              <div v-else-if="item._question_code && item._question_code.Content" class="kp-content" v-html="transformContextString(item._question_code.Content)"></div>
+              <div v-if="item.Title" class="kp-item-title" v-html="parseTextWithLatexForMp(item.Title)"></div>
+              <div v-else-if="item._question_code && item._question_code.Title" class="kp-item-title" v-html="parseTextWithLatexForMp(item._question_code.Title)"></div>
+              <div v-if="item.Context" class="kp-content" v-html="parseTextWithLatexForMp(item.Context)"></div>
+              <div v-else-if="item._question_code && item._question_code.Content" class="kp-content" v-html="parseTextWithLatexForMp(item._question_code.Content)"></div>
               <div v-if="item._question_code && item._question_code.Notes" class="kp-notes">
-                注: {{ transformContextString(item._question_code.Notes) }}
+                注: {{ parseTextWithLatexForMp(item._question_code.Notes) }}
               </div>
             </div>
           </div>
@@ -252,7 +252,7 @@ const transformedQuestionText = computed(() => {
     return '';
   }
   const fr = questionData.value.first_request[0];
-  return fr.QuestionTxt ? transformContextString(fr.QuestionTxt) : '';
+  return fr.QuestionTxt ? parseTextWithLatexForMp(fr.QuestionTxt) : '';
 });
 
 const hasSecondRequest = computed(() => {

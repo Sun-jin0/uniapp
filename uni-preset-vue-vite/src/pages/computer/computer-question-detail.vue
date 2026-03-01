@@ -152,7 +152,7 @@ onMounted(async () => {
       uni.setStorageSync(`last_pos_${currentContext.value}`, questionId);
     }
 
-  // #ifdef H5
+  // #ifdef H5 || APP-PLUS
   // 手动绑定 wheel 事件以支持 non-passive 模式，从而可以 preventDefault
   nextTick(() => {
     const container = document.querySelector('.app-container');
@@ -163,7 +163,7 @@ onMounted(async () => {
   // #endif
 });
 
-// #ifdef H5
+// #ifdef H5 || APP-PLUS
 onUnmounted(() => {
   const container = document.querySelector('.app-container');
   if (container) {

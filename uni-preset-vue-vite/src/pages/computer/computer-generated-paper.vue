@@ -70,12 +70,12 @@
           </view>
           
           <view class="question-body">
-            <view class="question-text" v-html="formatLatex(q.stem)"></view>
+            <view class="question-text" v-html="parseTextWithLatexForMp(q.stem)"></view>
             <!-- 选项展示 -->
             <view class="options-list" v-if="q.options && q.options.length > 0">
               <view v-for="opt in q.options" :key="opt.option_key" class="option-item">
                 <text class="option-key">{{ opt.option_key }}.</text>
-                <view class="option-value" v-html="formatLatex(opt.option_value)"></view>
+                <view class="option-value" v-html="parseTextWithLatexForMp(opt.option_value)"></view>
               </view>
             </view>
           </view>

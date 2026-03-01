@@ -265,23 +265,36 @@ function preprocessTextForMp(text) {
 
 /**
  * 使用 Towxml 解析包含 LaTeX 公式的文本
- * 适用于微信小程序
+ * 适用于微信小程序和 APP
  * @param {string} text - 包含 LaTeX 公式的文本
- * @returns {Object} - Towxml 可用的 nodes 对象
+ * @returns {Object|string} - Towxml 可用的 nodes 对象 或 HTML 字符串
  */
 export function parseTextWithLatexForMp(text) {
   if (!text || typeof text !== 'string') {
-    return {};
+    return '';
   }
 
+  // #ifdef APP-PLUS
+  // APP 端返回 HTML 字符串，用于 rich-text 组件
+  try {
+    const result = transformContextString(text);
+    // 将 HTML 字符串包装为 rich-text 可用的格式
+    return result;
+  } catch (error) {
+    console.error('parseTextWithLatexForMp APP error:', error);
+    return text;
+  }
+  // #endif
+
+  // #ifdef MP-WEIXIN
   try {
     // 1. 预处理文本
     let processedText = preprocessTextForMp(text);
-    
+
     // 2. 使用 Towxml 解析为 Markdown/LaTeX
     // Towxml 会自动处理 $...$ 和 $$...$$ 中的 LaTeX 公式
     const result = towxml(processedText, 'markdown');
-    
+
     return result || {};
   } catch (error) {
     console.error('parseTextWithLatexForMp error:', error);
@@ -292,6 +305,17 @@ export function parseTextWithLatexForMp(text) {
       children: [{ type: 'text', text: text }]
     };
   }
+  // #endif
+
+  // #ifndef APP-PLUS || MP-WEIXIN
+  // 其他平台默认使用 transformContextString
+  try {
+    return transformContextString(text);
+  } catch (error) {
+    console.error('parseTextWithLatexForMp default error:', error);
+    return text;
+  }
+  // #endif
 }
 
 // H5 版本的 transformContextString 函数保持不变

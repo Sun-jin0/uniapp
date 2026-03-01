@@ -320,14 +320,12 @@
         <div class="modal-body">
           <div class="input-item">
             <label>试卷名称</label>
-            <input 
-              type="text" 
-              v-model="paperTitle" 
+            <textarea 
+              v-model="paperTitle"
               placeholder="请输入试卷名称" 
               class="paper-name-input"
-              :focus="true"
-              @input="(e) => paperTitle = e.detail.value"
-            />
+              rows="1"
+            ></textarea>
           </div>
           <div class="input-item">
             <label>备注信息</label>
@@ -2299,6 +2297,7 @@ watch(selectedSubjectId, (newId) => {
   font-size: 28rpx;
   box-sizing: border-box;
   transition: all 0.2s;
+  min-height: 80rpx;
 }
 
 .paper-name-input:focus, .paper-remark-textarea:focus {

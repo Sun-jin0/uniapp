@@ -16,15 +16,15 @@
         </div>
           
           <div class="question-body">
-            <!-- #ifdef H5 -->
-            <div class="question-text" v-html="formatLatex(q.QuestionText)"></div>
+            <!-- #ifdef H5 || APP-PLUS -->
+            <div class="question-text" v-html="parseTextWithLatexForMp(q.QuestionText)"></div>
             <!-- #endif -->
             <!-- #ifdef MP-WEIXIN -->
             <towxml class="question-text" :nodes="parseTextWithLatexForMp(q.QuestionText)"></towxml>
             <!-- #endif -->
           </div>
 
-          <!-- #ifdef H5 -->
+          <!-- #ifdef H5 || APP-PLUS -->
           <div class="analysis-section" :class="{ 'expanded': q.isExpanded }" @click="toggleAnalysis(index)">
             <div class="analysis-header">
               <div class="analysis-title-group">
@@ -41,11 +41,11 @@
                     <div class="detail-card-dot"></div>
                     <div class="detail-card-title" v-html="getDetailHeader(detail)"></div>
                   </div>
-                  <div v-if="detail.Context" class="detail-card-body" v-html="formatLatex(detail.Context)"></div>
+                  <div v-if="detail.Context" class="detail-card-body" v-html="parseTextWithLatexForMp(detail.Context)"></div>
                 </div>
               </div>
               <!-- Fallback: 如果没有 details 但有 OriginalAnswerText -->
-              <div v-else-if="q.OriginalAnswerText" class="answer-content" v-html="formatLatex(q.OriginalAnswerText)"></div>
+              <div v-else-if="q.OriginalAnswerText" class="answer-content" v-html="parseTextWithLatexForMp(q.OriginalAnswerText)"></div>
               <!-- 无内容显示 -->
               <div v-else class="no-answer">
                 <div class="empty-icon">📝</div>

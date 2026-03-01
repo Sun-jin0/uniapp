@@ -35,12 +35,12 @@
           </view>
           
           <view class="question-body">
-            <view class="question-text" v-html="formatLatex(q.stem)"></view>
+            <view class="question-text" v-html="parseTextWithLatexForMp(q.stem)"></view>
             <!-- 选项展示 -->
             <view class="options-list" v-if="q.options && q.options.length > 0">
               <view v-for="opt in q.options" :key="opt.option_key" class="option-item">
                 <text class="option-key">{{ opt.option_key }}.</text>
-                <text class="option-value" v-html="formatLatex(opt.option_value)"></text>
+                <text class="option-value" v-html="parseTextWithLatexForMp(opt.option_value)"></text>
               </view>
             </view>
           </view>
@@ -60,24 +60,24 @@
                   <view class="detail-card-dot"></view>
                   <view class="detail-card-title"><text class="tag-label-daan">答案</text></view>
                 </view>
-                <view class="detail-card-body" v-html="formatLatex(q.answer)"></view>
+                <view class="detail-card-body" v-html="parseTextWithLatexForMp(q.answer)"></view>
               </view>
-              
+
               <!-- 解析 -->
               <view v-if="q.analysis" class="detail-card">
                 <view class="detail-card-header">
                   <view class="detail-card-dot"></view>
                   <view class="detail-card-title"><text class="tag-label-jiexi">解析</text></view>
                 </view>
-                <view class="detail-card-body" v-html="formatLatex(q.analysis)"></view>
+                <view class="detail-card-body" v-html="parseTextWithLatexForMp(q.analysis)"></view>
               </view>
 
               <!-- 小题解析 -->
               <view v-if="q.subs && q.subs.length > 0" class="subs-analysis">
                 <view v-for="sub in q.subs" :key="sub.sub_id" class="sub-item">
-                  <view class="sub-stem" v-html="formatLatex(`(${sub.question_order}) ${sub.stem}`)"></view>
-                  <view class="sub-answer">【答案】<text v-html="formatLatex(sub.answer)"></text></view>
-                  <view class="sub-analysis" v-if="sub.analysis">【解析】<text v-html="formatLatex(sub.analysis)"></text></view>
+                  <view class="sub-stem" v-html="parseTextWithLatexForMp(`(${sub.question_order}) ${sub.stem}`)"></view>
+                  <view class="sub-answer">【答案】<text v-html="parseTextWithLatexForMp(sub.answer)"></text></view>
+                  <view class="sub-analysis" v-if="sub.analysis">【解析】<text v-html="parseTextWithLatexForMp(sub.analysis)"></text></view>
                 </view>
               </view>
 

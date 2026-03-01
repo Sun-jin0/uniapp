@@ -68,8 +68,8 @@
           </div>
           
           <div class="question-body">
-            <!-- #ifdef H5 -->
-            <div class="question-text" v-html="formatLatex(q.QuestionText)"></div>
+            <!-- #ifdef H5 || APP-PLUS -->
+            <div class="question-text" v-html="parseTextWithLatexForMp(q.QuestionText)"></div>
             <!-- #endif -->
             <!-- #ifdef MP-WEIXIN -->
             <towxml class="question-text" :nodes="parseTextWithLatexForMp(q.QuestionText)"></towxml>
@@ -270,7 +270,11 @@ import { checkTextContent } from '@/utils/contentSecurity.js';
 const statusBarHeight = ref(0);
 const showToolMenu = ref(false);
 const paperId = ref(null);
-const paper = ref({});
+const paper = ref({
+  Title: '',
+  Config: null,
+  questions: []
+});
 const subjectName = ref('');
 const loading = ref(true);
 const displayMode = ref('text');

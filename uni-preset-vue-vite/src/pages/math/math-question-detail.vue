@@ -67,7 +67,10 @@
               <span class="question-pos">{{ getQuestionPage(sid) || 'N/A' }}-{{ getQuestionSort(sid) || 'N/A' }}</span>
             </div>
             <!-- #ifdef H5 -->
-            <div class="card-preview" v-html="getQuestionPreview(sid)"></div>
+            <div class="card-preview" v-html="parseTextWithLatexForMp(getQuestionPreview(sid))"></div>
+            <!-- #endif -->
+            <!-- #ifdef APP-PLUS -->
+            <rich-text class="card-preview" :nodes="parseTextWithLatexForMp(getQuestionPreview(sid))"></rich-text>
             <!-- #endif -->
             <!-- #ifdef MP-WEIXIN -->
             <towxml class="card-preview" :nodes="parseTextWithLatexForMp(getQuestionPreview(sid))"></towxml>
@@ -92,7 +95,10 @@
         <view v-else-if="currentQuestionData" id="question-content">
           <view v-if="currentQuestionData.first_request && currentQuestionData.first_request[0]" class="question-main-card">
             <!-- #ifdef H5 -->
-            <view class="question-text" v-if="currentQuestionData.first_request[0].QuestionText" v-html="transformContextString(displayQuestionText)" :style="{ fontSize: fontSize + 'px' }"></view>
+            <view class="question-text" v-if="currentQuestionData.first_request[0].QuestionText" v-html="parseTextWithLatexForMp(displayQuestionText)" :style="{ fontSize: fontSize + 'px' }"></view>
+            <!-- #endif -->
+            <!-- #ifdef APP-PLUS -->
+            <rich-text class="question-text" v-if="currentQuestionData.first_request[0].QuestionText" :nodes="parseTextWithLatexForMp(displayQuestionText)" :style="{ fontSize: fontSize + 'px' }"></rich-text>
             <!-- #endif -->
             <!-- #ifdef MP-WEIXIN -->
             <towxml class="question-text" v-if="currentQuestionData.first_request[0].QuestionText" :nodes="questionTextNodes"></towxml>
@@ -120,7 +126,10 @@
               >
                 <view class="option-label">{{ option.label }}</view>
                 <!-- #ifdef H5 -->
-                <view class="option-content" v-html="transformContextString(option.content)"></view>
+                <view class="option-content" v-html="parseTextWithLatexForMp(option.content)"></view>
+                <!-- #endif -->
+                <!-- #ifdef APP-PLUS -->
+                <rich-text class="option-content" :nodes="parseTextWithLatexForMp(option.content)"></rich-text>
                 <!-- #endif -->
                 <!-- #ifdef MP-WEIXIN -->
                 <towxml class="option-content" :nodes="optionNodesCache[option.label] || {}"></towxml>
@@ -157,14 +166,20 @@
                   <view class="analysis-card-header">
                     <view class="analysis-card-dot"></view>
                     <!-- #ifdef H5 -->
-                    <view class="analysis-card-title" v-html="getDetailHeader(item)"></view>
+                    <view class="analysis-card-title" v-html="parseTextWithLatexForMp(getDetailHeader(item))"></view>
+                    <!-- #endif -->
+                    <!-- #ifdef APP-PLUS -->
+                    <rich-text class="analysis-card-title" :nodes="parseTextWithLatexForMp(getDetailHeader(item))"></rich-text>
                     <!-- #endif -->
                     <!-- #ifdef MP-WEIXIN -->
                     <towxml class="analysis-card-title" :nodes="parseTextWithLatexForMp(getDetailHeader(item))"></towxml>
                     <!-- #endif -->
                   </view>
                   <!-- #ifdef H5 -->
-                  <view class="analysis-card-body" v-if="item.Context" v-html="transformContextString(item.Context)" :style="{ fontSize: (fontSize - 2) + 'px' }"></view>
+                  <view class="analysis-card-body" v-if="item.Context" v-html="parseTextWithLatexForMp(item.Context)" :style="{ fontSize: (fontSize - 2) + 'px' }"></view>
+                  <!-- #endif -->
+                  <!-- #ifdef APP-PLUS -->
+                  <rich-text class="analysis-card-body" v-if="item.Context" :nodes="parseTextWithLatexForMp(item.Context)" :style="{ fontSize: (fontSize - 2) + 'px' }"></rich-text>
                   <!-- #endif -->
                   <!-- #ifdef MP-WEIXIN -->
                   <towxml class="analysis-card-body" v-if="item.Context" :nodes="parseTextWithLatexForMp(item.Context)"></towxml>
@@ -184,7 +199,10 @@
                   </view>
                   <view class="kaodian-body">
                     <!-- #ifdef H5 -->
-                    <view class="kaodian-content" v-if="item._question_code?.KPContent || item._question_code?.Content || item.Context" v-html="transformContextString(item._question_code?.KPContent || item._question_code?.Content || item.Context)" :style="{ fontSize: (fontSize - 2) + 'px' }"></view>
+                    <view class="kaodian-content" v-if="item._question_code?.KPContent || item._question_code?.Content || item.Context" v-html="parseTextWithLatexForMp(item._question_code?.KPContent || item._question_code?.Content || item.Context)" :style="{ fontSize: (fontSize - 2) + 'px' }"></view>
+                    <!-- #endif -->
+                    <!-- #ifdef APP-PLUS -->
+                    <rich-text v-if="item._question_code?.KPContent || item._question_code?.Content || item.Context" class="kaodian-content" :nodes="parseTextWithLatexForMp(item._question_code?.KPContent || item._question_code?.Content || item.Context)" :style="{ fontSize: (fontSize - 2) + 'px' }"></rich-text>
                     <!-- #endif -->
                     <!-- #ifdef MP-WEIXIN -->
                     <towxml v-if="item._question_code?.KPContent || item._question_code?.Content || item.Context" class="kaodian-content" :nodes="parseTextWithLatexForMp(item._question_code?.KPContent || item._question_code?.Content || item.Context)"></towxml>
@@ -205,7 +223,10 @@
                   </view>
                   <view class="kaodian-body">
                     <!-- #ifdef H5 -->
-                    <view class="kaodian-content" v-if="item._question_code?.KPContent || item._question_code?.Content || item.Context" v-html="transformContextString(item._question_code?.KPContent || item._question_code?.Content || item.Context)" :style="{ fontSize: (fontSize - 2) + 'px' }"></view>
+                    <view class="kaodian-content" v-if="item._question_code?.KPContent || item._question_code?.Content || item.Context" v-html="parseTextWithLatexForMp(item._question_code?.KPContent || item._question_code?.Content || item.Context)" :style="{ fontSize: (fontSize - 2) + 'px' }"></view>
+                    <!-- #endif -->
+                    <!-- #ifdef APP-PLUS -->
+                    <rich-text v-if="item._question_code?.KPContent || item._question_code?.Content || item.Context" class="kaodian-content" :nodes="parseTextWithLatexForMp(item._question_code?.KPContent || item._question_code?.Content || item.Context)" :style="{ fontSize: (fontSize - 2) + 'px' }"></rich-text>
                     <!-- #endif -->
                     <!-- #ifdef MP-WEIXIN -->
                     <towxml v-if="item._question_code?.KPContent || item._question_code?.Content || item.Context" class="kaodian-content" :nodes="parseTextWithLatexForMp(item._question_code?.KPContent || item._question_code?.Content || item.Context)"></towxml>
@@ -232,7 +253,11 @@
                   </view>
                   <!-- #ifdef H5 -->
                   <image v-if="rel.QuestionImg" :src="rel.QuestionImg.replace('http://', 'https://')" class="related-tab-img" mode="widthFix" @error="handleImageError($event)"></image>
-                  <view class="related-tab-preview" v-else-if="rel.QuestionText" v-html="transformContextString(rel.QuestionText.substring(0, 150) + '...')" :style="{ fontSize: (fontSize - 3) + 'px' }"></view>
+                  <view class="related-tab-preview" v-else-if="rel.QuestionText" v-html="parseTextWithLatexForMp(rel.QuestionText.substring(0, 150) + '...')" :style="{ fontSize: (fontSize - 3) + 'px' }"></view>
+                  <!-- #endif -->
+                  <!-- #ifdef APP-PLUS -->
+                  <image v-if="rel.QuestionImg" :src="rel.QuestionImg.replace('http://', 'https://')" class="related-tab-img" mode="widthFix" @error="handleImageError($event)"></image>
+                  <rich-text class="related-tab-preview" v-else-if="rel.QuestionText" :nodes="parseTextWithLatexForMp(rel.QuestionText.substring(0, 150) + '...')" :style="{ fontSize: (fontSize - 3) + 'px' }"></rich-text>
                   <!-- #endif -->
                   <!-- #ifdef MP-WEIXIN -->
                   <image v-if="rel.QuestionImg" :src="rel.QuestionImg.replace('http://', 'https://')" class="related-tab-img" mode="widthFix" @error="handleImageError($event)"></image>
@@ -260,7 +285,11 @@
                 <!-- 优先显示图片 -->
                 <!-- #ifdef H5 -->
                 <image v-if="rel.QuestionImg" :src="rel.QuestionImg.replace('http://', 'https://')" class="related-question-img" mode="widthFix" @error="handleImageError($event)"></image>
-                <view class="related-content" v-else-if="rel.RelatedQuestionText || rel.QuestionText" v-html="transformContextString(rel.RelatedQuestionText || rel.QuestionText)" :style="{ fontSize: (fontSize - 3) + 'px' }"></view>
+                <view class="related-content" v-else-if="rel.RelatedQuestionText || rel.QuestionText" v-html="parseTextWithLatexForMp(rel.RelatedQuestionText || rel.QuestionText)" :style="{ fontSize: (fontSize - 3) + 'px' }"></view>
+                <!-- #endif -->
+                <!-- #ifdef APP-PLUS -->
+                <image v-if="rel.QuestionImg" :src="rel.QuestionImg.replace('http://', 'https://')" class="related-question-img" mode="widthFix" @error="handleImageError($event)"></image>
+                <rich-text class="related-content" v-else-if="rel.RelatedQuestionText || rel.QuestionText" :nodes="parseTextWithLatexForMp(rel.RelatedQuestionText || rel.QuestionText)" :style="{ fontSize: (fontSize - 3) + 'px' }"></rich-text>
                 <!-- #endif -->
                 <!-- #ifdef MP-WEIXIN -->
                 <image v-if="rel.QuestionImg" :src="rel.QuestionImg.replace('http://', 'https://')" class="related-question-img" mode="widthFix" @error="handleImageError($event)"></image>
@@ -601,7 +630,7 @@ import { checkTextContent } from '@/utils/contentSecurity.js';
 
 // 兼容微信小程序的 URLSearchParams 替代方案
 function getQueryParam(name) {
-  // #ifdef H5
+  // #ifdef H5 || APP-PLUS
   if (typeof window !== 'undefined' && window.location) {
     const urlParams = new URLSearchParams(window.location.search);
     return urlParams.get(name);
@@ -618,7 +647,7 @@ function getQueryParam(name) {
 }
 
 function setQueryParam(name, value) {
-  // #ifdef H5
+  // #ifdef H5 || APP-PLUS
   if (typeof window !== 'undefined' && window.history) {
     const urlParams = new URLSearchParams(window.location.search);
     urlParams.set(name, value);
@@ -789,7 +818,7 @@ const formatTime = (seconds) => {
 };
 
 const renderKatex = () => {
-  // #ifdef H5
+  // #ifdef H5 || APP-PLUS
   nextTick(() => {
     setTimeout(() => {
       const mainElement = document.getElementById('question-content');
@@ -812,13 +841,13 @@ const renderKatex = () => {
 const renderMath = (content) => {
   if (!content) return { type: 'html', content: '' };
   
-  // #ifdef H5
+  // #ifdef H5 || APP-PLUS
   return {
     type: 'html',
-    content: transformContextString(content)
+    content: parseTextWithLatexForMp(content)
   };
   // #endif
-  
+
   // #ifdef MP-WEIXIN
   return {
     type: 'nodes',
@@ -1325,7 +1354,7 @@ const changeFontSize = (delta) => {
 watch(analysisExpanded, async (newVal) => {
   if (newVal) {
     await nextTick();
-    // #ifdef H5
+    // #ifdef H5 || APP-PLUS
     setTimeout(() => {
       const analysisSection = document.querySelector('.analysis-section-wrapper');
       if (analysisSection) {
@@ -1344,7 +1373,7 @@ watch(analysisExpanded, async (newVal) => {
 watch(relatedExpanded, async (newVal) => {
   if (newVal) {
     await nextTick();
-    // #ifdef H5
+    // #ifdef H5 || APP-PLUS
     setTimeout(() => {
       const relatedSection = document.querySelector('.related-section');
       if (relatedSection) {
@@ -1359,7 +1388,7 @@ watch(relatedExpanded, async (newVal) => {
 watch(isDarkMode, async (newVal) => {
   console.log('Night mode changed:', newVal);
   // 微信小程序使用不同的方式处理夜间模式
-  // #ifdef H5
+  // #ifdef H5 || APP-PLUS
   await nextTick(); // 确保 DOM 元素已经渲染完成
   const appContainer = document.querySelector('.app-container');
   console.log('App container found:', appContainer);
@@ -1508,7 +1537,7 @@ const goBackToPreviousQuestion = () => {
 
 // 使用 watch 监听 sidebarOpen 状态来控制 body 滚动
 watch(sidebarOpen, (newVal) => {
-  // #ifdef H5
+  // #ifdef H5 || APP-PLUS
   if (newVal) {
     document.body.style.overflow = 'hidden';
   } else {
@@ -1519,7 +1548,7 @@ watch(sidebarOpen, (newVal) => {
 
 onUnmounted(() => {
   // 组件卸载时确保恢复滚动
-  // #ifdef H5
+  // #ifdef H5 || APP-PLUS
   document.body.style.overflow = '';
   // #endif
 });
@@ -1621,7 +1650,7 @@ const navigateToQuestion = (sourceId, bookIdForNav = null) => {
   isTestSubmitted.value = uni.getStorageSync(`test_submitted_${sourceId}`) || false;
   
   // 切换题目时，自动滚动到顶部
-  // #ifdef H5
+  // #ifdef H5 || APP-PLUS
   if (typeof window !== 'undefined') {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
@@ -1665,7 +1694,7 @@ const navigateToQuestion = (sourceId, bookIdForNav = null) => {
   }
 
   // 更新URL历史记录
-  // #ifdef H5
+  // #ifdef H5 || APP-PLUS
   if (typeof window !== 'undefined' && window.history) {
     // 从 topNavTitle 获取当前书本标题，用于URL构建
     let currentBookTitle = topNavTitle.value || '';
@@ -1805,7 +1834,7 @@ const goToBookshelf = () => {
 };
 
 const scrollToTop = () => {
-  // #ifdef H5
+  // #ifdef H5 || APP-PLUS
   window.scrollTo({ top: 0, behavior: 'smooth' });
   // #endif
   // #ifdef MP-WEIXIN
@@ -1814,7 +1843,7 @@ const scrollToTop = () => {
 };
 
 const handleImageError = (event) => {
-  // #ifdef H5
+  // #ifdef H5 || APP-PLUS
   event.target.alt = '图片加载失败';
   event.target.style.display = 'none';
   // #endif
@@ -1929,7 +1958,7 @@ const fetchQuestionData = async (qid, forceReload = false) => {
     fetchRelatedQuestions(qid);
     await increaseQuestionCount();
     await nextTick();
-    // #ifdef H5
+    // #ifdef H5 || APP-PLUS
     setTimeout(() => {
       const element = document.getElementById('question-content');
       if (element) {
@@ -1962,7 +1991,7 @@ const fetchQuestionData = async (qid, forceReload = false) => {
       await increaseQuestionCount();
       
       await nextTick();
-      // #ifdef H5
+      // #ifdef H5 || APP-PLUS
       setTimeout(() => {
         const element = document.getElementById('question-content');
         if (element) {
@@ -2108,7 +2137,7 @@ const fetchBookDetails = async () => {
       fetchQuestionData(currentVisibleSourceId.value);
       
       // 更新URL记录
-      // #ifdef H5
+      // #ifdef H5 || APP-PLUS
       if (typeof window !== 'undefined' && window.history) {
         const newUrl = `${window.location.origin}${window.location.pathname}?questionId=${currentVisibleSourceId.value}&bookId=${currentBookId.value}`;
         window.history.replaceState(
@@ -2225,7 +2254,7 @@ onLoad((options) => {
 });
 
 onMounted(() => {
-  // #ifdef H5
+  // #ifdef H5 || APP-PLUS
   window.addEventListener('scroll', () => {
     showScrollToTop.value = window.pageYOffset > 200;
   });
@@ -2248,13 +2277,13 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
-  // #ifdef H5
+  // #ifdef H5 || APP-PLUS
   window.removeEventListener('scroll', () => {
     showScrollToTop.value = window.pageYOffset > 200;
   });
-  
+
   window.removeEventListener('popstate', () => {});
-  
+
   document.body.style.overflow = '';
   // #endif
 });
@@ -2311,15 +2340,15 @@ watch(() => sidebarOpen.value, (newVal) => {
       expandedChapters.value = [targetChapterName];
     }
     
-    // #ifdef H5
+    // #ifdef H5 || APP-PLUS
     // 等待侧边栏打开和章节展开动画完成
     setTimeout(() => {
       const activeItem = document.querySelector('.question-link.active, .sidebar-question-card.active');
-      
+
       if (activeItem) {
-        activeItem.scrollIntoView({ 
+        activeItem.scrollIntoView({
           block: 'center',
-          behavior: 'smooth' 
+          behavior: 'smooth'
         });
       }
     }, 400);
@@ -2337,7 +2366,7 @@ watch(() => sidebarOpen.value, (newVal) => {
   }
   nextTick(() => {
     // 移除 marginLeft 偏移，保持居中
-    // #ifdef H5
+    // #ifdef H5 || APP-PLUS
     const appContainer = document.querySelector('.app-container');
     if (appContainer) {
       appContainer.style.marginLeft = 'auto';
@@ -2350,7 +2379,7 @@ watch(() => sidebarOpen.value, (newVal) => {
 watch(relatedExpanded, (newVal) => {
   if (newVal) {
     // When related questions are expanded, re-render LaTeX in the entire question content area
-    // #ifdef H5
+    // #ifdef H5 || APP-PLUS
     setTimeout(() => {
       const element = document.getElementById('question-content');
       if (element) {

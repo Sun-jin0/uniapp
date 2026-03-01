@@ -46,8 +46,8 @@
                 <button class="correction-btn" @click="openCorrectionModal(qData.id)">纠错</button>
                 <button v-if="curatedChapterId && !selectedQuestionIds.includes(qData.id)" class="quick-add-btn" @click="quickAddToCurated(qData.id)">快速加入</button>
               </div>
-              <div v-html="transformContextString(qData.first_request[0].QuestionTxt || qData.first_request[0].QuestionText)"></div>
-              
+              <div v-html="parseTextWithLatexForMp(qData.first_request[0].QuestionTxt || qData.first_request[0].QuestionText)"></div>
+
               <!-- 解析展开按钮 -->
               <div class="list-item-actions">
                 <button class="toggle-details-btn" @click="qData.showDetails = !qData.showDetails">
@@ -61,9 +61,9 @@
                   <div v-for="(item, idx) in sortDetails(qData.second_request)" :key="idx" class="detail-item">
                     <div class="detail-header">
                       <span class="tag-label" :class="`tag-label-${(item.BusType || '').toLowerCase()}`">{{ item.BusType }}</span>
-                      <span v-if="item.Title" v-html="transformContextString(item.Title)"></span>
+                      <span v-if="item.Title" v-html="parseTextWithLatexForMp(item.Title)"></span>
                     </div>
-                    <div class="details-section-content" v-html="transformContextString(item.Context)"></div>
+                    <div class="details-section-content" v-html="parseTextWithLatexForMp(item.Context)"></div>
                   </div>
                 </div>
               </div>
@@ -100,13 +100,13 @@
               <span v-else-if="item.BusType" class="bus-type-label">
                 {{ item.BusType }}
               </span>
-              <span v-if="item.Title" class="detail-title" v-html="transformContextString(item.Title)"></span>
+              <span v-if="item.Title" class="detail-title" v-html="parseTextWithLatexForMp(item.Title)"></span>
               <hr style="border:0; border-top:1px solid var(--light-border-color); margin:8px 0;">
             </div>
-            <div class="details-section-content" v-if="item.Context" v-html="transformContextString(item.Context)"></div>
+            <div class="details-section-content" v-if="item.Context" v-html="parseTextWithLatexForMp(item.Context)"></div>
           </div>
         </div>
-        
+
         <div v-if="hasKnowledgePoints" class="section-header">
           <h2>考点与知识点</h2>
         </div>
@@ -116,10 +116,10 @@
               {{ group.type === '考点' ? '🟠 ' : '🔴 ' }}{{ group.type }}
             </div>
             <div v-for="(item, idx) in group.items" :key="idx" class="knowledge-point-item">
-              <div v-if="item.Title" class="kp-item-title" v-html="transformContextString(item.Title)"></div>
-              <div v-else-if="item._question_code && item._question_code.Title" class="kp-item-title" v-html="transformContextString(item._question_code.Title)"></div>
-              <div v-if="item.Context" class="kp-content" v-html="transformContextString(item.Context)"></div>
-              <div v-else-if="item._question_code && item._question_code.Content" class="kp-content" v-html="transformContextString(item._question_code.Content)"></div>
+              <div v-if="item.Title" class="kp-item-title" v-html="parseTextWithLatexForMp(item.Title)"></div>
+              <div v-else-if="item._question_code && item._question_code.Title" class="kp-item-title" v-html="parseTextWithLatexForMp(item._question_code.Title)"></div>
+              <div v-if="item.Context" class="kp-content" v-html="parseTextWithLatexForMp(item.Context)"></div>
+              <div v-else-if="item._question_code && item._question_code.Content" class="kp-content" v-html="parseTextWithLatexForMp(item._question_code.Content)"></div>
               <div v-if="item._question_code && item._question_code.Notes" class="kp-notes">
                 注: {{ transformContextString(item._question_code.Notes) }}
               </div>
