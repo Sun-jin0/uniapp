@@ -111,6 +111,7 @@
 <script setup>
 import { ref, reactive, onMounted, onUnmounted, getCurrentInstance } from 'vue';
 import { checkTextContent } from '@/utils/contentSecurity.js';
+import { BASE_URL } from '@/api/request.js';
 
 const instance = getCurrentInstance();
 
@@ -166,7 +167,7 @@ const uploadAvatar = async (tempFilePath) => {
     
     // 使用uni.uploadFile上传文件
     uni.uploadFile({
-      url: 'http://localhost:3000/api/user/upload-avatar', // 后端上传接口
+      url: `${BASE_URL}/user/upload-avatar`, // 后端上传接口
       filePath: tempFilePath,
       name: 'avatar',
       header: {
