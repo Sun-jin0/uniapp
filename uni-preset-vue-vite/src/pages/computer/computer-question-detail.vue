@@ -4,6 +4,7 @@ import { request } from '../../api/request';
 import { transformContextString } from '../../utils/latex';
 import { processStem, countBlanks } from './utils/questionUtils';
 import SvgIcon from '../../components/SvgIcon/SvgIcon.vue';
+import { checkTextContent } from '@/utils/contentSecurity.js';
 
 const statusBarHeight = ref(0);
 const question = ref(null);
@@ -365,6 +366,21 @@ const submitFeedback = async () => {
     uni.showToast({ title: '请输入反馈内容', icon: 'none' });
     return;
   }
+
+  // 内容安全检测
+  uni.showLoading({ title: '内容检测中...' });
+  const checkResult = await checkTextContent(feedbackContent.value);
+  uni.hideLoading();
+
+  if (!checkResult.isSafe) {
+    uni.showToast({
+      title: checkResult.message,
+      icon: 'none',
+      duration: 3000
+    });
+    return;
+  }
+
   try {
     await request({
       url: '/computer1/feedback',

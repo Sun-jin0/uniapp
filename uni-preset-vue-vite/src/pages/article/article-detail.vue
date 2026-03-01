@@ -11,8 +11,26 @@
       </view>
     </view>
     
+    <!-- 加载中状态 -->
+    <view v-if="isCheckingLogin" class="loading-container" :style="{ marginTop: (statusBarHeight + 44) + 'px' }">
+      <view class="loading-spinner"></view>
+      <text class="loading-text">加载中...</text>
+    </view>
+    
+    <!-- 未登录提示 -->
+    <view v-else-if="!isLoggedIn" class="unlogin-container" :style="{ marginTop: (statusBarHeight + 44) + 'px' }">
+      <view class="unlogin-card">
+        <view class="unlogin-icon">
+          <text class="icon-text">📖</text>
+        </view>
+        <text class="unlogin-title">文章详情</text>
+        <text class="unlogin-desc">登录后可查看完整文章内容</text>
+        <button class="login-btn" @click="goToLogin">立即登录</button>
+      </view>
+    </view>
+    
     <!-- 文章内容 -->
-    <scroll-view class="article-content" scroll-y :style="{ height: 'calc(100vh - ' + (statusBarHeight + 44) + 'px)', marginTop: (statusBarHeight + 44) + 'px' }">
+    <scroll-view v-else class="article-content" scroll-y :style="{ height: 'calc(100vh - ' + (statusBarHeight + 44) + 'px)', marginTop: (statusBarHeight + 44) + 'px' }">
       <view v-if="article" class="article-detail">
         <!-- 文章标题 -->
         <view class="article-title">{{ article.title }}</view>
@@ -67,6 +85,25 @@ const isDarkMode = ref(false);
 
 // 文章数据
 const article = ref(null);
+
+// 登录状态
+const isLoggedIn = ref(false);
+const isCheckingLogin = ref(true);
+
+// 检查登录状态
+const checkLoginStatus = () => {
+  const token = uni.getStorageSync('token');
+  isLoggedIn.value = !!token;
+  isCheckingLogin.value = false;
+  return isLoggedIn.value;
+};
+
+// 跳转到登录页
+const goToLogin = () => {
+  uni.navigateTo({
+    url: '/pages/login/login'
+  });
+};
 
 // 获取当前页面参数
 const getCurrentPageParams = () => {
@@ -147,6 +184,9 @@ onMounted(() => {
   const systemInfo = uni.getSystemInfoSync();
   statusBarHeight.value = systemInfo.statusBarHeight || 0;
   
+  // 检查登录状态
+  checkLoginStatus();
+  
   // 从本地存储获取当前主题模式，默认白天模式
   const currentTheme = uni.getStorageSync('themeMode') || 'light';
   isDarkMode.value = currentTheme === 'dark';
@@ -156,8 +196,10 @@ onMounted(() => {
     isDarkMode.value = darkMode;
   });
   
-  // 初始化文章数据
-  initArticle();
+  // 已登录才加载文章数据
+  if (isLoggedIn.value) {
+    initArticle();
+  }
 });
 </script>
 
@@ -353,6 +395,123 @@ onMounted(() => {
 .loading-text {
   font-size: 28rpx;
   color: #999999;
+}
+
+/* 加载中状态 */
+.loading-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 60vh;
+  padding: 40rpx;
+}
+
+.loading-spinner {
+  width: 60rpx;
+  height: 60rpx;
+  border: 4rpx solid #e5e7eb;
+  border-top-color: #6366f1;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.loading-text {
+  margin-top: 20rpx;
+  font-size: 28rpx;
+  color: #6b7280;
+}
+
+/* 未登录状态样式 */
+.unlogin-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 60vh;
+  padding: 40rpx;
+}
+
+.unlogin-card {
+  background: white;
+  border-radius: 30rpx;
+  padding: 80rpx 60rpx;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  box-shadow: 0 10rpx 30rpx rgba(0, 0, 0, 0.08);
+  width: 100%;
+  max-width: 600rpx;
+}
+
+.unlogin-icon {
+  width: 140rpx;
+  height: 140rpx;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #e0e7ff 0%, #c7d2fe 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 40rpx;
+}
+
+.icon-text {
+  font-size: 70rpx;
+}
+
+.unlogin-title {
+  font-size: 40rpx;
+  font-weight: bold;
+  color: #1f2937;
+  margin-bottom: 20rpx;
+}
+
+.unlogin-desc {
+  font-size: 26rpx;
+  color: #6b7280;
+  text-align: center;
+  margin-bottom: 50rpx;
+  line-height: 1.6;
+}
+
+.login-btn {
+  width: 80%;
+  height: 88rpx;
+  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+  color: white;
+  font-size: 30rpx;
+  font-weight: 600;
+  border-radius: 44rpx;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.login-btn:active {
+  opacity: 0.9;
+}
+
+/* 夜间模式 - 未登录 */
+.dark-mode .unlogin-card {
+  background: #1f2937;
+}
+
+.dark-mode .unlogin-icon {
+  background: linear-gradient(135deg, #312e81 0%, #4c1d95 100%);
+}
+
+.dark-mode .unlogin-title {
+  color: #f9fafb;
+}
+
+.dark-mode .unlogin-desc {
+  color: #9ca3af;
 }
 
 /* 夜间模式适配 */

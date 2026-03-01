@@ -1,123 +1,107 @@
 <template>
   <view class="container" :class="{ 'dark-mode': isDarkMode }">
     <view class="scroll-content">
-      <!-- 用户信息卡片 (玻璃拟态效果) -->
-      <view class="user-profile-header">
-        <view class="user-card-glass">
-          <view class="avatar-section">
-            <image class="main-avatar" :src="userAvatar || 'https://picsum.photos/id/1005/100/100'" mode="aspectFill"></image>
-            <view class="level-tag">Lv.{{ userLevel }}</view>
+      <!-- 未登录状态 -->
+      <view v-if="!isLoggedIn" class="unlogin-container">
+        <view class="unlogin-card">
+          <view class="unlogin-avatar">
+            <view class="default-avatar">?</view>
           </view>
-          <view class="info-section">
-            <view class="name-row">
-              <text class="user-name" style="max-width: 280rpx; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ userName }}</text>
-              <view class="vip-badge" v-if="isAdmin">PRO</view>
-            </view>
-            <view class="id-row">
-              <text class="user-id">ID: {{ userId || '---' }}</text>
-              <button class="copy-btn" @click="copyUserId">复制</button>
-            </view>
-            <view class="rank-row" v-if="questionRank > 0">
-              <text class="rank-label">刷题排名: </text>
-              <text class="rank-value">{{ questionRank }}名</text>
-            </view>
-          </view>
-          <view class="edit-btn" @click="editProfile">
-            <view class="edit-icon"></view>
-          </view>
+          <text class="unlogin-title">未登录</text>
+          <text class="unlogin-desc">登录后可查看个人数据和使用更多功能</text>
+          <button class="login-btn" @click="goToLogin">立即登录</button>
         </view>
       </view>
       
-      <!-- 学习数据简报 -->
-      <view class="stats-container">
-        <view class="stats-card">
-          <view class="stat-box" @click="viewStats">
-            <text class="stat-num">{{ totalQuestions }}</text>
-            <text class="stat-label">刷题数</text>
-          </view>
-          <view class="stat-divider"></view>
-          <view class="stat-box" @click="viewStats">
-            <text class="stat-num">{{ questionRank > 0 ? questionRank : '---' }}</text>
-            <text class="stat-label">刷题排名</text>
-          </view>
-          <view class="stat-divider"></view>
-          <view class="stat-box" @click="viewStats">
-            <text class="stat-num">{{ practiceDays }}</text>
-            <text class="stat-label">坚持天数</text>
-          </view>
-        </view>
-      </view>
-      
-      <!-- 功能菜单区域 -->
-      <view class="menu-container">
-        <!-- 核心功能组 -->
-        <view class="menu-group-card">
-          <view class="menu-item-row" @click="goToMyVideos">
-            <view class="icon-box video-bg">
-              <view class="inner-icon video"></view>
+      <!-- 已登录状态 -->
+      <template v-else>
+        <!-- 用户信息卡片 (玻璃拟态效果) -->
+        <view class="user-profile-header">
+          <view class="user-card-glass">
+            <view class="avatar-section">
+              <image class="main-avatar" :src="userAvatar || 'https://picsum.photos/id/1005/100/100'" mode="aspectFill"></image>
+              <view class="level-tag">Lv.{{ userLevel }}</view>
             </view>
-            <text class="item-label">我的视频</text>
-            <view class="item-arrow"></view>
-          </view>
-          <view class="menu-item-row" @click="goToRedeem">
-            <view class="icon-box redeem-bg">
-              <view class="inner-icon redeem"></view>
+            <view class="info-section">
+              <view class="name-row">
+                <text class="user-name" style="max-width: 280rpx; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ userName }}</text>
+                <view class="vip-badge" v-if="userLevel >= 5">PRO</view>
+              </view>
+              <view class="id-row">
+                <text class="user-id">ID: {{ userId || '---' }}</text>
+                <button class="copy-btn" @click="copyUserId">复制</button>
+              </view>
+              <view class="rank-row" v-if="questionRank > 0">
+                <text class="rank-label">刷题排名: </text>
+                <text class="rank-value">{{ questionRank }}名</text>
+              </view>
             </view>
-            <text class="item-label">兑换中心</text>
-            <view class="item-arrow"></view>
-          </view>
-          <view class="menu-item-row" @click="goToRanking">
-            <view class="icon-box ranking-bg">
-              <view class="inner-icon ranking"></view>
+            <view class="edit-btn" @click="editProfile">
+              <view class="edit-icon"></view>
             </view>
-            <text class="item-label">排行榜</text>
-            <view class="item-arrow"></view>
-          </view>
-          <view class="menu-item-row" @click="goToCheckin">
-            <view class="icon-box checkin-bg">
-              <view class="inner-icon checkin"></view>
-            </view>
-            <text class="item-label">每日签到</text>
-            <view class="item-arrow"></view>
           </view>
         </view>
         
-        <!-- 系统设置组 -->
-        <view class="menu-group-card">
-          <view class="menu-item-row">
-            <view class="icon-box night-bg">
-              <view class="inner-icon night"></view>
+        <!-- 学习数据简报 -->
+        <view class="stats-container">
+          <view class="stats-card">
+            <view class="stat-box" @click="viewStats">
+              <text class="stat-num">{{ totalQuestions }}</text>
+              <text class="stat-label">刷题数</text>
             </view>
-            <text class="item-label">夜间模式</text>
-            <switch :checked="isDarkMode" @change="toggleTheme" color="#6366f1" scale="0.8" />
-          </view>
-          <view class="menu-item-row" @click="goToFeedback">
-            <view class="icon-box feedback-bg">
-              <view class="inner-icon feedback"></view>
+            <view class="stat-divider"></view>
+            <view class="stat-box" @click="viewStats">
+              <text class="stat-num">{{ questionRank > 0 ? questionRank : '---' }}</text>
+              <text class="stat-label">刷题排名</text>
             </view>
-            <text class="item-label">意见反馈</text>
-            <view class="item-arrow"></view>
-          </view>
-          <view class="menu-item-row" v-if="isAdmin" @click="goToAdmin">
-            <view class="icon-box admin-bg">
-              <view class="inner-icon admin"></view>
+            <view class="stat-divider"></view>
+            <view class="stat-box" @click="viewStats">
+              <text class="stat-num">{{ practiceDays }}</text>
+              <text class="stat-label">坚持天数</text>
             </view>
-            <text class="item-label">管理后台</text>
-            <view class="item-arrow"></view>
           </view>
         </view>
         
-        <!-- 退出操作 -->
-        <view class="logout-area" @click="logout">
-          <text class="logout-text">退出登录</text>
+        <!-- 功能菜单区域 -->
+        <view class="menu-container">
+          <!-- 核心功能组 -->
+          <view class="menu-group-card">
+            <view class="menu-item-row" @click="goToMyVideos">
+              <view class="icon-box video-bg">
+                <view class="inner-icon video"></view>
+              </view>
+              <text class="item-label">我的视频</text>
+              <view class="item-arrow"></view>
+            </view>
+            <view class="menu-item-row" @click="goToRedeem">
+              <view class="icon-box redeem-bg">
+                <view class="inner-icon redeem"></view>
+              </view>
+              <text class="item-label">兑换中心</text>
+              <view class="item-arrow"></view>
+            </view>
+            <view class="menu-item-row" @click="goToRanking">
+              <view class="icon-box ranking-bg">
+                <view class="inner-icon ranking"></view>
+              </view>
+              <text class="item-label">排行榜</text>
+              <view class="item-arrow"></view>
+            </view>
+          </view>
+          
+          <!-- 退出操作 -->
+          <view class="logout-area" @click="logout">
+            <text class="logout-text">退出登录</text>
+          </view>
         </view>
-      </view>
+      </template>
     </view>
   </view>
 </template>
 
 <script setup>
 import { ref, onMounted, onUnmounted, getCurrentInstance } from 'vue';
+import { onShow } from '@dcloudio/uni-app';
 
 const instance = getCurrentInstance();
 
@@ -135,8 +119,22 @@ const statusBarHeight = ref(0);
 const userAvatar = ref('');
 // 排名信息
 const questionRank = ref(0);
-// 管理员权限状态
-const isAdmin = ref(false);
+// 登录状态
+const isLoggedIn = ref(false);
+
+// 检查登录状态
+const checkLoginStatus = () => {
+  const token = uni.getStorageSync('token');
+  isLoggedIn.value = !!token;
+  return isLoggedIn.value;
+};
+
+// 跳转到登录页
+const goToLogin = () => {
+  uni.navigateTo({
+    url: '/pages/login/login'
+  });
+};
 
 // 加载用户信息
 const loadUserInfo = async () => {
@@ -157,7 +155,6 @@ const loadUserInfo = async () => {
         }
       };
       userLevel.value = res.data.level || calcLevel(res.data.totalQuestions || 0);
-      isAdmin.value = res.data.role === 2 || res.data.role === 1; // 允许管理员和超级管理员访问
       userAvatar.value = res.data.avatar || '';
       // 加载排行榜数据获取排名
       const rankRes = await instance.appContext.config.globalProperties.$api.wrongBookApi.getLeaderboard('questions', 'all');
@@ -167,23 +164,23 @@ const loadUserInfo = async () => {
         questionRank.value = res.data.questionRank || 0;
       }
       console.log('用户信息:', res.data);
-      console.log('用户角色:', res.data.role);
-      console.log('是否为管理员:', isAdmin.value);
     }
   } catch (error) {
     console.error('加载用户信息失败:', error);
   }
 };
 
-// 加载签到数据获取坚持天数
-const loadCheckinData = async () => {
+// 加载学习数据获取坚持天数
+const loadStudyData = async () => {
   try {
-    const res = await instance.appContext.config.globalProperties.$api.checkinApi.getCheckinRecords();
+    // 从用户信息获取答题天数
+    const res = await instance.appContext.config.globalProperties.$api.userApi.getUserInfo();
     if (res.code === 0) {
-      practiceDays.value = res.data.totalDays || 0;
+      // 使用连续答题天数或总答题天数
+      practiceDays.value = res.data.streakDays || res.data.totalDays || 0;
     }
   } catch (error) {
-    console.error('加载签到数据失败:', error);
+    console.error('加载学习数据失败:', error);
   }
 };
 
@@ -245,15 +242,25 @@ const toggleTheme = (e) => {
   });
 };
 
+// 加载页面数据
+const loadPageData = () => {
+  // 检查登录状态
+  checkLoginStatus();
+  
+  // 如果已登录，加载用户数据
+  if (isLoggedIn.value) {
+    loadUserInfo();
+    loadStudyData();
+  }
+};
+
 // 初始化主题状态
 onMounted(() => {
   const systemInfo = uni.getSystemInfoSync();
   statusBarHeight.value = systemInfo.statusBarHeight || 0;
   
-  // 加载用户信息
-  loadUserInfo();
-  // 加载签到数据获取坚持天数
-  loadCheckinData();
+  // 加载页面数据
+  loadPageData();
   
   // 从本地存储获取当前主题模式，默认白天模式
   const currentTheme = uni.getStorageSync('themeMode') || 'light';
@@ -266,8 +273,15 @@ onMounted(() => {
   
   // 监听头像更新事件
   uni.$on('avatarUpdated', () => {
-    loadUserInfo();
+    if (isLoggedIn.value) {
+      loadUserInfo();
+    }
   });
+});
+
+// 每次显示页面时检查登录状态（解决缓存问题）
+onShow(() => {
+  loadPageData();
 });
 
 onUnmounted(() => {
@@ -297,18 +311,9 @@ const goToRedeem = () => {
 };
 
 // 跳转到管理员后台
-const goToAdmin = () => {
-  uni.navigateTo({
-    url: '/pages/admin/admin'
-  });
-};
 
-// 跳转到每日签到
-const goToCheckin = () => {
-  uni.navigateTo({
-    url: '/pages/checkin/checkin'
-  });
-};
+
+
 
 // 跳转到排行榜
 const goToRanking = () => {
@@ -555,17 +560,11 @@ const logout = () => {
 .ranking-bg { background: #dcfce7; }
 .ranking { background-color: #10b981; mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M7.5 21H2V9h5.5v12zm7.25 0h-5.5V3h5.5v18zm7.25 0h-5.5v-9H22v9z"/></svg>'); }
 
-.checkin-bg { background: #e0e7ff; }
-.checkin { background-color: #6366f1; mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11zM7 10h5v5H7v-5z"/></svg>'); }
-
 .night-bg { background: #f3f4f6; }
 .night { background-color: #4b5563; mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9c0-.46-.04-.92-.1-1.36-.98 1.37-2.58 2.26-4.4 2.26-2.98 0-5.4-2.42-5.4-5.4 0-1.81.89-3.42 2.26-4.4-.44-.06-.9-.1-1.36-.1z"/></svg>'); }
 
 .feedback-bg { background: #f3f4f6; }
 .feedback { background-color: #4b5563; mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-7 12h-2v-2h2v2zm0-4h-2V6h2v4z"/></svg>'); }
-
-.admin-bg { background: #ede9fe; }
-.admin { background-color: #8b5cf6; mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>'); }
 
 .item-label {
   flex: 1;
@@ -681,5 +680,91 @@ const logout = () => {
 
 .dark-mode .copy-btn:active {
   background: rgba(255, 255, 255, 0.25);
+}
+
+/* 未登录状态样式 */
+.unlogin-container {
+  padding: 60rpx 40rpx;
+}
+
+.unlogin-card {
+  background: white;
+  border-radius: 30rpx;
+  padding: 80rpx 40rpx;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  box-shadow: 0 10rpx 30rpx rgba(0, 0, 0, 0.08);
+}
+
+.unlogin-avatar {
+  width: 160rpx;
+  height: 160rpx;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #e0e7ff 0%, #c7d2fe 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 40rpx;
+}
+
+.default-avatar {
+  font-size: 80rpx;
+  color: #6366f1;
+  font-weight: bold;
+}
+
+.unlogin-title {
+  font-size: 40rpx;
+  font-weight: bold;
+  color: #1f2937;
+  margin-bottom: 20rpx;
+}
+
+.unlogin-desc {
+  font-size: 26rpx;
+  color: #6b7280;
+  text-align: center;
+  margin-bottom: 50rpx;
+  line-height: 1.6;
+}
+
+.login-btn {
+  width: 80%;
+  height: 88rpx;
+  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+  color: white;
+  font-size: 30rpx;
+  font-weight: 600;
+  border-radius: 44rpx;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.login-btn:active {
+  opacity: 0.9;
+}
+
+/* 夜间模式 - 未登录 */
+.dark-mode .unlogin-card {
+  background: #1f2937;
+}
+
+.dark-mode .unlogin-avatar {
+  background: linear-gradient(135deg, #312e81 0%, #4c1d95 100%);
+}
+
+.dark-mode .default-avatar {
+  color: #a78bfa;
+}
+
+.dark-mode .unlogin-title {
+  color: #f9fafb;
+}
+
+.dark-mode .unlogin-desc {
+  color: #9ca3af;
 }
 </style>

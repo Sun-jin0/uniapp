@@ -1,15 +1,15 @@
 {
 	"pages": [
 		{
-			"path": "pages/login/login",
-			"style": {
-				"navigationBarTitleText": "登录"
-			}
-		},
-		{
 			"path": "pages/index/index",
 			"style": {
 				"navigationBarTitleText": "QuizMaster刷题"
+			}
+		},
+		{
+			"path": "pages/login/login",
+			"style": {
+				"navigationBarTitleText": "登录"
 			}
 		},
 		{
@@ -76,12 +76,7 @@
 				"navigationBarTitleText": "正在加载..."
 			}
 		},
-		{
-			"path": "pages/checkin/checkin",
-			"style": {
-				"navigationBarTitleText": "每日签到"
-			}
-		},
+
 		{
 			"path": "pages/ranking/ranking",
 			"style": {
@@ -100,71 +95,6 @@
 		}
 	],
 	"subPackages": [
-		{
-			"root": "pages/admin",
-			"pages": [
-				{
-					"path": "admin",
-					"style": {
-						"navigationBarTitleText": "管理员后台",
-						"navigationStyle": "custom"
-					}
-				},
-				{
-					"path": "pan-management/pan-management",
-					"style": {
-						"navigationBarTitleText": "网盘资源管理",
-						"navigationStyle": "custom"
-					}
-				},
-				{
-					"path": "article/article-list",
-					"style": {
-						"navigationBarTitleText": "文章管理",
-						"navigationStyle": "custom"
-					}
-				},
-				{
-					"path": "article/article-edit",
-					"style": {
-						"navigationBarTitleText": "发帖",
-						"navigationStyle": "custom"
-					}
-				},
-				{
-					"path": "content-manage/content-manage",
-					"style": {
-						"navigationBarTitleText": "内容管理",
-						"navigationStyle": "custom"
-					}
-				},
-				{
-					"path": "banner/banner",
-					"style": {
-						"navigationBarTitleText": "轮播图管理"
-					}
-				},
-				{
-					"path": "homepage-card/homepage-card",
-					"style": {
-						"navigationBarTitleText": "首页卡片管理"
-					}
-				},
-				{
-					"path": "database-manager/database-manager",
-					"style": {
-						"navigationBarTitleText": "数据库管理"
-					}
-				},
-				{
-					"path": "video-admin/video-admin",
-					"style": {
-						"navigationBarTitleText": "视频课程管理",
-						"navigationStyle": "custom"
-					}
-				}
-			]
-		},
 		{
 			"root": "pages/computer",
 			"pages": [

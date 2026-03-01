@@ -110,6 +110,7 @@
 
 <script setup>
 import { ref, reactive, onMounted, onUnmounted, getCurrentInstance } from 'vue';
+import { checkTextContent } from '@/utils/contentSecurity.js';
 
 const instance = getCurrentInstance();
 
@@ -205,6 +206,25 @@ const uploadAvatar = async (tempFilePath) => {
 // 保存用户信息
 const saveUserInfo = async () => {
   try {
+    // 先检测昵称内容
+    if (userInfo.nickname && userInfo.nickname.trim()) {
+      uni.showLoading({
+        title: '内容检测中...'
+      });
+      
+      const checkResult = await checkTextContent(userInfo.nickname);
+      
+      if (!checkResult.isSafe) {
+        uni.hideLoading();
+        uni.showToast({
+          title: checkResult.message,
+          icon: 'none',
+          duration: 3000
+        });
+        return;
+      }
+    }
+    
     uni.showLoading({
       title: '保存中...'
     });

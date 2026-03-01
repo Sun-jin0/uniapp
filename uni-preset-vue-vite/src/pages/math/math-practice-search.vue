@@ -186,6 +186,7 @@
 import { ref, computed, onMounted } from 'vue';
 import { request } from '../../api/request';
 import { transformContextString } from '../../utils/latex';
+import { checkTextContent } from '@/utils/contentSecurity.js';
 
 // 基础状态
 const searchQuestionId = ref('');
@@ -226,7 +227,21 @@ const submitCorrection = async () => {
     uni.showToast({ title: '请完善纠错信息', icon: 'none' });
     return;
   }
-  
+
+  // 内容安全检测
+  uni.showLoading({ title: '内容检测中...' });
+  const checkResult = await checkTextContent(correctionContent.value);
+  uni.hideLoading();
+
+  if (!checkResult.isSafe) {
+    uni.showToast({
+      title: checkResult.message,
+      icon: 'none',
+      duration: 3000
+    });
+    return;
+  }
+
   try {
     await request({
       url: '/math/corrections',

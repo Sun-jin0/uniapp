@@ -116,7 +116,7 @@ const getLeaderboard = async (req, res) => {
       `;
     }
 
-    const [rankList] = await pool.query(sql, params);
+    const [rankList] = await pool.query(sql);
 
     // 获取当前用户排名 - 使用兼容MySQL 5.7的写法
     if (period === 'all') {

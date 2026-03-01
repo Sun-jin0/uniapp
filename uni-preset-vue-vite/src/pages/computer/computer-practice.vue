@@ -6,6 +6,7 @@ import medicalApi from '../../api/medical';
 import publicApi from '../../api/public';
 import { transformContextString } from '../../utils/latex';
 import SvgIcon from '../../components/SvgIcon/SvgIcon.vue';
+import { checkTextContent } from '@/utils/contentSecurity.js';
 
 const statusBarHeight = ref(0);
 const questions = ref([]);
@@ -117,6 +118,20 @@ const submitReply = async () => {
     return;
   }
   
+  // 内容安全检测
+  uni.showLoading({ title: '内容检测中...' });
+  const checkResult = await checkTextContent(replyContent.value);
+  uni.hideLoading();
+  
+  if (!checkResult.isSafe) {
+    uni.showToast({
+      title: checkResult.message,
+      icon: 'none',
+      duration: 3000
+    });
+    return;
+  }
+  
   const question = questions.value[currentIndex.value];
   if (!question) return;
 
@@ -143,6 +158,20 @@ const submitReply = async () => {
 const submitNote = async () => {
   if (!addNoteContent.value.trim()) {
     uni.showToast({ title: '请输入笔记内容', icon: 'none' });
+    return;
+  }
+  
+  // 内容安全检测
+  uni.showLoading({ title: '内容检测中...' });
+  const checkResult = await checkTextContent(addNoteContent.value);
+  uni.hideLoading();
+  
+  if (!checkResult.isSafe) {
+    uni.showToast({
+      title: checkResult.message,
+      icon: 'none',
+      duration: 3000
+    });
     return;
   }
   

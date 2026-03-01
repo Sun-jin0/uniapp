@@ -597,6 +597,7 @@ import { request } from '../../api/request';
 import api from '../../api/index';
 import publicApi from '../../api/public';
 import { transformContextString, katexRenderWithRetry, parseTextWithLatexForMp } from '../../utils/latex';
+import { checkTextContent } from '@/utils/contentSecurity.js';
 
 // 兼容微信小程序的 URLSearchParams 替代方案
 function getQueryParam(name) {
@@ -975,7 +976,21 @@ const submitCorrection = async () => {
     uni.showToast({ title: '请详细描述错误内容', icon: 'none' });
     return;
   }
-  
+
+  // 内容安全检测
+  uni.showLoading({ title: '内容检测中...' });
+  const checkResult = await checkTextContent(correctionContent.value);
+  uni.hideLoading();
+
+  if (!checkResult.isSafe) {
+    uni.showToast({
+      title: checkResult.message,
+      icon: 'none',
+      duration: 3000
+    });
+    return;
+  }
+
   try {
     await request({
       url: '/math/corrections',

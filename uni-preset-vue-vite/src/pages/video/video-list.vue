@@ -21,10 +21,6 @@
         </view>
         <view class="modal-body">
           <view class="form-item">
-            <text class="label">视频标题 (可选)</text>
-            <input v-model="recommendForm.title" class="input" placeholder="如：Vue3 实战教程" />
-          </view>
-          <view class="form-item">
             <text class="label">视频链接 (必填)</text>
             <textarea v-model="recommendForm.url" class="textarea" placeholder="请粘贴 B站、百度网盘或其他直链" />
           </view>
@@ -141,6 +137,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue';
 import videoApi from '@/api/video';
+import { checkTextContent } from '@/utils/contentSecurity.js';
 
 const subjects = ref([]);
 const currentSubjectId = ref(null);
@@ -151,7 +148,7 @@ const videos = ref([]);
 const loading = ref(false);
 const showRecommend = ref(false);
 const submitting = ref(false);
-const recommendForm = ref({ title: '', url: '' });
+const recommendForm = ref({ url: '' });
 
 // Redeemed collections data
 const redeemedCollections = ref([]);
@@ -163,13 +160,28 @@ const submitRecommend = async () => {
     uni.showToast({ title: '请输入视频链接', icon: 'none' });
     return;
   }
+  
+  // 内容安全检测
+  uni.showLoading({ title: '内容检测中...' });
+  const checkResult = await checkTextContent(recommendForm.value.url);
+  uni.hideLoading();
+  
+  if (!checkResult.isSafe) {
+    uni.showToast({
+      title: checkResult.message,
+      icon: 'none',
+      duration: 3000
+    });
+    return;
+  }
+  
   submitting.value = true;
   try {
     const res = await videoApi.recommendVideo(recommendForm.value);
     if (res.code === 0) {
       uni.showToast({ title: '推荐成功，感谢分享' });
       showRecommend.value = false;
-      recommendForm.value = { title: '', url: '' };
+      recommendForm.value = { url: '' };
     } else {
       uni.showToast({ title: res.message || '提交失败', icon: 'none' });
     }

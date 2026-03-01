@@ -1,9 +1,9 @@
 module.exports = {
     // LaTex公式、yuml解析服务架设参见 https://github.com/sbfkcel/markdown-server
 
-    // 数学公式解析API（使用本地地址）
+    // 数学公式解析API（使用服务器 HTTPS 地址）
     latex:{
-        api:'http://139.199.9.132:8001?tex'
+        api:'https://yizhancs.cn/latex?tex'
     },
 
     // yuml图解析APPI

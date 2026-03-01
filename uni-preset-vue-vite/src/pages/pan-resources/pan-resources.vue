@@ -1,53 +1,72 @@
 <template>
   <view class="container">
-    <!-- 搜索栏 -->
-    <view class="toolbar-section">
-      <view class="search-bar-container">
-        <view class="search-box">
-          <icon type="search" size="14" color="#999" />
-          <input 
-            class="search-input" 
-            type="text" 
-            placeholder="搜索资料名称..." 
-            v-model="searchKeyword"
-            @input="onSearch"
-          />
-          <text v-if="searchKeyword" class="clear-icon" @click="clearSearch">×</text>
+    <!-- 加载中状态 -->
+    <view v-if="isCheckingLogin" class="loading-container">
+      <view class="loading-spinner"></view>
+      <text class="loading-text">加载中...</text>
+    </view>
+    
+    <!-- 未登录提示 -->
+    <view v-else-if="!isLoggedIn" class="unlogin-container">
+      <view class="unlogin-card">
+        <view class="unlogin-icon">
+          <text class="icon-text">🔒</text>
         </view>
+        <text class="unlogin-title">网盘资源</text>
+        <text class="unlogin-desc">登录后可查看全网盘资源合集\n考研、教资、绝版课程持续更新</text>
+        <button class="login-btn" @click="goToLogin">立即登录</button>
       </view>
     </view>
 
-    <!-- 分类标签 -->
-    <view class="category-wrapper">
-      <scroll-view class="category-scroll" scroll-x :show-scrollbar="false">
-        <view class="category-list">
-          <view 
-            class="category-item" 
-            :class="{ active: selectedCategory === '' }"
-            @click="selectCategory('')"
-          >
-            全部资料 ({{ totalCount }})
-          </view>
-          <view 
-            v-for="cat in categories" 
-            :key="cat"
-            class="category-item"
-            :class="{ active: selectedCategory === cat }"
-            @click="selectCategory(cat)"
-          >
-            {{ cat }}
+    <template v-else>
+      <!-- 搜索栏 -->
+      <view class="toolbar-section">
+        <view class="search-bar-container">
+          <view class="search-box">
+            <icon type="search" size="14" color="#999" />
+            <input 
+              class="search-input" 
+              type="text" 
+              placeholder="搜索资料名称..." 
+              v-model="searchKeyword"
+              @input="onSearch"
+            />
+            <text v-if="searchKeyword" class="clear-icon" @click="clearSearch">×</text>
           </view>
         </view>
-      </scroll-view>
-    </view>
-
-    <!-- 资源列表 -->
-    <scroll-view class="resource-list" scroll-y @scrolltolower="loadMore">
-      <view v-if="loading && resources.length === 0" class="loading-state">
-        <text>加载中...</text>
       </view>
-      
-      <view v-else-if="resources.length === 0" class="empty-state">
+
+      <!-- 分类标签 -->
+      <view class="category-wrapper">
+        <scroll-view class="category-scroll" scroll-x :show-scrollbar="false">
+          <view class="category-list">
+            <view 
+              class="category-item" 
+              :class="{ active: selectedCategory === '' }"
+              @click="selectCategory('')"
+            >
+              全部资料 ({{ totalCount }})
+            </view>
+            <view 
+              v-for="cat in categories" 
+              :key="cat"
+              class="category-item"
+              :class="{ active: selectedCategory === cat }"
+              @click="selectCategory(cat)"
+            >
+              {{ cat }}
+            </view>
+          </view>
+        </scroll-view>
+      </view>
+
+      <!-- 资源列表 -->
+      <scroll-view class="resource-list" scroll-y @scrolltolower="loadMore">
+        <view v-if="loading && resources.length === 0" class="loading-state">
+          <text>加载中...</text>
+        </view>
+        
+        <view v-else-if="resources.length === 0" class="empty-state">
         <text class="empty-text">暂无相关资源</text>
         <text class="empty-hint">试试切换其他分类或搜索关键词</text>
       </view>
@@ -96,6 +115,7 @@
         </view>
       </view>
     </scroll-view>
+    </template>
   </view>
 </template>
 
@@ -112,7 +132,48 @@ const resources = ref([]);
 const totalCount = ref(0);
 const loading = ref(false);
 
+// 登录状态
+const isLoggedIn = ref(false);
+const isCheckingLogin = ref(true);
+
+// 检查登录状态
+const checkLoginStatus = () => {
+  const token = uni.getStorageSync('token');
+  isLoggedIn.value = !!token;
+  isCheckingLogin.value = false;
+  return isLoggedIn.value;
+};
+
+// 检查登录并提示
+const checkLoginAndAlert = () => {
+  if (!isLoggedIn.value) {
+    uni.showModal({
+      title: '提示',
+      content: '请先登录后再查看网盘资源',
+      confirmText: '去登录',
+      cancelText: '取消',
+      success: (res) => {
+        if (res.confirm) {
+          uni.navigateTo({
+            url: '/pages/login/login'
+          });
+        }
+      }
+    });
+    return false;
+  }
+  return true;
+};
+
 onMounted(() => {
+  // 检查登录状态
+  checkLoginStatus();
+  
+  // 未登录不加载数据
+  if (!isLoggedIn.value) {
+    return;
+  }
+  
   fetchCategories();
   fetchResources();
 });
@@ -180,6 +241,13 @@ const openUrl = (url, type) => {
     }
   });
 };
+
+// 跳转到登录页
+const goToLogin = () => {
+  uni.navigateTo({
+    url: '/pages/login/login'
+  });
+};
 </script>
 
 <style scoped>
@@ -188,6 +256,106 @@ const openUrl = (url, type) => {
   background-color: #f8f9fa;
   display: flex;
   flex-direction: column;
+}
+
+/* 加载中状态 */
+.loading-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40rpx;
+}
+
+.loading-spinner {
+  width: 60rpx;
+  height: 60rpx;
+  border: 4rpx solid #e5e7eb;
+  border-top-color: #009688;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.loading-text {
+  margin-top: 20rpx;
+  font-size: 28rpx;
+  color: #6b7280;
+}
+
+/* 未登录状态样式 */
+.unlogin-container {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40rpx;
+}
+
+.unlogin-card {
+  background: white;
+  border-radius: 30rpx;
+  padding: 80rpx 60rpx;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  box-shadow: 0 10rpx 30rpx rgba(0, 0, 0, 0.08);
+  width: 100%;
+  max-width: 600rpx;
+}
+
+.unlogin-icon {
+  width: 140rpx;
+  height: 140rpx;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #e0f2f1 0%, #f1f8e9 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 40rpx;
+}
+
+.icon-text {
+  font-size: 70rpx;
+}
+
+.unlogin-title {
+  font-size: 40rpx;
+  font-weight: bold;
+  color: #1f2937;
+  margin-bottom: 20rpx;
+}
+
+.unlogin-desc {
+  font-size: 26rpx;
+  color: #6b7280;
+  text-align: center;
+  margin-bottom: 50rpx;
+  line-height: 1.8;
+}
+
+.login-btn {
+  width: 80%;
+  height: 88rpx;
+  background: linear-gradient(135deg, #009688 0%, #00796b 100%);
+  color: white;
+  font-size: 30rpx;
+  font-weight: 600;
+  border-radius: 44rpx;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.login-btn:active {
+  opacity: 0.9;
 }
 
 .toolbar-section {

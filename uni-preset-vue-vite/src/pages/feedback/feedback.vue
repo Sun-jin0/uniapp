@@ -58,6 +58,7 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue';
+import { checkUserContent } from '@/utils/contentSecurity.js';
 
 // 主题状态
 const isDarkMode = ref(false);
@@ -107,32 +108,62 @@ const removeImage = (index) => {
 };
 
 // 提交反馈
-const submitFeedback = () => {
+const submitFeedback = async () => {
   if (!canSubmit.value) {
     return;
   }
   
   uni.showLoading({
-    title: '提交中...'
+    title: '内容检测中...'
   });
   
-  // 模拟提交
-  setTimeout(() => {
-    uni.hideLoading();
-    uni.showToast({
-      title: '反馈提交成功',
-      icon: 'success',
-      duration: 1500
+  try {
+    // 内容安全检测
+    const checkResult = await checkUserContent({
+      text: feedbackContent.value + ' ' + contactInfo.value,
+      images: images.value
     });
     
-    // 重置表单
+    if (!checkResult.isSafe) {
+      uni.hideLoading();
+      uni.showToast({
+        title: checkResult.message,
+        icon: 'none',
+        duration: 3000
+      });
+      return;
+    }
+    
+    // 检测通过，提交反馈
+    uni.showLoading({
+      title: '提交中...'
+    });
+    
+    // TODO: 调用实际的提交接口
     setTimeout(() => {
-      selectedType.value = 1;
-      feedbackContent.value = '';
-      contactInfo.value = '';
-      images.value = [];
-    }, 1500);
-  }, 1000);
+      uni.hideLoading();
+      uni.showToast({
+        title: '反馈提交成功',
+        icon: 'success',
+        duration: 1500
+      });
+      
+      // 重置表单
+      setTimeout(() => {
+        selectedType.value = 1;
+        feedbackContent.value = '';
+        contactInfo.value = '';
+        images.value = [];
+      }, 1500);
+    }, 1000);
+  } catch (error) {
+    uni.hideLoading();
+    console.error('提交反馈错误:', error);
+    uni.showToast({
+      title: '提交失败，请重试',
+      icon: 'none'
+    });
+  }
 };
 
 // 初始化主题状态

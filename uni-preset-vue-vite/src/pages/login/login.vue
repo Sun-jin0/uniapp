@@ -47,6 +47,28 @@ const isDarkMode = ref(false);
 const username = ref('');
 const password = ref('');
 
+// 页面加载时检查是否已登录
+onMounted(() => {
+  // 检查是否有token
+  const token = uni.getStorageSync('token');
+  if (token) {
+    // 已登录，跳转到首页
+    uni.switchTab({
+      url: '/pages/index/index'
+    });
+    return;
+  }
+  
+  // 从本地存储获取当前主题模式，默认白天模式
+  const currentTheme = uni.getStorageSync('themeMode') || 'light';
+  isDarkMode.value = currentTheme === 'dark';
+  
+  // 监听主题变化事件
+  uni.$on('themeChange', (darkMode) => {
+    isDarkMode.value = darkMode;
+  });
+});
+
 const usernameLogin = async () => {
   if (!username.value) {
     uni.showToast({
@@ -197,17 +219,7 @@ const handleLoginSuccess = (userData) => {
   }, 1500);
 };
 
-// 初始化主题状态
-onMounted(() => {
-  // 从本地存储获取当前主题模式，默认白天模式
-  const currentTheme = uni.getStorageSync('themeMode') || 'light';
-  isDarkMode.value = currentTheme === 'dark';
-  
-  // 监听主题变化事件
-  uni.$on('themeChange', (darkMode) => {
-    isDarkMode.value = darkMode;
-  });
-});
+
 </script>
 
 <style>

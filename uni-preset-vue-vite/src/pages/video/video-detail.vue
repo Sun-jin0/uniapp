@@ -252,6 +252,7 @@ import { onLoad } from '@dcloudio/uni-app';
 import videoApi from '@/api/video';
 import { BASE_URL } from '@/api/request';
 import { decryptVideoUrl } from './utils/videoEncryption';
+import { checkTextContent } from '@/utils/contentSecurity.js';
 
 const resourceVid = ref(null);
 const resourceId = ref(null);
@@ -469,6 +470,21 @@ const submitFeedback = async () => {
     uni.showToast({ title: '请输入内容', icon: 'none' });
     return;
   }
+
+  // 内容安全检测
+  uni.showLoading({ title: '内容检测中...' });
+  const checkResult = await checkTextContent(feedbackContent.value);
+  uni.hideLoading();
+
+  if (!checkResult.isSafe) {
+    uni.showToast({
+      title: checkResult.message,
+      icon: 'none',
+      duration: 3000
+    });
+    return;
+  }
+
   try {
     const res = await videoApi.submitFeedback({
       resourceId: resourceId.value,

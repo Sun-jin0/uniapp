@@ -265,6 +265,7 @@ import { onLoad } from '@dcloudio/uni-app';
 import { request, BASE_URL } from '../../api/request';
 import { transformContextString, parseTextWithLatexForMp } from '../../utils/latex';
 import SvgIcon from '@/components/SvgIcon/SvgIcon.vue';
+import { checkTextContent } from '@/utils/contentSecurity.js';
 
 const statusBarHeight = ref(0);
 const showToolMenu = ref(false);
@@ -340,7 +341,21 @@ const submitCorrection = async () => {
     uni.showToast({ title: '请详细描述错误内容', icon: 'none' });
     return;
   }
-  
+
+  // 内容安全检测
+  uni.showLoading({ title: '内容检测中...' });
+  const checkResult = await checkTextContent(correctionContent.value);
+  uni.hideLoading();
+
+  if (!checkResult.isSafe) {
+    uni.showToast({
+      title: checkResult.message,
+      icon: 'none',
+      duration: 3000
+    });
+    return;
+  }
+
   try {
     await request({
       url: '/math/corrections',

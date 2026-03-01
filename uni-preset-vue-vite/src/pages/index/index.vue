@@ -530,8 +530,31 @@ const getDeepColor = (color) => {
   return '#333333';
 };
 
+// 检查登录并提示
+const checkLoginAndAlert = () => {
+  if (!isLoggedIn.value) {
+    uni.showModal({
+      title: '提示',
+      content: '请先登录后再使用此功能',
+      confirmText: '去登录',
+      cancelText: '取消',
+      success: (res) => {
+        if (res.confirm) {
+          uni.navigateTo({
+            url: '/pages/login/login'
+          });
+        }
+      }
+    });
+    return false;
+  }
+  return true;
+};
+
 // AI作文批改跳转
 const handleAICorrection = () => {
+  if (!checkLoginAndAlert()) return;
+  
   uni.navigateTo({
     url: '/pages/essay/essay-list',
     fail: () => {
@@ -574,6 +597,16 @@ const calculateCountdown = () => {
 const practiceDays = ref(0);
 const isCheckedIn = ref(false);
 
+// 登录状态
+const isLoggedIn = ref(false);
+
+// 检查登录状态
+const checkLoginStatus = () => {
+  const token = uni.getStorageSync('token');
+  isLoggedIn.value = !!token;
+  return isLoggedIn.value;
+};
+
 // 最近练习科目
 const lastPracticeSubject = ref({
   id: 1,
@@ -609,6 +642,8 @@ const loadLastPracticeSubject = () => {
 
 // 处理继续练习
 const handleContinuePractice = () => {
+  if (!checkLoginAndAlert()) return;
+  
   if (lastPracticeSubject.value) {
     const url = lastPracticeSubject.value.url || `/pages/practice/practice-detail?id=${lastPracticeSubject.value.id}`;
     if (lastPracticeSubject.value.isTab) {
@@ -673,6 +708,13 @@ const getIconName = (val) => {
 
 // 获取签到数据并自动签到
 const initCheckinData = async () => {
+  // 未登录不调用接口
+  if (!isLoggedIn.value) {
+    practiceDays.value = 0;
+    isCheckedIn.value = false;
+    return;
+  }
+  
   try {
     const res = await instance.appContext.config.globalProperties.$api.checkinApi.getCheckinRecords();
     if (res.code === 0) {
@@ -1037,6 +1079,30 @@ const userRank = ref(null);
 
 // 加载所有首页数据
 const loadAllHomeData = async () => {
+  // 未登录不调用接口，使用本地数据
+  if (!isLoggedIn.value) {
+    // 使用本地存储的学习数据
+    const studyData = JSON.parse(uni.getStorageSync('study_data') || '{}');
+    const today = new Date().toISOString().split('T')[0];
+    const todayData = studyData[today] || { questions: 0, correct: 0 };
+    
+    if (todayData.questions > 0) {
+      todayStats.value = {
+        todayQuestions: todayData.questions,
+        todayAccuracy: todayData.questions > 0 ? Math.round((todayData.correct / todayData.questions) * 100) : 0
+      };
+    } else {
+      todayStats.value = { todayQuestions: 0, todayAccuracy: null };
+    }
+    
+    // 清空需要登录的数据
+    recentLearningList.value = [];
+    leaderboardList.value = [];
+    userRank.value = null;
+    studyHistory.value = [];
+    return;
+  }
+  
   try {
     const res = await instance.appContext.config.globalProperties.$api.wrongBookApi.getHomeOverview();
     if (res.code === 0 && res.data) {
@@ -1220,6 +1286,8 @@ watch([leaderboardType, leaderboardPeriod], () => {
 
 // 跳转到排行榜页面
 const goToRanking = () => {
+  if (!checkLoginAndAlert()) return;
+  
   uni.navigateTo({
     url: '/pages/ranking/ranking'
   });
@@ -1234,6 +1302,15 @@ const goToHistory = () => {
 
 // 跳转到精选页面
 const navigateToSelection = (item) => {
+  // 检查是否需要登录（刷题相关功能需要登录）
+  const needLogin = item.url && (
+    item.url.includes('practice') || 
+    item.url.includes('exam') || 
+    item.url.includes('computer')
+  );
+  
+  if (needLogin && !checkLoginAndAlert()) return;
+
   // 保存为最近练习科目
   const practiceItem = {
     id: item.id,
@@ -1245,8 +1322,10 @@ const navigateToSelection = (item) => {
   uni.setStorageSync('lastPracticeSubject', practiceItem);
   lastPracticeSubject.value = practiceItem;
   
-  // 立即刷新最近学习列表（队列逻辑）
-  loadRecentLearning();
+  // 立即刷新最近学习列表（队列逻辑）- 仅登录时
+  if (isLoggedIn.value) {
+    loadRecentLearning();
+  }
 
   if (item.isTab || item.is_tab) {
     uni.switchTab({
@@ -1314,19 +1393,24 @@ onMounted(async () => {
   const systemInfo = uni.getSystemInfoSync();
   statusBarHeight.value = systemInfo.statusBarHeight || 0;
   
+  // 检查登录状态
+  checkLoginStatus();
+  
   // 加载导航科目
   loadNavSubjects();
   
-  // 获取用户信息
-  try {
-    const res = await instance.appContext.config.globalProperties.$api.userApi.getUserInfo();
-    if (res.code === 0) {
-      practiceDays.value = res.data.studyDays || 0;
-      totalQuestions.value = res.data.totalQuestions || 0;
-      studyDays.value = res.data.studyDays || 0;
+  // 获取用户信息（仅登录时）
+  if (isLoggedIn.value) {
+    try {
+      const res = await instance.appContext.config.globalProperties.$api.userApi.getUserInfo();
+      if (res.code === 0) {
+        practiceDays.value = res.data.studyDays || 0;
+        totalQuestions.value = res.data.totalQuestions || 0;
+        studyDays.value = res.data.studyDays || 0;
+      }
+    } catch (error) {
+      console.error('获取用户信息失败:', error);
     }
-  } catch (error) {
-    console.error('获取用户信息失败:', error);
   }
   
   // 从本地存储获取当前主题模式，默认白天模式
@@ -1363,7 +1447,9 @@ onMounted(async () => {
   
   // 监听头像更新事件
   uni.$on('avatarUpdated', async () => {
-    await loadAllHomeData();
+    if (isLoggedIn.value) {
+      await loadAllHomeData();
+    }
   });
 
   // 初始化轮播图数据
@@ -1405,6 +1491,8 @@ onUnmounted(() => {
 
 // 页面显示时刷新数据
 onShow(() => {
+  // 重新检查登录状态（解决页面缓存问题）
+  checkLoginStatus();
   loadLastPracticeSubject();
   loadAllHomeData();
 });
