@@ -1057,7 +1057,7 @@ const closeCollectionPopup = () => {
     align-items: center;
     background-color: #fff;
     border-radius: 12rpx;
-    padding: 16rpx;
+    padding: 20rpx;
     box-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.04);
 
     &:active {

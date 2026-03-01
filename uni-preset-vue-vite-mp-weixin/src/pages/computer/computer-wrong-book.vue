@@ -72,7 +72,7 @@
                 <text class="date-text">{{ formatDate(question.CreatedAt) }}</text>
               </view>
               <view class="item-body">
-                <text class="question-title" v-html="question.processedStem"></text>
+                <rich-text class="question-title" :nodes="question.processedStem"></rich-text>
               </view>
               <view class="item-footer" v-if="question.chapter_name">
                 <text class="chapter-tag">{{ question.chapter_name }}</text>
