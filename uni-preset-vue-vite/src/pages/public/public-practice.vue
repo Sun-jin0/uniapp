@@ -2486,18 +2486,7 @@ const goBack = () => {
         .mnemonic-content { color: #b0b0b0; }
       }
     }
-    .show-answer-btn {
-      .btn-content {
-        background-color: transparent;
-        color: #666;
-        border-color: #444;
-        
-        &:active {
-          color: #888;
-          border-color: #555;
-        }
-      }
-    }
+
   }
 
   .progress-section {

@@ -160,14 +160,14 @@
                     <view class="analysis-card-title" v-html="getDetailHeader(item)"></view>
                     <!-- #endif -->
                     <!-- #ifdef MP-WEIXIN -->
-                    <towxml class="analysis-card-title" :nodes="parseTextWithLatexForMp(getDetailHeader(item))"></towxml>
+                    <towxml class="analysis-card-title" :nodes="contentNodesCache[`analysis_${index}_header`] || parseTextWithLatexForMp(getDetailHeader(item))"></towxml>
                     <!-- #endif -->
                   </view>
                   <!-- #ifdef H5 -->
                   <view class="analysis-card-body" v-if="item.Context" v-html="transformContextString(item.Context)" :style="{ fontSize: (fontSize - 2) + 'px' }"></view>
                   <!-- #endif -->
                   <!-- #ifdef MP-WEIXIN -->
-                  <towxml class="analysis-card-body" v-if="item.Context" :nodes="parseTextWithLatexForMp(item.Context)"></towxml>
+                  <towxml class="analysis-card-body" v-if="item.Context" :nodes="contentNodesCache[`analysis_${index}_body`] || parseTextWithLatexForMp(item.Context)"></towxml>
                   <!-- #endif -->
                 </view>
               </view>
@@ -187,7 +187,7 @@
                     <view class="kaodian-content" v-if="item._question_code?.KPContent || item._question_code?.Content || item.Context" v-html="transformContextString(item._question_code?.KPContent || item._question_code?.Content || item.Context)" :style="{ fontSize: (fontSize - 2) + 'px' }"></view>
                     <!-- #endif -->
                     <!-- #ifdef MP-WEIXIN -->
-                    <towxml v-if="item._question_code?.KPContent || item._question_code?.Content || item.Context" class="kaodian-content" :nodes="parseTextWithLatexForMp(item._question_code?.KPContent || item._question_code?.Content || item.Context)"></towxml>
+                    <towxml v-if="item._question_code?.KPContent || item._question_code?.Content || item.Context" class="kaodian-content" :nodes="contentNodesCache[`knowledge_${index}`] || parseTextWithLatexForMp(item._question_code?.KPContent || item._question_code?.Content || item.Context)"></towxml>
                     <!-- #endif -->
                   </view>
                 </view>
@@ -208,7 +208,7 @@
                     <view class="kaodian-content" v-if="item._question_code?.KPContent || item._question_code?.Content || item.Context" v-html="transformContextString(item._question_code?.KPContent || item._question_code?.Content || item.Context)" :style="{ fontSize: (fontSize - 2) + 'px' }"></view>
                     <!-- #endif -->
                     <!-- #ifdef MP-WEIXIN -->
-                    <towxml v-if="item._question_code?.KPContent || item._question_code?.Content || item.Context" class="kaodian-content" :nodes="parseTextWithLatexForMp(item._question_code?.KPContent || item._question_code?.Content || item.Context)"></towxml>
+                    <towxml v-if="item._question_code?.KPContent || item._question_code?.Content || item.Context" class="kaodian-content" :nodes="contentNodesCache[`difficulty_${index}`] || parseTextWithLatexForMp(item._question_code?.KPContent || item._question_code?.Content || item.Context)"></towxml>
                     <!-- #endif -->
                   </view>
                 </view>
@@ -664,6 +664,8 @@ const relatedQuestions = ref([]);
 // Towxml 解析结果缓存
 const questionTextNodes = ref({});
 const optionNodesCache = reactive({});
+// 其他内容的解析缓存（解析、考点、疑难点等）
+const contentNodesCache = reactive({});
 
 // #ifdef MP-WEIXIN
 // 微信小程序下更新节点缓存
@@ -682,6 +684,113 @@ const updateOptionNodes = (key, text) => {
     console.log(`Updated optionNodes[${key}]:`, optionNodesCache[key]);
   } catch (e) {
     console.error(`Update option nodes error for ${key}:`, e);
+  }
+};
+
+// 预解析所有需要渲染的内容（提前调用API，避免渲染时等待）
+const preparseAllContent = (questionData) => {
+  if (!questionData || !questionData.first_request) return;
+  
+  console.log('[Preparse] Starting to preparse all content...');
+  
+  try {
+    // 1. 预解析题目文本
+    const questionText = questionData.first_request[0]?.QuestionText;
+    if (questionText) {
+      console.log('[Preparse] Preparing question text...');
+      questionTextNodes.value = parseTextWithLatexForMp(questionText);
+    }
+    
+    // 2. 预解析选项
+    const options = questionData.first_request[0]?.options;
+    if (options && Array.isArray(options)) {
+      options.forEach((opt, idx) => {
+        const key = String.fromCharCode(65 + idx);
+        if (opt && opt.content) {
+          console.log(`[Preparse] Preparing option ${key}...`);
+          optionNodesCache[key] = parseTextWithLatexForMp(opt.content);
+        }
+      });
+    }
+    
+    // 3. 预解析解析内容
+    if (questionData.second_request) {
+      questionData.second_request.forEach((item, idx) => {
+        const cacheKey = `analysis_${idx}`;
+        // 解析标题
+        const header = getDetailHeader(item);
+        if (header) {
+          console.log(`[Preparse] Preparing analysis header ${idx}...`);
+          contentNodesCache[`${cacheKey}_header`] = parseTextWithLatexForMp(header);
+        }
+        // 解析内容
+        if (item.Context) {
+          console.log(`[Preparse] Preparing analysis context ${idx}...`);
+          contentNodesCache[`${cacheKey}_body`] = parseTextWithLatexForMp(item.Context);
+        }
+      });
+    }
+    
+    // 4. 预解析考点内容
+    if (questionData.third_request) {
+      questionData.third_request.forEach((item, idx) => {
+        const content = item._question_code?.KPContent || item._question_code?.Content || item.Context;
+        if (content) {
+          console.log(`[Preparse] Preparing knowledge point ${idx}...`);
+          contentNodesCache[`knowledge_${idx}`] = parseTextWithLatexForMp(content);
+        }
+      });
+    }
+    
+    // 5. 预解析疑难点内容
+    if (questionData.fourth_request) {
+      questionData.fourth_request.forEach((item, idx) => {
+        const content = item._question_code?.KPContent || item._question_code?.Content || item.Context;
+        if (content) {
+          console.log(`[Preparse] Preparing difficulty point ${idx}...`);
+          contentNodesCache[`difficulty_${idx}`] = parseTextWithLatexForMp(content);
+        }
+      });
+    }
+    
+    console.log('[Preparse] All content preparsed successfully!');
+  } catch (error) {
+    console.error('[Preparse] Error preparsing content:', error);
+  }
+};
+
+// 预加载后N个题目的数据（提前获取数据并渲染公式）
+const preloadNextQuestions = async (currentIdx, count = 3) => {
+  if (!sortedBookQuestionSourceIDs.value.length) return;
+  
+  console.log(`[Preload] Starting to preload next ${count} questions from index ${currentIdx}...`);
+  
+  for (let i = 1; i <= count; i++) {
+    const nextIdx = currentIdx + i;
+    if (nextIdx >= sortedBookQuestionSourceIDs.value.length) break;
+    
+    const nextQid = sortedBookQuestionSourceIDs.value[nextIdx];
+    if (!nextQid || allQuestionsData.value[nextQid]) continue; // 已加载过则跳过
+    
+    // 延迟一点再加载，避免同时发起太多请求
+    setTimeout(async () => {
+      try {
+        console.log(`[Preload] Loading question ${nextQid}...`);
+        const response = await request({
+          url: `/math/questions/${nextQid}?book_id=${currentBookId.value || ''}`,
+          method: 'GET'
+        });
+        
+        if (response.data && response.data[nextQid]) {
+          allQuestionsData.value[nextQid] = response.data[nextQid];
+          console.log(`[Preload] Question ${nextQid} loaded, preparsing content...`);
+          // 预解析内容（触发公式渲染API）
+          preparseAllContent(response.data[nextQid]);
+        }
+      } catch (err) {
+        console.error(`[Preload] Failed to load question ${nextQid}:`, err);
+      }
+    }, i * 200); // 每个题延迟200ms加载
   }
 };
 // #endif
@@ -1620,6 +1729,13 @@ const navigateToQuestion = (sourceId, bookIdForNav = null) => {
   isSubmitted.value = uni.getStorageSync(`submitted_${sourceId}`) || false;
   isTestSubmitted.value = uni.getStorageSync(`test_submitted_${sourceId}`) || false;
   
+  // #ifdef MP-WEIXIN
+  // 切换题目时清除内容缓存
+  Object.keys(contentNodesCache).forEach(key => {
+    delete contentNodesCache[key];
+  });
+  // #endif
+  
   // 切换题目时，自动滚动到顶部
   // #ifdef H5
   if (typeof window !== 'undefined') {
@@ -1633,6 +1749,14 @@ const navigateToQuestion = (sourceId, bookIdForNav = null) => {
   // 如果当前在题目列表模式（ids 模式），且没有传入新的 bookId，则保持当前列表
   if (sortedBookQuestionSourceIDs.value.length > 0 && !bookIdForNav) {
     currentVisibleSourceId.value = String(sourceId);
+    
+    // #ifdef MP-WEIXIN
+    // 预加载后3个题目的数据
+    const currentIdx = sortedBookQuestionSourceIDs.value.indexOf(String(sourceId));
+    if (currentIdx !== -1) {
+      preloadNextQuestions(currentIdx);
+    }
+    // #endif
     
     // 更新 URL，保留 ids 参数
     setQueryParam('questionId', sourceId);
@@ -1955,6 +2079,11 @@ const fetchQuestionData = async (qid, forceReload = false) => {
       console.log('Question data loaded:', qid);
       console.log('second_request:', response.data[qid].second_request);
       
+      // #ifdef MP-WEIXIN
+      // 预解析所有需要渲染的文本（提前调用API，避免渲染时等待）
+      preparseAllContent(response.data[qid]);
+      // #endif
+      
       // 获取相关题目
       fetchRelatedQuestions(qid);
       
@@ -2107,6 +2236,11 @@ const fetchBookDetails = async () => {
       currentVisibleSourceId.value = sortedBookQuestionSourceIDs.value[0];
       fetchQuestionData(currentVisibleSourceId.value);
       
+      // #ifdef MP-WEIXIN
+      // 预加载后3个题目的数据
+      preloadNextQuestions(0);
+      // #endif
+      
       // 更新URL记录
       // #ifdef H5
       if (typeof window !== 'undefined' && window.history) {
@@ -2148,6 +2282,12 @@ onLoad((options) => {
       updateCurrentQuestionIndex();
       studyMode.value = options.mode || 'practice';
       fetchQuestionData(currentVisibleSourceId.value);
+      
+      // #ifdef MP-WEIXIN
+      // 预加载后3个题目的数据
+      const currentIdx = ids.indexOf(currentVisibleSourceId.value);
+      preloadNextQuestions(currentIdx >= 0 ? currentIdx : 0);
+      // #endif
 
       // 如果没有 bookId，更新标题为题目集
       if (!options.bookId) {

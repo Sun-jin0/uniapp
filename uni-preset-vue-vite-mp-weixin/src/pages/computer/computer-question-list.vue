@@ -28,6 +28,50 @@ const completedQuestionIds = ref(new Set());
 const lastQuestionId = ref(null);
 const scrollIntoId = ref('');
 
+// 虚拟滚动配置
+const ITEM_HEIGHT = 160; // 每个题目卡片预估高度(rpx)
+const BUFFER_SIZE = 1; // 上下缓冲区域题目数量（只缓冲1个，总共显示3个）
+const visibleStartIndex = ref(0);
+const visibleEndIndex = ref(10);
+const scrollTop = ref(0);
+const listHeight = ref(0);
+
+// 计算可见区域的题目（只加载3个：当前+上下各1个）
+const visibleQuestions = computed(() => {
+  const start = Math.max(0, visibleStartIndex.value - BUFFER_SIZE);
+  const end = Math.min(filteredQuestions.value.length, visibleEndIndex.value + BUFFER_SIZE);
+  return filteredQuestions.value.slice(start, end).map((item, index) => ({
+    ...item,
+    _virtualIndex: start + index
+  }));
+});
+
+// 计算总高度
+const totalHeight = computed(() => {
+  return filteredQuestions.value.length * ITEM_HEIGHT;
+});
+
+// 处理滚动事件
+const onScroll = (e) => {
+  scrollTop.value = e.detail.scrollTop;
+  const scrollViewHeight = listHeight.value || 800;
+  const itemHeightPx = ITEM_HEIGHT * (uni.getSystemInfoSync().windowWidth / 750);
+  
+  visibleStartIndex.value = Math.floor(scrollTop.value / itemHeightPx);
+  visibleEndIndex.value = Math.ceil((scrollTop.value + scrollViewHeight) / itemHeightPx);
+};
+
+// 获取题目样式（用于虚拟滚动定位）
+const getItemStyle = (index) => {
+  return {
+    position: 'absolute',
+    top: (index * ITEM_HEIGHT) + 'rpx',
+    left: 0,
+    right: 0,
+    height: ITEM_HEIGHT + 'rpx'
+  };
+};
+
 const fetchProgress = async () => {
   try {
     const res = await request({
@@ -397,6 +441,7 @@ const goBack = () => {
       scroll-y 
       :style="{ height: `calc(100vh - ${headerHeight}px)`, marginTop: headerHeight + 'px' }"
       :scroll-into-view="scrollIntoId"
+      @scroll="onScroll"
     >
       <view class="question-list-inner">
         <view v-if="loading" class="loading-state">
@@ -405,23 +450,24 @@ const goBack = () => {
         <view v-else-if="filteredQuestions.length === 0" class="no-data">
           <text>{{ questions.length === 0 ? '该章节暂无题目' : '该分类下暂无题目' }}</text>
         </view>
-        <view v-else>
+        <view v-else class="virtual-list-container" :style="{ height: totalHeight + 'rpx' }">
           <view 
             :id="'question-' + question.question_id"
-            class="question-card" 
+            class="question-card virtual-item" 
             :class="{ 
               'is-selected': isSelectMode && selectedQuestionIds.includes(question.question_id),
               'is-completed': completedQuestionIds.has(String(question.question_id))
             }"
-            v-for="(question, index) in filteredQuestions" 
+            v-for="(question) in visibleQuestions" 
             :key="question.question_id"
+            :style="getItemStyle(question._virtualIndex)"
             @click="goToDetail(question)"
           >
             <view class="question-info">
               <view v-if="isSelectMode" class="select-box">
                 <view class="checkbox" :class="{ checked: selectedQuestionIds.includes(question.question_id) }"></view>
               </view>
-              <text class="info-item index">{{ index + 1 }}.</text>
+              <text class="info-item index">{{ question._virtualIndex + 1 }}.</text>
               <text class="info-item type">{{ question.exercise_type_name }}</text>
               <text class="info-item source" v-if="question.exam_time || question.from_school || question.exam_code">
                 {{ [question.exam_time, question.from_school, question.exam_code].filter(Boolean).join(' · ') }}
@@ -432,8 +478,6 @@ const goBack = () => {
               <view class="question-stem" v-html="question.stem"></view>
             </view>
           </view>
-          <!-- 底部占位 -->
-          <view class="list-footer-space" style="height: 100rpx;"></view>
         </view>
       </view>
     </scroll-view>
@@ -728,12 +772,25 @@ const goBack = () => {
   padding: 20rpx;
 }
 
+// 虚拟列表容器
+.virtual-list-container {
+  position: relative;
+  width: 100%;
+}
+
+// 虚拟列表项
+.virtual-item {
+  position: absolute;
+  left: 0;
+  right: 0;
+  box-sizing: border-box;
+}
+
 .question-card {
   background-color: #fff;
   border-radius: 12rpx;
   padding: 20rpx;
-  margin-top: 10rpx;
-  margin-bottom: 10rpx;
+  margin: 10rpx 20rpx;
   box-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.05);
   border: 2rpx solid transparent;
   transition: all 0.2s;

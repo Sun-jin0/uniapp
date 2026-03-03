@@ -10,6 +10,8 @@ import { checkTextContent } from '@/utils/contentSecurity.js';
 
 const statusBarHeight = ref(0);
 const questions = ref([]);
+const allQuestionIds = ref([]); // 存储所有题目ID
+const loadedQuestionIds = ref(new Set()); // 已加载的题目ID
 
 // 获取文件基础路径 (从 BASE_URL 提取，如 http://localhost:3000/api -> http://localhost:3000)
 const getFileBaseUrl = () => {
@@ -22,11 +24,16 @@ const currentIndex = ref(0);
 const loading = ref(true);
 const pageOptions = ref({});
 
+// 分页加载配置 - 每次只加载3题
+const PAGE_SIZE = 3;
+
 // 虚拟滚动配置 - 只渲染当前题目和前后各1题
 const VIRTUAL_SCROLL_BUFFER = 1;
 
 // 判断题目是否应该渲染（在当前可视范围内）
 const shouldRenderQuestion = (index) => {
+  // 如果题目未加载（null），不渲染
+  if (!questions.value[index]) return false;
   if (questions.value.length <= 5) return true; // 题目少时全部渲染
   const diff = Math.abs(index - currentIndex.value);
   return diff <= VIRTUAL_SCROLL_BUFFER;
@@ -34,9 +41,86 @@ const shouldRenderQuestion = (index) => {
 
 // 判断题目是否在预加载范围内（前后各2题）
 const shouldPreloadQuestion = (index) => {
+  // 如果题目未加载（null），显示占位符
+  if (!questions.value[index]) return false;
   if (questions.value.length <= 5) return true;
   const diff = Math.abs(index - currentIndex.value);
   return diff <= VIRTUAL_SCROLL_BUFFER + 1;
+};
+
+// 加载指定范围的题目
+const loadQuestionsRange = async (startIndex, endIndex) => {
+  if (allQuestionIds.value.length === 0) return;
+  
+  const idsToLoad = [];
+  for (let i = startIndex; i < endIndex && i < allQuestionIds.value.length; i++) {
+    const qid = allQuestionIds.value[i];
+    if (!loadedQuestionIds.value.has(String(qid))) {
+      idsToLoad.push(qid);
+    }
+  }
+  
+  if (idsToLoad.length === 0) return;
+  
+  try {
+    const res = await request({
+      url: '/computer1/questions/batch-details',
+      method: 'POST',
+      data: { questionIds: idsToLoad }
+    });
+    
+    if (res.code === 0 && res.data) {
+      res.data.forEach(q => {
+        const processedQ = processQuestionData(q);
+        const index = allQuestionIds.value.findIndex(id => String(id) === String(q.question_id));
+        if (index !== -1) {
+          questions.value[index] = processedQ;
+          loadedQuestionIds.value.add(String(q.question_id));
+          
+          // 初始化题目状态
+          if (!questionStates.value[index]) {
+            const stemText = processedQ.originalStem || processedQ.stem || '';
+            const totalBlanks = countBlanks(stemText);
+            const subAnswers = {};
+            
+            if (processedQ.subs && processedQ.subs.length > 0) {
+              processedQ.subs.forEach((sub, idx) => {
+                const id = sub.sub_id || sub.id || idx;
+                subAnswers[id] = '';
+              });
+            } else if (processedQ.exercise_type === 4 || processedQ.exercise_type_name?.includes('解答') || processedQ.exercise_type_name?.includes('综合')) {
+              subAnswers['main'] = '';
+            }
+            
+            questionStates.value[index] = {
+              userAnswer: '',
+              shortAnswer: '', 
+              multiChoice: [],
+              blankAnswers: totalBlanks > 0 ? new Array(totalBlanks).fill('') : [],
+              subAnswers: subAnswers,
+              isCorrect: false,
+              showAnswer: settings.value.recitationMode,
+              isFavorite: false,
+              isWrongBook: false,
+              loaded: true,
+              notes: [], 
+              status: 'undone',
+              isNotesExpanded: false
+            };
+          }
+        }
+      });
+    }
+  } catch (error) {
+    console.error('加载题目详情失败:', error);
+  }
+};
+
+// 根据当前索引加载附近题目
+const loadNearbyQuestions = async (centerIndex) => {
+  const start = Math.max(0, centerIndex - VIRTUAL_SCROLL_BUFFER);
+  const end = Math.min(allQuestionIds.value.length, centerIndex + VIRTUAL_SCROLL_BUFFER + 1);
+  await loadQuestionsRange(start, end);
 };
 
 onLoad((options) => {
@@ -407,8 +491,8 @@ const countBlanks = (stem) => {
   return count > 0 ? count : 1;
 };
 
-const correctCount = computed(() => questionStates.value.filter(s => s.status === 'correct').length);
-const errorCount = computed(() => questionStates.value.filter(s => s.status === 'error').length);
+const correctCount = computed(() => questionStates.value.filter(s => s && s.status === 'correct').length);
+const errorCount = computed(() => questionStates.value.filter(s => s && s.status === 'error').length);
 
 // 通知栏相关
 const relatedArticles = ref({ popular: [], newest: [] });
@@ -616,10 +700,16 @@ const fetchQuestions = async () => {
         const questionIds = wrongBookRes.data.questions.map(q => q.question_id || q.id);
         
         if (questionIds.length > 0) {
+          // 存储所有题目ID，但只加载前3道
+          allQuestionIds.value = questionIds;
+          // 初始化题目数组（用空对象占位）
+          questions.value = new Array(questionIds.length).fill(null);
+          // 只加载前3道题
+          const initialIds = questionIds.slice(0, Math.min(PAGE_SIZE, questionIds.length));
           res = await request({
             url: '/computer1/questions/batch-details',
             method: 'POST',
-            data: { questionIds }
+            data: { questionIds: initialIds }
           });
         } else {
           errorMsg.value = '错题本为空';
@@ -648,11 +738,16 @@ const fetchQuestions = async () => {
       }
       
       if (idList.length > 0) {
-        // 如果有缓存的题目ID列表，直接获取这些题目的详情
+        // 存储所有题目ID，但只加载前3道
+        allQuestionIds.value = idList;
+        // 初始化题目数组（用空对象占位）
+        questions.value = new Array(idList.length).fill(null);
+        // 只加载前3道题
+        const initialIds = idList.slice(0, Math.min(PAGE_SIZE, idList.length));
         res = await request({
           url: '/computer1/questions/batch-details',
           method: 'POST',
-          data: { questionIds: idList }
+          data: { questionIds: initialIds }
         });
       } else if (options.majorId === 'tutorial' && options.chapterId) {
         // 教辅模式：获取章节下的题目
@@ -681,51 +776,73 @@ const fetchQuestions = async () => {
     }
     
     if (res.code === 0 && res.data && res.data.length > 0) {
-      questions.value = res.data.map(q => processQuestionData(q));
+      // 处理加载的题目数据
+      const loadedQuestions = res.data.map(q => processQuestionData(q));
+      
+      // 如果是分页加载模式，将题目放入对应位置
+      if (allQuestionIds.value.length > 0) {
+        loadedQuestions.forEach((q, idx) => {
+          questions.value[idx] = q;
+          loadedQuestionIds.value.add(String(q.question_id));
+        });
+      } else {
+        // 非分页模式，直接赋值
+        questions.value = loadedQuestions;
+      }
       
       // 如果指定了跳转的题目ID，定位到该题
       if (questionId) {
-        const index = questions.value.findIndex(q => String(q.question_id) === String(questionId));
+        const index = questions.value.findIndex(q => q && String(q.question_id) === String(questionId));
         if (index > -1) {
           currentIndex.value = index;
+          // 加载目标题目附近的题目
+          await loadNearbyQuestions(index);
         }
       }
 
-      // 初始化题目状态
-      questionStates.value = questions.value.map((q) => {
-        const stemText = q.originalStem || q.stem || '';
-        const totalBlanks = countBlanks(stemText);
-        const subAnswers = {};
-        
-        // 安全初始化 subAnswers
-        if (q.subs && q.subs.length > 0) {
-          q.subs.forEach((sub, idx) => {
-            const id = sub.sub_id || sub.id || idx;
-            subAnswers[id] = '';
-          });
-        } else if (q.exercise_type === 4 || q.exercise_type_name?.includes('解答') || q.exercise_type_name?.includes('综合')) {
-          subAnswers['main'] = '';
-        }
+      // 初始化题目状态（只初始化已加载的）
+      if (!questionStates.value || questionStates.value.length === 0) {
+        questionStates.value = new Array(questions.value.length).fill(null);
+      }
+      
+      loadedQuestions.forEach((q, idx) => {
+        if (!questionStates.value[idx]) {
+          const stemText = q.originalStem || q.stem || '';
+          const totalBlanks = countBlanks(stemText);
+          const subAnswers = {};
+          
+          // 安全初始化 subAnswers
+          if (q.subs && q.subs.length > 0) {
+            q.subs.forEach((sub, subIdx) => {
+              const id = sub.sub_id || sub.id || subIdx;
+              subAnswers[id] = '';
+            });
+          } else if (q.exercise_type === 4 || q.exercise_type_name?.includes('解答') || q.exercise_type_name?.includes('综合')) {
+            subAnswers['main'] = '';
+          }
 
-        return {
-          userAnswer: '',
-          shortAnswer: '', 
-          multiChoice: [],
-          blankAnswers: totalBlanks > 0 ? new Array(totalBlanks).fill('') : [],
-          subAnswers: subAnswers,
-          isCorrect: false,
-          showAnswer: settings.value.recitationMode,
-          isFavorite: false,
-          isWrongBook: false,
-          loaded: false,
-          notes: [], 
-          status: 'undone',
-          isNotesExpanded: false
-        };
+          questionStates.value[idx] = {
+            userAnswer: '',
+            shortAnswer: '', 
+            multiChoice: [],
+            blankAnswers: totalBlanks > 0 ? new Array(totalBlanks).fill('') : [],
+            subAnswers: subAnswers,
+            isCorrect: false,
+            showAnswer: settings.value.recitationMode,
+            isFavorite: false,
+            isWrongBook: false,
+            loaded: true,
+            notes: [], 
+            status: 'undone',
+            isNotesExpanded: false
+          };
+        }
       });
       
+      // 加载当前索引附近的题目
       if (questions.value.length > 0) {
-        await loadQuestionDetails(0);
+        await loadNearbyQuestions(currentIndex.value);
+        await loadQuestionDetails(currentIndex.value);
       }
     } else {
       errorMsg.value = '暂无相关题目';
@@ -1030,10 +1147,15 @@ const checkStatus = async (index) => {
   } catch (e) {}
 };
 
-const onSwiperChange = (e) => {
+const onSwiperChange = async (e) => {
   const index = e.detail.current;
   currentIndex.value = index;
 
+  // 加载附近题目（分页加载模式）
+  if (allQuestionIds.value.length > 0) {
+    await loadNearbyQuestions(index);
+  }
+  
   loadQuestionDetails(index);
 };
 
@@ -1326,7 +1448,9 @@ const saveUserSettings = () => {
 const toggleRecitation = () => {
   settings.value.recitationMode = !settings.value.recitationMode;
   questionStates.value.forEach(state => {
-    state.showAnswer = settings.value.recitationMode || !!state.userAnswer;
+    if (state) {
+      state.showAnswer = settings.value.recitationMode || !!state.userAnswer;
+    }
   });
   saveUserSettings();
 };
@@ -1805,7 +1929,7 @@ const submitFeedback = async () => {
       :duration="250"
       easing-function="linear"
     >
-      <swiper-item v-for="(question, qIndex) in questions" :key="question.question_id || qIndex">
+      <swiper-item v-for="(question, qIndex) in questions" :key="(question && question.question_id) ? question.question_id : ('placeholder-' + qIndex)">
         <!-- 占位符：不在渲染范围内时显示简单占位 -->
         <view v-if="!shouldPreloadQuestion(qIndex)" class="question-placeholder">
           <view class="placeholder-content">

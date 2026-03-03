@@ -3,7 +3,7 @@
     font-family: PingFang SC, Lantinghei SC, Microsoft Yahei, Hiragino Sans GB, Microsoft Sans Serif, WenQuanYi Micro Hei, sans-serif;
     font-weight:300;
     font-size: 32rpx;
-    line-height: 0.8;
+    line-height: 1;
     word-wrap: break-word;
     word-break: normal;
     text-align:justify;
@@ -256,7 +256,7 @@
 
 /**块元素**/
 .h2w__p {
-    margin: 8rpx 0 8rpx 0;
+    margin: 16rpx 0 16rpx 0;
 }
 
 .h2w__br {

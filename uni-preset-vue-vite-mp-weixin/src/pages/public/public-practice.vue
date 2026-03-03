@@ -2418,30 +2418,30 @@ const goBack = () => {
             }
           }
         }
+      }
 
-        .show-answer-btn {
-          width: 100%;
-          margin-top: 60rpx;
+      .show-answer-btn {
+        width: 100%;
+        margin-top: 60rpx;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+      
+        .btn-content {
           display: flex;
-          justify-content: center;
           align-items: center;
+          justify-content: center;
+          gap: 8rpx;
+          color: #bbb;
+          font-size: 26rpx;
+          padding: 12rpx 28rpx;
+          border-radius: 30rpx;
+          background-color: transparent;
+          border: 1rpx solid #ddd;
         
-          .btn-content {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8rpx;
-            color: #bbb;
-            font-size: 26rpx;
-            padding: 12rpx 28rpx;
-            border-radius: 30rpx;
-            background-color: transparent;
-            border: 1rpx solid #ddd;
-          
-            &:active {
-              color: #999;
-              border-color: #bbb;
-            }
+          &:active {
+            color: #999;
+            border-color: #bbb;
           }
         }
       }
@@ -2486,18 +2486,7 @@ const goBack = () => {
         .mnemonic-content { color: #b0b0b0; }
       }
     }
-    .show-answer-btn {
-      .btn-content {
-        background-color: transparent;
-        color: #666;
-        border-color: #444;
-        
-        &:active {
-          color: #888;
-          border-color: #555;
-        }
-      }
-    }
+
   }
 
   .progress-section {
