@@ -751,9 +751,21 @@ const fetchQuestions = async () => {
         });
       } else if (options.majorId === 'tutorial' && options.chapterId) {
         // 教辅模式：获取章节下的题目
+        console.log('[Tutorial Mode] Fetching questions for chapter:', options.chapterId);
         res = await request({
           url: `/computer/tutorial-chapters/${options.chapterId}/questions`
         });
+        console.log('[Tutorial Mode] API Response:', res);
+        
+        // 教辅模式也需要设置 allQuestionIds 以支持分页加载
+        if (res.code === 0 && res.data && res.data.length > 0) {
+          const questionIds = res.data.map(q => q.question_id);
+          console.log('[Tutorial Mode] Question IDs:', questionIds);
+          console.log('[Tutorial Mode] First question options:', res.data[0].options);
+          allQuestionIds.value = questionIds;
+          // 初始化题目数组（用空对象占位）
+          questions.value = new Array(questionIds.length).fill(null);
+        }
       } else {
         // 降级方案：根据参数获取
         const params = {};
@@ -779,11 +791,15 @@ const fetchQuestions = async () => {
       // 处理加载的题目数据
       const loadedQuestions = res.data.map(q => processQuestionData(q));
       
-      // 如果是分页加载模式，将题目放入对应位置
+      // 如果是分页加载模式（有 allQuestionIds），将题目放入对应位置
       if (allQuestionIds.value.length > 0) {
-        loadedQuestions.forEach((q, idx) => {
-          questions.value[idx] = q;
-          loadedQuestionIds.value.add(String(q.question_id));
+        loadedQuestions.forEach((q) => {
+          // 找到题目在 allQuestionIds 中的索引
+          const index = allQuestionIds.value.findIndex(id => String(id) === String(q.question_id));
+          if (index !== -1) {
+            questions.value[index] = q;
+            loadedQuestionIds.value.add(String(q.question_id));
+          }
         });
       } else {
         // 非分页模式，直接赋值
@@ -991,45 +1007,45 @@ const processQuestionData = (data) => {
     }));
   }
 
-    // 确定主答案
-    for (const field of possibleAnswerFields) {
-      if (data[field]) {
-        data.answer = data[field];
-        break;
-      }
+  // 确定主答案
+  for (const field of possibleAnswerFields) {
+    if (data[field]) {
+      data.answer = data[field];
+      break;
     }
+  }
 
-    if (data.answer) {
-      data.originalAnswer = data.answer;
-      if (data.exercise_type === 3) {
-        try {
-          const answers = JSON.parse(data.answer);
-          if (Array.isArray(answers)) {
-            data.displayAnswer = answers.map((ans, i) => {
-              // 彻底清理标签，确保没有 div, p, span
-              const cleanAns = String(ans).replace(/<(p|div|span)[^>]*>|<\/(p|div|span)>/gi, '').trim();
-              return `<span class="blank-answer-item" style="display: block; margin-bottom: 12rpx; line-height: 1.5;"><span class="blank-num" style="color: #4db6ac; font-weight: bold; margin-right: 12rpx;">(${i + 1})</span><span class="blank-val" style="color: #333;">${cleanAns}</span></span>`;
-            }).join('');
-          }
-        } catch (e) {
-          const cleanAns = String(data.answer).replace(/<(p|div|span)[^>]*>|<\/(p|div|span)>/gi, '').trim();
-          data.displayAnswer = `<span class="blank-answer-item" style="display: block; margin-bottom: 12rpx; line-height: 1.5;"><span class="blank-num" style="color: #4db6ac; font-weight: bold; margin-right: 12rpx;">(1)</span><span class="blank-val" style="color: #333;">${cleanAns}</span></span>`;
+  if (data.answer) {
+    data.originalAnswer = data.answer;
+    if (data.exercise_type === 3) {
+      try {
+        const answers = JSON.parse(data.answer);
+        if (Array.isArray(answers)) {
+          data.displayAnswer = answers.map((ans, i) => {
+            // 彻底清理标签，确保没有 div, p, span
+            const cleanAns = String(ans).replace(/<(p|div|span)[^>]*>|<\/(p|div|span)>/gi, '').trim();
+            return `<span class="blank-answer-item" style="display: block; margin-bottom: 12rpx; line-height: 1.5;"><span class="blank-num" style="color: #4db6ac; font-weight: bold; margin-right: 12rpx;">(${i + 1})</span><span class="blank-val" style="color: #333;">${cleanAns}</span></span>`;
+          }).join('');
         }
-      }
-      data.answer = data.answer;
-    }
-    
-    // 确定主解析
-    for (const field of possibleAnalysisFields) {
-      if (data[field]) {
-        data.analysis = data[field]; // 移除 processStem
-        break;
+      } catch (e) {
+        const cleanAns = String(data.answer).replace(/<(p|div|span)[^>]*>|<\/(p|div|span)>/gi, '').trim();
+        data.displayAnswer = `<span class="blank-answer-item" style="display: block; margin-bottom: 12rpx; line-height: 1.5;"><span class="blank-num" style="color: #4db6ac; font-weight: bold; margin-right: 12rpx;">(1)</span><span class="blank-val" style="color: #333;">${cleanAns}</span></span>`;
       }
     }
-    
-    if (data.commentary) {}
-    if (data.method) {}
+    data.answer = data.answer;
+  }
   
+  // 确定主解析
+  for (const field of possibleAnalysisFields) {
+    if (data[field]) {
+      data.analysis = data[field]; // 移除 processStem
+      break;
+    }
+  }
+  
+  if (data.commentary) {}
+  if (data.method) {}
+
   if (data.subs) {
     data.subs.forEach((sub) => {
       // 提取子题题干
@@ -1062,15 +1078,6 @@ const processQuestionData = (data) => {
         sub.analysis = fixHtmlImages(sub.content.analysis);
       }
     });
-  }
-
-  // 兼容旧版 template 的 content.options
-  if (data.options && data.options.length > 0) {
-    data.content = data.content || {};
-    data.content.options = data.options.map(opt => ({
-      text: opt.option_value || opt.text || opt,
-      key: opt.option_key || opt.key || ''
-    }));
   }
 
   console.log('[Diagnostic] processQuestionData output:', {
@@ -1977,6 +1984,10 @@ const submitFeedback = async () => {
               
               <!-- 选项列表 (选择题) -->
               <view v-if="[1, 2, 5].includes(question.exercise_type) && question.content && question.content.options" class="options-list">
+                <!-- Debug: 显示选项信息 -->
+                <view style="color: red; font-size: 20rpx; padding: 10rpx; background: #ffeeee;">
+                  Debug: type={{question.exercise_type}}, options.length={{question.options?.length}}, content.options.length={{question.content?.options?.length}}
+                </view>
                 <view 
                   v-for="(option, index) in question.content.options" 
                   :key="index"

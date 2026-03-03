@@ -176,7 +176,32 @@ const getChapterQuestions = async (req, res) => {
       [questionIds, questionIds]
     );
     
-    res.json(successResponse(questions));
+    // 获取选项数据
+    const [options] = await mysqlPool.query(
+      'SELECT question_id, option_key, option_value FROM computer1_question_option WHERE question_id IN (?) ORDER BY option_sort ASC',
+      [questionIds]
+    );
+    
+    // 获取小题数据
+    const [subs] = await mysqlPool.query(
+      'SELECT * FROM computer1_question_sub WHERE question_id IN (?) ORDER BY question_order ASC',
+      [questionIds]
+    );
+    
+    // 将选项和小题关联到对应的题目
+    const questionsWithOptions = questions.map(q => {
+      const qOptions = options.filter(opt => opt.question_id === q.question_id);
+      const qSubs = subs.filter(sub => sub.question_id === q.question_id);
+      console.log(`[Tutorial] Question ${q.question_id}: ${qOptions.length} options, ${qSubs.length} subs`);
+      return {
+        ...q,
+        options: qOptions,
+        subs: qSubs
+      };
+    });
+    
+    console.log(`[Tutorial] Total questions: ${questionsWithOptions.length}`);
+    res.json(successResponse(questionsWithOptions));
   } catch (error) {
     console.error('获取章节题目失败:', error);
     res.status(500).json(errorResponse('获取章节题目失败'));

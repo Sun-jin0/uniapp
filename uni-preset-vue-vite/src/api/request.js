@@ -1,8 +1,8 @@
 // 根据运行环境设置基础 URL
 const getBaseUrl = () => {
   // #ifdef H5
-  // H5 环境使用服务器后端
-  return 'https://yizhancs.cn/api';
+  // H5 环境使用本地后端进行测试
+  return 'http://localhost:3000/api';
   // #endif
 
   // #ifdef MP-WEIXIN
@@ -10,8 +10,8 @@ const getBaseUrl = () => {
   return 'https://yizhancs.cn/api';
   // #endif
 
-  // 默认使用服务器后端
-  return 'https://yizhancs.cn/api';
+  // 默认使用本地后端进行测试
+  return 'http://localhost:3000/api';
 };
 
 export const BASE_URL = getBaseUrl();
