@@ -376,8 +376,8 @@
             </view>
 
             <!-- 知识卡模式 -->
-            <view v-else class="card-mode" :class="{ 'memory-card-mode': question.type === 7 }" @tap="questionStates[qIndex].showCardAnswer = true">
-              <view class="card-box animated flipInY" :class="{ 'is-flipped': questionStates[qIndex]?.showCardAnswer }">
+            <view v-else class="card-mode" :class="{ 'memory-card-mode': question.type === 7 }">
+              <view class="card-box animated flipInY" :class="{ 'is-flipped': questionStates[qIndex]?.showCardAnswer }" @tap="questionStates[qIndex].showCardAnswer = true">
                 <!-- 记忆卡题干 (始终显示) -->
                 <view class="card-header-v2">
                   <view class="section-header no-margin">
@@ -390,12 +390,19 @@
                     <rich-text :nodes="formatTitle(question.title_richtext || question.title, true)"></rich-text>
                   </view>
                 </view>
+              </view>
 
-                <!-- 点击显示答案占位 (透明点击层) -->
-                <view 
-                  v-if="!questionStates[qIndex]?.showCardAnswer && !settings.recitationMode" 
-                  class="show-answer-placeholder"
-                >
+              <!-- 点击显示答案按钮 (卡片下方) -->
+              <view 
+                v-if="!questionStates[qIndex]?.showCardAnswer && !settings.recitationMode" 
+                class="show-answer-btn"
+                @tap="questionStates[qIndex].showCardAnswer = true"
+              >
+                <view class="btn-content">
+                  <text>点击显示答案</text>
+                  <svg width="16" height="16" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M24 34L12 22H36L24 34Z" fill="currentColor"/>
+                  </svg>
                 </view>
               </view>
 
@@ -2412,28 +2419,28 @@ const goBack = () => {
           }
         }
 
-        .show-answer-placeholder {
+        .show-answer-btn {
           width: 100%;
-          height: 100%;
-          position: absolute;
-          top: 0;
-          left: 0;
-          background-color: transparent;
-          z-index: 10;
-          padding: 40rpx 0;
+          margin-top: 60rpx;
           display: flex;
           justify-content: center;
           align-items: center;
         
-          .placeholder-content {
+          .btn-content {
             display: flex;
             align-items: center;
-            gap: 12rpx;
-            color: #999;
-            font-size: 28rpx;
+            justify-content: center;
+            gap: 8rpx;
+            color: #bbb;
+            font-size: 26rpx;
+            padding: 12rpx 28rpx;
+            border-radius: 30rpx;
+            background-color: transparent;
+            border: 1rpx solid #ddd;
           
-            text {
+            &:active {
               color: #999;
+              border-color: #bbb;
             }
           }
         }
@@ -2479,12 +2486,16 @@ const goBack = () => {
         .mnemonic-content { color: #b0b0b0; }
       }
     }
-    .show-answer-placeholder {
-      background-color: #1e1e1e;
-      border-color: #333;
-      .placeholder-content {
+    .show-answer-btn {
+      .btn-content {
+        background-color: transparent;
         color: #666;
-        text { color: #4db6ac; }
+        border-color: #444;
+        
+        &:active {
+          color: #888;
+          border-color: #555;
+        }
       }
     }
   }
