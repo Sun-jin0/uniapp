@@ -126,6 +126,9 @@ const loadNearbyQuestions = async (centerIndex) => {
 onLoad((options) => {
   console.log('[Computer Practice] Received Options:', options);
   pageOptions.value = options || {};
+  // 在 onLoad 中调用 fetchQuestions，确保参数已设置
+  fetchQuestions();
+  fetchRelatedArticles();
 });
 
 const errorMsg = ref('');
@@ -664,8 +667,6 @@ onMounted(async () => {
   const systemInfo = uni.getSystemInfoSync();
   statusBarHeight.value = systemInfo.statusBarHeight || 0;
   loadUserSettings();
-  await fetchQuestions();
-  fetchRelatedArticles();
 });
 
 const fetchQuestions = async () => {
@@ -676,6 +677,9 @@ const fetchQuestions = async () => {
   const options = pageOptions.value;
   const questionId = options.questionId;
   const mode = options.mode;
+  
+  console.log('[fetchQuestions] options:', options);
+  console.log('[fetchQuestions] questionId:', questionId);
   
   try {
     let res;
@@ -738,16 +742,38 @@ const fetchQuestions = async () => {
       }
       
       if (idList.length > 0) {
-        // 存储所有题目ID，但只加载前3道
+        // 存储所有题目ID
         allQuestionIds.value = idList;
         // 初始化题目数组（用空对象占位）
         questions.value = new Array(idList.length).fill(null);
-        // 只加载前3道题
-        const initialIds = idList.slice(0, Math.min(PAGE_SIZE, idList.length));
+        
+        // 确定要加载的题目ID
+        let idsToLoad;
+        if (questionId) {
+          // 如果有目标题目ID，找到它的索引并加载它附近的题目
+          const targetIndex = idList.findIndex(id => String(id) === String(questionId));
+          console.log('[缓存模式] 目标题目索引:', targetIndex);
+          if (targetIndex !== -1) {
+            // 设置当前索引
+            currentIndex.value = targetIndex;
+            // 加载目标题目附近的题目
+            const start = Math.max(0, targetIndex - 1);
+            const end = Math.min(idList.length, targetIndex + 2);
+            idsToLoad = idList.slice(start, end);
+            console.log('[缓存模式] 加载题目范围:', start, '-', end, 'IDs:', idsToLoad);
+          } else {
+            // 目标题目不在列表中，加载前3道
+            idsToLoad = idList.slice(0, Math.min(PAGE_SIZE, idList.length));
+          }
+        } else {
+          // 没有目标题目，加载前3道
+          idsToLoad = idList.slice(0, Math.min(PAGE_SIZE, idList.length));
+        }
+        
         res = await request({
           url: '/computer1/questions/batch-details',
           method: 'POST',
-          data: { questionIds: initialIds }
+          data: { questionIds: idsToLoad }
         });
       } else if (options.majorId === 'tutorial' && options.chapterId) {
         // 教辅模式：获取章节下的题目
@@ -762,6 +788,7 @@ const fetchQuestions = async () => {
           const questionIds = res.data.map(q => q.question_id);
           console.log('[Tutorial Mode] Question IDs:', questionIds);
           console.log('[Tutorial Mode] First question options:', res.data[0].options);
+          console.log('[Tutorial Mode] questionId to find:', options.questionId);
           allQuestionIds.value = questionIds;
           // 初始化题目数组（用空对象占位）
           questions.value = new Array(questionIds.length).fill(null);
@@ -808,9 +835,13 @@ const fetchQuestions = async () => {
       
       // 如果指定了跳转的题目ID，定位到该题
       if (questionId) {
+        console.log('[定位题目] questionId:', questionId);
+        console.log('[定位题目] questions.value:', questions.value.map(q => q ? q.question_id : null));
         const index = questions.value.findIndex(q => q && String(q.question_id) === String(questionId));
+        console.log('[定位题目] findIndex result:', index);
         if (index > -1) {
           currentIndex.value = index;
+          console.log('[定位题目] currentIndex set to:', currentIndex.value);
           // 加载目标题目附近的题目
           await loadNearbyQuestions(index);
         }
@@ -1098,6 +1129,35 @@ const loadQuestionDetails = async (index) => {
   // 始终尝试获取笔记，不仅仅是在第一次加载时
   fetchNotes(question.question_id);
 
+  // 确保 questionStates[index] 存在
+  if (!questionStates.value[index]) {
+    const stemText = question.originalStem || question.stem || '';
+    const totalBlanks = countBlanks(stemText);
+    const subAnswers = {};
+    
+    if (question.subs && question.subs.length > 0) {
+      question.subs.forEach((sub, idx) => {
+        const id = sub.sub_id || sub.id || idx;
+        subAnswers[id] = '';
+      });
+    } else if (question.exercise_type === 4 || question.exercise_type_name?.includes('解答') || question.exercise_type_name?.includes('综合')) {
+      subAnswers['main'] = '';
+    }
+    
+    questionStates.value[index] = {
+      userAnswer: '',
+      shortAnswer: '', 
+      multiChoice: [],
+      blankAnswers: totalBlanks > 0 ? new Array(totalBlanks).fill('') : [],
+      subAnswers: subAnswers,
+      isCorrect: false,
+      showAnswer: settings.value.recitationMode,
+      isFavorite: false,
+      isWrongBook: false,
+      loaded: false
+    };
+  }
+
   if (questionStates.value[index].loaded) return;
 
   try {
@@ -1129,7 +1189,38 @@ const loadQuestionDetails = async (index) => {
 
 const prefetchQuestion = async (index) => {
   const question = questions.value[index];
-  if (!question || questionStates.value[index].loaded) return;
+  if (!question) return;
+  
+  // 确保 questionStates[index] 存在
+  if (!questionStates.value[index]) {
+    const stemText = question.originalStem || question.stem || '';
+    const totalBlanks = countBlanks(stemText);
+    const subAnswers = {};
+    
+    if (question.subs && question.subs.length > 0) {
+      question.subs.forEach((sub, idx) => {
+        const id = sub.sub_id || sub.id || idx;
+        subAnswers[id] = '';
+      });
+    } else if (question.exercise_type === 4 || question.exercise_type_name?.includes('解答') || question.exercise_type_name?.includes('综合')) {
+      subAnswers['main'] = '';
+    }
+    
+    questionStates.value[index] = {
+      userAnswer: '',
+      shortAnswer: '', 
+      multiChoice: [],
+      blankAnswers: totalBlanks > 0 ? new Array(totalBlanks).fill('') : [],
+      subAnswers: subAnswers,
+      isCorrect: false,
+      showAnswer: settings.value.recitationMode,
+      isFavorite: false,
+      isWrongBook: false,
+      loaded: false
+    };
+  }
+  
+  if (questionStates.value[index].loaded) return;
   
   try {
     const res = await request({ url: `/computer1/questions/${question.question_id}` });
@@ -1197,9 +1288,9 @@ const confirmAnswer = async (index) => {
   const state = questionStates.value[index];
   const question = questions.value[index];
   
+  if (!state || !question) return;
+  
   if (state.showAnswer) return; // 防止重复提交
-
-  if (!question) return;
 
   let isSkipJudgment = false;
 

@@ -46,8 +46,8 @@ export const processStem = (stem) => {
 
     // 浅色主题代码块样式 - 自动换行，避免横向滚动与题目切换冲突
     const styledCode = isPre
-      ? `<div style="width: 100%; background: #e0f2f1; border-radius: 8px; margin: 12px 0; border: 1px solid #b2dfdb; overflow: hidden;">
-          <pre style="display: block; margin: 0; padding: 16px; color: #333; font-family: 'Consolas', 'Monaco', 'Courier New', monospace; font-size: 14px; line-height: 1.6; white-space: pre-wrap; word-break: break-all; overflow-wrap: break-word;">${codeContent}</pre>
+      ? `<div style="width: 100%; background: #e0f2f1; border-radius: 8px; margin: 2px 0; border: 1px solid #b2dfdb; overflow: hidden;">
+          <pre style="display: block; margin: 0; padding: 4px 8px; color: #333; font-family: 'Consolas', 'Monaco', 'Courier New', monospace; font-size: 14px; line-height: 1.4; white-space: pre-wrap; word-break: break-all; overflow-wrap: break-word;">${codeContent}</pre>
         </div>`
       : `<code style="background: #e0f2f1; color: #333; padding: 2px 6px; border-radius: 4px; font-family: 'Consolas', 'Monaco', 'Courier New', monospace; font-size: 14px;">${codeContent}</code>`;
 
@@ -124,7 +124,7 @@ export const processStem = (stem) => {
   const formattedParagraphs = paragraphs.map(p => {
     // 如果段落内部有单个换行，转为 <br>
     const withBr = p.replace(/\n/g, '<br>');
-    return `<p style="margin: 0 0 12px 0; line-height: 1.8;">${withBr}</p>`;
+    return `<p style="margin: 0 0 2px 0; line-height: 1.6;">${withBr}</p>`;
   });
   
   let result = formattedParagraphs.join('');

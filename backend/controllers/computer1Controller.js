@@ -569,8 +569,7 @@ const getChapterById = async (req, res) => {
 // 获取题目列表（按章节或知识点）
 const getQuestions = async (req, res) => {
   try {
-    const { chapterId, tagId, majorId, examGroupId } = req.query;
-    // 修改查询：只查询 paper_type = 1（真题卷）的题目
+    const { chapterId, tagId, majorId, examGroupId, mode } = req.query;
     let query = `SELECT q.question_id, q.exercise_type, q.exercise_type_name, q.stem, q.level, q.total_score, q.from_school, q.exam_time, q.exam_code, q.exam_full_name, c.chapter_name, s.subject_name as major_name, p_info.paper_name as exam_paper_name 
       FROM computer1_question q 
       LEFT JOIN computer1_chapter c ON q.chapter_id = c.chapter_id 
@@ -579,7 +578,6 @@ const getQuestions = async (req, res) => {
         SELECT pq.question_id, MAX(p.title) as paper_name 
         FROM computer1_paper_question pq 
         JOIN computer1_paper p ON pq.paper_id = p.id 
-        WHERE p.paper_type = 1
         GROUP BY pq.question_id
       ) p_info ON q.question_id = p_info.question_id`;
     const params = [];
@@ -594,8 +592,8 @@ const getQuestions = async (req, res) => {
       query += ' WHERE q.major_id = ?';
       params.push(majorId);
     } else if (examGroupId) {
-      // 检查是否是试卷 ID (在 computer1_paper 表中存在，且 paper_type = 1)
-      const [paperExists] = await mysqlPool.query('SELECT id, title FROM computer1_paper WHERE id = ? AND paper_type = 1', [examGroupId]);
+      // 检查是否是试卷 ID (支持真题卷和模拟卷)
+      const [paperExists] = await mysqlPool.query('SELECT id, title, paper_type FROM computer1_paper WHERE id = ?', [examGroupId]);
 
       if (paperExists.length > 0) {
         // 如果是试卷 ID，从关联表获取题目，并按 sort_order 排序
