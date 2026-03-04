@@ -74,7 +74,18 @@
               <view class="item-arrow"></view>
             </view>
           </view>
-          
+
+          <!-- 设置与隐私组 -->
+          <view class="menu-group-card">
+            <view class="menu-item-row" @click="goToPrivacyPolicy">
+              <view class="icon-box privacy-bg">
+                <view class="inner-icon privacy"></view>
+              </view>
+              <text class="item-label">隐私政策</text>
+              <view class="item-arrow"></view>
+            </view>
+          </view>
+
           <!-- 退出操作 -->
           <view class="logout-area" @click="logout">
             <text class="logout-text">退出登录</text>
@@ -288,6 +299,13 @@ const goToSettings = () => {
 const goToRanking = () => {
   uni.navigateTo({
     url: '/pages/ranking/ranking'
+  });
+};
+
+// 跳转到隐私政策
+const goToPrivacyPolicy = () => {
+  uni.navigateTo({
+    url: '/pages/profile/privacy-policy'
   });
 };
 
@@ -528,6 +546,9 @@ const logout = () => {
 
 .ranking-bg { background: #dcfce7; }
 .ranking { background-color: #10b981; mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M7.5 21H2V9h5.5v12zm7.25 0h-5.5V3h5.5v18zm7.25 0h-5.5v-9H22v9z"/></svg>'); }
+
+.privacy-bg { background: #e0e7ff; }
+.privacy { background-color: #6366f1; mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/></svg>'); }
 
 .night-bg { background: #f3f4f6; }
 .night { background-color: #4b5563; mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9c0-.46-.04-.92-.1-1.36-.98 1.37-2.58 2.26-4.4 2.26-2.98 0-5.4-2.42-5.4-5.4 0-1.81.89-3.42 2.26-4.4-.44-.06-.9-.1-1.36-.1z"/></svg>'); }

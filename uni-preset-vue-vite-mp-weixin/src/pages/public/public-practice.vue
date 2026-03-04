@@ -734,7 +734,7 @@
           </view>
           <view class="setting-item">
             <text>夜间模式</text>
-            <switch :checked="settings.nightMode" @change="e => { settings.nightMode = e.detail.value; saveUserSettings(); }" color="#4db6ac" />
+            <switch :checked="settings.nightMode" @change="e => { settings.nightMode = e.detail.value; uni.setStorageSync('theme', e.detail.value ? 'dark' : 'light'); saveUserSettings(); }" color="#4db6ac" />
           </view>
           <view class="setting-item">
             <text>自动移出错题本</text>
@@ -1095,7 +1095,7 @@ const currentCorrectingQuestion = ref(null);
 // 系统设置
 const settings = ref({
   autoNext: true,
-  nightMode: false,
+  nightMode: uni.getStorageSync('theme') === 'dark',
   fontSizeLevel: 'standard', // 'small', 'standard', 'large', 'extra'
   recitationMode: false,
   autoRemoveWrong: true
@@ -1539,7 +1539,7 @@ const fetchUserSettings = async () => {
       const data = res.data;
       settings.value = {
         autoNext: data.autoNext === 1 || data.autoNext === true,
-        nightMode: data.nightMode === 1 || data.nightMode === true,
+        nightMode: data.nightMode === 1 || data.nightMode === true || uni.getStorageSync('theme') === 'dark',
         fontSizeLevel: data.fontSizeLevel || 'standard',
         recitationMode: data.recitationMode === 1 || data.recitationMode === true,
         autoRemoveWrong: data.autoRemoveWrong === 1 || data.autoRemoveWrong === true

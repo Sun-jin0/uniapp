@@ -209,12 +209,15 @@ const confirmDeleteCategory = (cat) => {
 const fetchFavorites = async () => {
   const subjectId = uni.getStorageSync('math_selected_subject_id');
   try {
+    const params = { subjectId };
+    // 只有当 categoryId 不为 null 时才添加到请求参数
+    if (currentCategoryId.value !== null) {
+      params.categoryId = currentCategoryId.value;
+    }
+    
     const res = await request({
       url: '/math/favorites',
-      data: { 
-        subjectId,
-        categoryId: currentCategoryId.value 
-      }
+      data: params
     });
     favorites.value = res.data || [];
     

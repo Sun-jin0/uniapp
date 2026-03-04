@@ -34,6 +34,13 @@
 			}
 		},
 		{
+			"path": "pages/profile/privacy-policy",
+			"style": {
+				"navigationBarTitleText": "隐私政策",
+				"navigationStyle": "custom"
+			}
+		},
+		{
 			"path": "pages/english/english-main",
 			"style": {
 				"navigationBarTitleText": "考研英语",
