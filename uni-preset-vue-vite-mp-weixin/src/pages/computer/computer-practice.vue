@@ -4,7 +4,7 @@ import { onLoad } from '@dcloudio/uni-app';
 import { request, BASE_URL } from '../../api/request';
 import medicalApi from '../../api/medical';
 import publicApi from '../../api/public';
-import { transformContextString } from '../../utils/latex';
+import { transformContextString, parseTextWithLatexForMp } from '../../utils/latex';
 import SvgIcon from '../../components/SvgIcon/SvgIcon.vue';
 import { checkTextContent } from '@/utils/contentSecurity.js';
 
@@ -1929,10 +1929,30 @@ const formatContent = (text, type = 'explanation', isRich = false, qIndex = -1, 
   }
     
     // console.log(`[Diagnostic] formatContent output (${type}):`, processedHtml.substring(0, 50) + (processedHtml.length > 50 ? '...' : ''));
+    
+    // #ifdef MP-WEIXIN
+    // 微信小程序环境下，使用 Towxml 解析为 nodes
+    try {
+      const nodes = parseTextWithLatexForMp(processedHtml);
+      return nodes;
+    } catch (e) {
+      console.error('parseTextWithLatexForMp error:', e);
+      return {};
+    }
+    // #endif
+    
+    // #ifdef H5
+    // H5环境下，返回 HTML 字符串
     return processedHtml;
+    // #endif
   } catch (e) {
     console.error('formatContent error:', e, text);
+    // #ifdef MP-WEIXIN
+    return {};
+    // #endif
+    // #ifdef H5
     return `<div class="content-error">${text}</div>`;
+    // #endif
   }
 };
 

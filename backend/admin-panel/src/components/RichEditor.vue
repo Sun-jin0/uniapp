@@ -293,6 +293,12 @@ onBeforeUnmount(() => {
   min-height: v-bind('height + "px"') !important;
 }
 
+/* 确保工具栏显示 */
+:deep(.w-e-toolbar) {
+  display: flex !important;
+  visibility: visible !important;
+}
+
 /* 编辑器内图片样式 */
 :deep(.w-e-text-container img) {
   max-width: 100%;
