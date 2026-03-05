@@ -1705,21 +1705,31 @@ const saveRelatedQuestions = async (req, res) => {
   try {
     await connection.beginTransaction();
     
-    // 先删除该题目的旧相关题关系
-    await connection.query(
-      'DELETE FROM math_relatedquestions WHERE SourceQuestionID = ?',
+    // 查询该题目已存在的相关题关系
+    const [existingRelations] = await connection.query(
+      'SELECT RelatedQuestionID FROM math_relatedquestions WHERE SourceQuestionID = ?',
       [parseInt(questionId)]
     );
+    const existingRelatedIds = new Set(existingRelations.map(r => r.RelatedQuestionID));
     
-    // 插入新的相关题关系
+    // 插入新的相关题关系（只插入不存在的）
     let insertedCount = 0;
+    let skippedCount = 0;
     for (const relatedId of relatedIds) {
       if (!relatedId) continue;
+      
+      const relatedIdInt = parseInt(relatedId);
+      
+      // 如果关系已存在，跳过
+      if (existingRelatedIds.has(relatedIdInt)) {
+        skippedCount++;
+        continue;
+      }
       
       try {
         await connection.query(
           `INSERT INTO math_relatedquestions (SourceQuestionID, RelatedQuestionID) VALUES (?, ?)`,
-          [parseInt(questionId), parseInt(relatedId)]
+          [parseInt(questionId), relatedIdInt]
         );
         insertedCount++;
       } catch (err) {
@@ -1727,14 +1737,16 @@ const saveRelatedQuestions = async (req, res) => {
         if (err.code !== 'ER_DUP_ENTRY') {
           throw err;
         }
+        skippedCount++;
       }
     }
     
     await connection.commit();
     res.json(successResponse({ 
       questionId, 
-      relatedCount: insertedCount 
-    }, '相关题关系保存成功'));
+      relatedCount: insertedCount,
+      skippedCount: skippedCount
+    }, `相关题关系保存成功，新增 ${insertedCount} 条，跳过 ${skippedCount} 条已存在`));
   } catch (error) {
     await connection.rollback();
     console.error('保存相关题关系失败:', error);
@@ -1748,6 +1760,14 @@ const importFromFiles = async (req, res) => {
   const connection = await mysqlPool.getConnection();
   try {
     const { structData, questionsData, detailsData, subjectId, contentType } = req.body;
+    
+    console.log('导入数据:', {
+      structDataCount: structData ? (Array.isArray(structData) ? structData.length : 'not array') : 0,
+      questionsDataCount: questionsData ? (Array.isArray(questionsData) ? questionsData.length : 'not array') : 0,
+      detailsDataCount: detailsData ? Object.keys(detailsData).length : 0,
+      subjectId,
+      contentType
+    });
     
     if (!structData && !questionsData) {
       return res.status(400).json(errorResponse('至少需要提供结构数据或题目数据'));
@@ -1773,8 +1793,12 @@ const importFromFiles = async (req, res) => {
       for (const item of flatStruct) {
         if (!item.BookID || !item.QuestionID) continue;
         
-        const bookId = item.BookID;
-        const questionId = item.QuestionID;
+        const bookId = parseInt(item.BookID);
+        const questionId = parseInt(item.QuestionID);
+        if (isNaN(bookId) || isNaN(questionId)) {
+          console.log(`Struct: 无效的BookID ${item.BookID} 或 QuestionID ${item.QuestionID}`);
+          continue;
+        }
         questionIdSet.add(questionId);
         
         if (!bookMap.has(bookId)) {
@@ -1821,19 +1845,26 @@ const importFromFiles = async (req, res) => {
         
         for (const q of book.questions) {
           try {
-            await connection.query(
-              `INSERT INTO math_bookquestions (
-                EntryID, BookID, QuestionID, QuestionPage, QuestionSort, 
-                Sort, ChapterName, BookChapter, ChapterSort, QuestionImg
-              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-              ON DUPLICATE KEY UPDATE
-              QuestionPage = VALUES(QuestionPage), QuestionSort = VALUES(QuestionSort),
-              Sort = VALUES(Sort), BookChapter = VALUES(BookChapter), 
-              ChapterSort = VALUES(ChapterSort), QuestionImg = VALUES(QuestionImg)`,
-              [q.EntryID, bookId, q.QuestionID, q.QuestionPage, q.QuestionSort,
-               q.Sort, q.ChapterName, q.BookChapter, q.ChapterSort, q.QuestionImg]
+            // 检查关联是否已存在
+            const [existingLink] = await connection.query(
+              'SELECT EntryID FROM math_bookquestions WHERE EntryID = ?',
+              [q.EntryID]
             );
-            stats.linksCreated++;
+            
+            if (existingLink.length === 0) {
+              await connection.query(
+                `INSERT INTO math_bookquestions (
+                  EntryID, BookID, QuestionID, QuestionPage, QuestionSort, 
+                  Sort, ChapterName, BookChapter, ChapterSort, QuestionImg
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                [q.EntryID, bookId, q.QuestionID, q.QuestionPage, q.QuestionSort,
+                 q.Sort, q.ChapterName, q.BookChapter, q.ChapterSort, q.QuestionImg]
+              );
+              stats.linksCreated++;
+            } else {
+              // 关联已存在，跳过
+              console.log(`Link EntryID ${q.EntryID}: 已存在，跳过导入`);
+            }
           } catch (err) {
             stats.errors.push(`Link EntryID ${q.EntryID}: ${err.message}`);
           }
@@ -1842,10 +1873,18 @@ const importFromFiles = async (req, res) => {
     }
     
     if (questionsData && Array.isArray(questionsData)) {
+      console.log(`开始处理 ${questionsData.length} 道题目`);
       for (const q of questionsData) {
-        if (!q.ID) continue;
+        if (!q.ID) {
+          console.log('Question: 跳过没有ID的题目');
+          continue;
+        }
         
-        const questionId = q.ID;
+        const questionId = parseInt(q.ID);
+        if (isNaN(questionId)) {
+          console.log(`Question: 无效的ID ${q.ID}`);
+          continue;
+        }
         questionIdSet.add(questionId);
         
         const questionType = q.QuestionType || detectQuestionType(q.QuestionTxt);
@@ -1857,6 +1896,7 @@ const importFromFiles = async (req, res) => {
           );
           
           if (existing.length === 0) {
+            console.log(`Question ${questionId}: 准备插入新题目`);
             await connection.query(
               `INSERT INTO math_questions (
                 QuestionID, QuestionText, QuestionImg, QuestionType, 
@@ -1866,33 +1906,50 @@ const importFromFiles = async (req, res) => {
                q.AnswerTxt || '', 0.5, q.LinksCount || '', q.LinkNames || '']
             );
             stats.questionsCreated++;
+            console.log(`Question ${questionId}: 插入成功`);
           } else {
-            await connection.query(
-              `UPDATE math_questions SET 
-                QuestionText = ?, QuestionImg = ?, QuestionType = ?,
-                LinksCount = ?, LinkNames = ?
-              WHERE QuestionID = ?`,
-              [q.QuestionTxt || '', q.QuestionImg || null, questionType,
-               q.LinksCount || '', q.LinkNames || '', questionId]
-            );
-            stats.questionsUpdated++;
+            // 题目已存在，跳过不更新
+            console.log(`Question ${questionId}: 已存在，跳过导入`);
+            stats.errors.push(`Question ${questionId}: 已存在，跳过导入`);
           }
         } catch (err) {
+          console.error(`Question ${questionId}: 插入失败 - ${err.message}`);
           stats.errors.push(`Question ${questionId}: ${err.message}`);
         }
       }
     }
     
     if (detailsData && typeof detailsData === 'object') {
+      const allDetailKeys = Object.keys(detailsData);
+      console.log(`详情数据: 共 ${allDetailKeys.length} 个题目的详情`);
+      console.log(`详情数据keys: ${allDetailKeys.slice(0, 10).join(', ')}...`);
+      console.log(`questionIdSet: ${Array.from(questionIdSet).slice(0, 10).join(', ')}...`);
+      
       for (const questionIdStr in detailsData) {
         const questionId = parseInt(questionIdStr);
-        if (isNaN(questionId)) continue;
+        if (isNaN(questionId)) {
+          console.log(`Detail: 无效的questionId ${questionIdStr}`);
+          continue;
+        }
+        
+        // 只处理本次导入的题目相关的详情
+        if (!questionIdSet.has(questionId)) {
+          console.log(`Detail Q${questionId}: 不在本次导入的题目列表中，跳过`);
+          continue;
+        }
         
         const details = detailsData[questionIdStr];
-        if (!Array.isArray(details)) continue;
+        if (!Array.isArray(details)) {
+          console.log(`Detail Q${questionId}: 详情数据不是数组，类型: ${typeof details}`);
+          continue;
+        }
+        
+        console.log(`Detail Q${questionId}: 开始导入 ${details.length} 条详情`);
         
         for (const detail of details) {
           try {
+            console.log(`Detail Q${questionId}: 处理详情`, Object.keys(detail));
+            
             let linkedKpId = null;
             
             if (detail._question_code && detail._question_code.Code) {
@@ -1915,24 +1972,39 @@ const importFromFiles = async (req, res) => {
               if (kpRows.length > 0) linkedKpId = kpRows[0].KnowledgePointID;
             }
             
-            if (detail.ID) {
-              await connection.query(
-                `INSERT INTO math_questiondetails (
-                  QuestionID, BusType, SourceDetailID, Context, Give, 
-                  Notes, JsonData, Title, IsProductBook, LinkedKnowledgePointID
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ON DUPLICATE KEY UPDATE
-                Context = VALUES(Context), Give = VALUES(Give),
-                Notes = VALUES(Notes), Title = VALUES(Title),
-                LinkedKnowledgePointID = VALUES(LinkedKnowledgePointID)`,
-                [questionId, detail.BusType || 'analysis', detail.ID, 
-                 detail.Context || null, detail.Give || 0, detail.Notes || null,
-                 detail.Json ? JSON.stringify(detail.Json) : null,
-                 detail.Title || null, detail.IsProductBook ? 1 : 0, linkedKpId]
+            // 获取详情ID（支持 ID、id、Id 或 detail.ID 等字段）
+            const detailId = detail.ID || detail.id || detail.Id || detail.detailId;
+            console.log(`Detail Q${questionId}: detailId=${detailId}, 可用字段:`, Object.keys(detail).filter(k => k.toLowerCase().includes('id')));
+            
+            if (detailId) {
+              // 检查详情是否已存在（使用ID字段作为主键）
+              const [existingDetail] = await connection.query(
+                'SELECT ID FROM math_questiondetails WHERE QuestionID = ? AND SourceDetailID = ?',
+                [questionId, detailId]
               );
-              stats.detailsCreated++;
+              
+              if (existingDetail.length === 0) {
+                await connection.query(
+                  `INSERT INTO math_questiondetails (
+                    QuestionID, BusType, SourceDetailID, Context, Give, 
+                    Notes, JsonData, Title, IsProductBook, LinkedKnowledgePointID
+                  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                  [questionId, detail.BusType || 'analysis', detailId, 
+                   detail.Context || null, detail.Give || 0, detail.Notes || null,
+                   detail.Json ? JSON.stringify(detail.Json) : null,
+                   detail.Title || null, detail.IsProductBook ? 1 : 0, linkedKpId]
+                );
+                stats.detailsCreated++;
+                console.log(`Detail Q${questionId} ID${detailId}: 插入成功`);
+              } else {
+                // 详情已存在，跳过
+                console.log(`Detail Q${questionId} ID${detailId}: 已存在，跳过导入`);
+              }
+            } else {
+              console.log(`Detail Q${questionId}: 缺少ID字段，跳过`);
             }
           } catch (err) {
+            console.error(`Detail Q${questionId}: 插入失败 - ${err.message}`);
             stats.errors.push(`Detail Q${questionId}: ${err.message}`);
           }
         }
