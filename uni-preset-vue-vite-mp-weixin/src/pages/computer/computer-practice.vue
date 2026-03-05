@@ -4,25 +4,14 @@ import { onLoad } from '@dcloudio/uni-app';
 import { request, BASE_URL } from '../../api/request';
 import medicalApi from '../../api/medical';
 import publicApi from '../../api/public';
-import { transformContextString, parseTextWithLatexForMp } from '../../utils/latex';
+import { transformContextString } from '../../utils/latex';
 import SvgIcon from '../../components/SvgIcon/SvgIcon.vue';
 import { checkTextContent } from '@/utils/contentSecurity.js';
-
-// #ifdef MP-WEIXIN
-import Towxml from '@/wxcomponents/towxml/towxml.vue';
-// #endif
 
 const statusBarHeight = ref(0);
 const questions = ref([]);
 const allQuestionIds = ref([]); // 存储所有题目ID
 const loadedQuestionIds = ref(new Set()); // 已加载的题目ID
-
-// #ifdef MP-WEIXIN
-// Towxml nodes 缓存
-const titleNodesCache = ref({});
-const optionNodesCache = ref({});
-const explanationNodesCache = ref({});
-// #endif
 
 // 获取文件基础路径 (从 BASE_URL 提取，如 http://localhost:3000/api -> http://localhost:3000)
 const getFileBaseUrl = () => {
@@ -897,28 +886,6 @@ const fetchQuestions = async () => {
         }
       });
       
-      // #ifdef MP-WEIXIN
-      // 预解析 Towxml nodes
-      loadedQuestions.forEach((q, idx) => {
-        const cacheKey = idx;
-        // 预解析题干
-        const stemText = q.truncatedStem || q.originalStem || q.stem || '';
-        if (stemText) {
-          titleNodesCache.value[cacheKey] = parseTextWithLatexForMp(stemText);
-        }
-        // 预解析选项
-        if (q.content && q.content.options) {
-          q.content.options.forEach((opt, optIdx) => {
-            const optKey = `${cacheKey}_${optIdx}`;
-            const optText = opt.text || opt;
-            if (optText) {
-              optionNodesCache.value[optKey] = parseTextWithLatexForMp(optText);
-            }
-          });
-        }
-      });
-      // #endif
-
       // 加载当前索引附近的题目
       if (questions.value.length > 0) {
         await loadNearbyQuestions(currentIndex.value);
@@ -1962,36 +1929,11 @@ const formatContent = (text, type = 'explanation', isRich = false, qIndex = -1, 
   }
     
     // console.log(`[Diagnostic] formatContent output (${type}):`, processedHtml.substring(0, 50) + (processedHtml.length > 50 ? '...' : ''));
-    
-    // #ifdef MP-WEIXIN
-    // 微信小程序环境下，使用 Towxml 解析为 nodes
-    try {
-      const nodes = parseTextWithLatexForMp(processedHtml);
-      // 确保返回的是对象（Towxml 格式）
-      if (nodes && typeof nodes === 'object') {
-        return nodes;
-      }
-      console.warn('parseTextWithLatexForMp returned invalid format:', nodes);
-      return {};
-    } catch (e) {
-      console.error('parseTextWithLatexForMp error:', e);
-      return {};
-    }
-    // #endif
-    
-    // #ifdef H5
-    // H5环境下，返回 HTML 字符串
     return processedHtml;
-    // #endif
   } catch (e) {
-      console.error('formatContent error:', e, text);
-      // #ifdef MP-WEIXIN
-      return {};
-      // #endif
-      // #ifdef H5
-      return `<div class="content-error">${text}</div>`;
-      // #endif
-    }
+    console.error('formatContent error:', e, text);
+    return `<div class="content-error">${text}</div>`;
+  }
 };
 
 const formatTitle = (text, qIndex = -1, exerciseType = null) => formatContent(text, 'title', false, qIndex, exerciseType);
@@ -2118,15 +2060,9 @@ const submitFeedback = async () => {
                   <view class="question-title-content">
                     <view class="question-title" :style="{ fontSize: dynamicFontSize.title }">
                       <!-- 如果是填空题，先尝试行内渲染 -->
-                      <!-- #ifdef MP-WEIXIN -->
-                      <towxml v-if="question.exercise_type === 3" :nodes="titleNodesCache[qIndex] || {}" class="title-rich-text"></towxml>
-                      <!-- 其他题型：如果有截断题干则显示截断的，否则显示完整的原始题干 -->
-                      <towxml v-else :nodes="titleNodesCache[qIndex] || {}" class="title-rich-text"></towxml>
-                      <!-- #endif -->
-                      <!-- #ifdef H5 -->
                       <rich-text v-if="question.exercise_type === 3" :nodes="formatTitle(question.truncatedStem || question.stem, qIndex, 3)" class="title-rich-text"></rich-text>
+                      <!-- 其他题型：如果有截断题干则显示截断的，否则显示完整的原始题干 -->
                       <rich-text v-else :nodes="formatTitle(question.truncatedStem || question.originalStem, qIndex, question.exercise_type)" class="title-rich-text"></rich-text>
-                      <!-- #endif -->
                     </view>
                   </view>
                 </view>
@@ -2148,12 +2084,7 @@ const submitFeedback = async () => {
                 >
                   <view class="option-label">{{ String.fromCharCode(65 + index) }}</view>
                   <view class="option-content" :style="{ fontSize: dynamicFontSize.option }">
-                    <!-- #ifdef MP-WEIXIN -->
-                    <towxml :nodes="optionNodesCache[`${qIndex}_${index}`] || {}"></towxml>
-                    <!-- #endif -->
-                    <!-- #ifdef H5 -->
                     <rich-text :nodes="formatContent(option.text || option, 'option', false, qIndex, question.exercise_type)"></rich-text>
-                    <!-- #endif -->
                   </view>
                   <view v-if="shouldShowAnswer(qIndex)" class="result-icon">
                     <SvgIcon v-if="isCorrectOption(question, index)" name="correct" size="32" fill="#4caf50" />
@@ -2189,12 +2120,7 @@ const submitFeedback = async () => {
                       </view>
                     <view class="sub-stem">
                       <view class="sub-index">{{ sIdx + 1 }}.</view>
-                      <!-- #ifdef MP-WEIXIN -->
-                      <towxml :nodes="formatContent(sub.stem, 'explanation', true, qIndex, 4)"></towxml>
-                      <!-- #endif -->
-                      <!-- #ifdef H5 -->
                       <rich-text :nodes="formatContent(sub.stem, 'explanation', true, qIndex, 4)"></rich-text>
-                      <!-- #endif -->
                     </view>
                     <textarea 
                       v-if="questionStates[qIndex]?.subAnswers"
@@ -2211,25 +2137,11 @@ const submitFeedback = async () => {
                     <view v-if="shouldShowAnswer(qIndex)" class="sub-answer-section animated fadeIn">
                       <view class="sub-answer-item">
                         <text class="label">【答案】</text>
-                        <view class="value">
-                          <!-- #ifdef MP-WEIXIN -->
-                          <towxml :nodes="formatContent(sub.answer || sub.originalAnswer || sub.standard_answer || sub.correct_answer, 'explanation', true, qIndex, 4)"></towxml>
-                          <!-- #endif -->
-                          <!-- #ifdef H5 -->
-                          <rich-text :nodes="formatContent(sub.answer || sub.originalAnswer || sub.standard_answer || sub.correct_answer, 'explanation', true, qIndex, 4)"></rich-text>
-                          <!-- #endif -->
-                        </view>
+                        <view class="value"><rich-text :nodes="formatContent(sub.answer || sub.originalAnswer || sub.standard_answer || sub.correct_answer, 'explanation', true, qIndex, 4)"></rich-text></view>
                       </view>
                       <view class="sub-answer-item" v-if="sub.analysis || sub.commentary || sub.method || sub.explanation || sub.solution">
                         <text class="label">【解析】</text>
-                        <view class="value">
-                          <!-- #ifdef MP-WEIXIN -->
-                          <towxml :nodes="formatContent(sub.analysis || sub.commentary || sub.method || sub.explanation || sub.solution, 'explanation', true, qIndex, 4)"></towxml>
-                          <!-- #endif -->
-                          <!-- #ifdef H5 -->
-                          <rich-text :nodes="formatContent(sub.analysis || sub.commentary || sub.method || sub.explanation || sub.solution, 'explanation', true, qIndex, 4)"></rich-text>
-                          <!-- #endif -->
-                        </view>
+                        <view class="value"><rich-text :nodes="formatContent(sub.analysis || sub.commentary || sub.method || sub.explanation || sub.solution, 'explanation', true, qIndex, 4)"></rich-text></view>
                       </view>
                     </view>
                   </view>
@@ -2319,12 +2231,7 @@ const submitFeedback = async () => {
                   </view>
                 </view>
                 <view class="explanation-content" :style="{ fontSize: dynamicFontSize.explanation }">
-                  <!-- #ifdef MP-WEIXIN -->
-                  <towxml :nodes="formatContent(question.displayAnswer || question.answer, 'explanation', true, qIndex, question.exercise_type)"></towxml>
-                  <!-- #endif -->
-                  <!-- #ifdef H5 -->
                   <rich-text :nodes="formatContent(question.displayAnswer || question.answer, 'explanation', true, qIndex, question.exercise_type)"></rich-text>
-                  <!-- #endif -->
                 </view>
               </view>
 
@@ -2337,12 +2244,7 @@ const submitFeedback = async () => {
                   </view>
                 </view>
                 <view class="explanation-content" :style="{ fontSize: dynamicFontSize.explanation }">
-                  <!-- #ifdef MP-WEIXIN -->
-                  <towxml :nodes="formatContent(question.answer, 'explanation', true, qIndex, 4)"></towxml>
-                  <!-- #endif -->
-                  <!-- #ifdef H5 -->
                   <rich-text :nodes="formatContent(question.answer, 'explanation', true, qIndex, 4)"></rich-text>
-                  <!-- #endif -->
                 </view>
               </view>
 
@@ -2355,12 +2257,7 @@ const submitFeedback = async () => {
                   </view>
                 </view>
                 <view class="explanation-content" :style="{ fontSize: dynamicFontSize.explanation }">
-                  <!-- #ifdef MP-WEIXIN -->
-                  <towxml :nodes="formatExplanation(question.analysis, qIndex, question.exercise_type)"></towxml>
-                  <!-- #endif -->
-                  <!-- #ifdef H5 -->
                   <rich-text :nodes="formatExplanation(question.analysis, qIndex, question.exercise_type)"></rich-text>
-                  <!-- #endif -->
                 </view>
               </view>
 
@@ -2453,12 +2350,7 @@ const submitFeedback = async () => {
                         </view>
                       </view>
                       <view class="note-content">
-                        <!-- #ifdef MP-WEIXIN -->
-                        <towxml :nodes="formatContent(note.content, 'note')"></towxml>
-                        <!-- #endif -->
-                        <!-- #ifdef H5 -->
                         <rich-text :nodes="formatContent(note.content, 'note')"></rich-text>
-                        <!-- #endif -->
                       </view>
                       
                       <!-- 笔记回复列表 -->
@@ -2475,12 +2367,7 @@ const submitFeedback = async () => {
                           <view v-for="reply in note.replies" :key="reply.id" class="reply-item" @longpress="showReplyActions(reply, note)">
                             <view class="reply-content-row">
                               <text class="reply-user">{{ reply.username }}:</text>
-                              <!-- #ifdef MP-WEIXIN -->
-                              <towxml class="reply-content" :nodes="formatContent(reply.content, 'note')"></towxml>
-                              <!-- #endif -->
-                              <!-- #ifdef H5 -->
                               <rich-text class="reply-content" :nodes="formatContent(reply.content, 'note')"></rich-text>
-                              <!-- #endif -->
                               <text 
                                 v-if="String(reply.user_id || reply.userId) === String(currentUserId)" 
                                 class="delete-reply-btn" 

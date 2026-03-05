@@ -282,17 +282,15 @@ export function parseTextWithLatexForMp(text) {
     // Towxml 会自动处理 $...$ 和 $$...$$ 中的 LaTeX 公式
     const result = towxml(processedText, 'markdown');
     
-    // Towxml 返回的是包含 child 数组的对象
-    if (result && result.child) {
-      return result;
-    }
-    
-    // 如果没有 child 属性，返回空对象
-    return {};
+    return result || {};
   } catch (error) {
     console.error('parseTextWithLatexForMp error:', error);
-    // 出错时返回空对象
-    return {};
+    // 出错时返回原始文本作为纯文本节点
+    return {
+      type: 'element',
+      tag: 'div',
+      children: [{ type: 'text', text: text }]
+    };
   }
 }
 
@@ -308,6 +306,23 @@ export function transformContextString(rawContextString) {
   };
 
   let currentText = rawContextString.trim().replace(/\t/g, ' ').replace(/ {2,}/g, ' ');
+  
+  // 0. 预处理 HTML 标签：将 <p>...</p> 转换为带换行的段落，<br> 转换为换行
+  // 这样可以确保富文本内容正确分段显示
+  currentText = currentText
+    // 处理 <p> 标签：保留内容，并在段落之间添加换行
+    .replace(/<p[^>]*>([\s\S]*?)<\/p>/gi, (match, content) => {
+      // 清理段落内的 <br> 标签，避免重复换行
+      const cleanedContent = content.replace(/<br\s*\/?>/gi, '\n');
+      return cleanedContent + '\n';
+    })
+    // 处理独立的 <br> 标签
+    .replace(/<br\s*\/?>/gi, '\n')
+    // 处理其他常见的 HTML 块级标签
+    .replace(/<div[^>]*>([\s\S]*?)<\/div>/gi, (match, content) => content + '\n')
+    // 清理多余的换行（超过2个的换行合并为2个）
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
   
   // 1. 提取并保护所有数学公式 (在反转义 HTML 之前，避免公式内的符号被破坏)
   let mathRegex;
