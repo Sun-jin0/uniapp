@@ -357,6 +357,8 @@ export const adminApi = {
   importMathFromFiles: (data) => service.post('/math/admin/import-from-files', data),
   // 保存相关题关系
   saveRelatedQuestions: (data) => service.post('/math/admin/related-questions', data),
+  // AI 代码格式化
+  aiFormatCode: (data) => service.post('/admin/ai/format-code', data),
   // 教辅管理
   getTutorials: (params) => service.get('/computer/tutorials', { params }),
   getTutorialDetail: (id) => service.get(`/computer/tutorials/${id}`),

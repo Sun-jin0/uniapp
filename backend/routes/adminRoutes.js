@@ -65,6 +65,9 @@ const panResourceController = require('../controllers/panResourceController');
 router.get('/med/files', auth, adminAuth, medAdminController.getMedFiles);
 router.post('/med/import', auth, adminAuth, medAdminController.importMedFile);
 
+// AI 代码格式化
+router.post('/ai/format-code', auth, adminAuth, adminController.aiFormatCode);
+
 // 网盘资源管理
 router.get('/pan-resources', auth, adminAuth, panResourceController.getPanResources);
 router.post('/pan-resources', auth, adminAuth, panResourceController.createPanResource);

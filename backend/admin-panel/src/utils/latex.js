@@ -24,6 +24,15 @@ export function transformContextString(rawContextString) {
 
   let currentText = rawContextString.trim().replace(/\t/g, ' ').replace(/ {2,}/g, ' ');
   
+  // 0. 先处理HTML实体，确保 $ 符号正确
+  currentText = currentText
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&#36;/g, '$'); // 处理 $ 的 HTML 实体
+  
   // 1. 提取并保护所有数学公式
   let mathRegex;
   try {
@@ -65,13 +74,14 @@ export function transformContextString(rawContextString) {
     }
   });
 
-  // 2. 反转义 HTML 实体
+  // 2. 处理其他HTML实体（$ 已经在前面处理过了）
   currentText = currentText
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')
     .replace(/&amp;/g, '&')
     .replace(/&quot;/g, '"')
-    .replace(/&#039;/g, "'");
+    .replace(/&#039;/g, "'")
+    .replace(/&#36;/g, '$');
 
   // 3. 处理 《答案》等自定义标签
   currentText = currentText

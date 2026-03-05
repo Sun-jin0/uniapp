@@ -1057,6 +1057,178 @@ const parseArticleLink = async (req, res) => {
   }
 };
 
+// AI 代码格式化 - 使用硅基流动 API
+const aiFormatCode = async (req, res) => {
+  // 从请求中获取内容
+  const { content, instruction, model } = req.body;
+  
+  if (!content) {
+    return res.status(400).json(errorResponse('内容不能为空'));
+  }
+  
+  try {
+    // 硅基流动 API 配置
+    const API_KEY = 'sk-xjwophkydyodyfcexfhydvvpgcrnchurjkniopiqqbfmzqeb';
+    const API_URL = 'https://api.siliconflow.cn/v1/chat/completions';
+    // 支持模型切换，默认使用 DeepSeek-V3.2
+    const MODEL = model || 'deepseek-ai/DeepSeek-V3.2';
+    
+    const systemPrompt = `你是一个题目内容格式化助手。你的任务是：
+1. 保持原有题目内容完全不变，包括题干描述、选项、答案、解析等所有文字内容
+2. 代码块格式化：
+   - 删除代码块中多余的空行
+   - 统一代码缩进格式（使用4个空格作为标准缩进）
+   - 格式化代码结构：统一大括号位置、运算符前后加空格、关键字后加空格等
+   - 代码块内：连续代码行之间不要有空行，只在逻辑块之间保留一个空行
+   - 代码块内绝对不能有LaTeX代码，如果代码块内有LaTeX标记（如 \\left \\right \\frac 等），必须完全移除，只保留纯代码
+3. 处理代码块外的LaTeX公式（题目描述、解析等文字中的）：
+   - 将LaTeX公式转换为标准可渲染格式，使用 $...$ 包裹行内公式，使用 $$...$$ 包裹块级公式
+   - 修复错误的LaTeX语法，如将 &nbsp; 替换为空格，修正下标上标格式
+   - 对于求和、求积、积分等运算符（\\sum, \\prod, \\int, \\bigcup, \\bigcap等），添加 \\limits 使上下标显示在符号上下方而不是角标位置
+   - 例如：\\sum_{i=1}^{n} 应转换为 \\sum\\limits_{i=1}^{n}
+   - 例如：\\int_{a}^{b} 应转换为 \\int\\limits_{a}^{b}
+   - 例如：T\\left( n\\right) &nbsp;= {\\log }_{5}n 转换为 $T(n) = \\log_5 n$
+   - 例如：O\\left( {{n}^{2}{\\log }_{2}n}\\right) 转换为 $O(n^2 \\log_2 n)$
+4. 去除代码块中的 --- 等分隔符
+5. 不要增加、删除或修改任何题目文字内容
+6. 不要修改任何代码逻辑
+7. 不要添加 markdown 代码块标记（如 \`\`\`c 或 \`\`\`）
+8. 直接返回格式化后的完整内容，保留所有 HTML 标签和格式
+
+重要规则：
+- 这是题目内容，包含题干、选项、答案、解析等，不是纯代码。必须保留所有非代码内容！
+- 代码块内：只保留纯代码，移除所有LaTeX标记
+- 代码块外：将LaTeX公式转换为标准可渲染格式（使用$...$包裹），确保公式能正确显示
+- 代码缩进统一为4个空格
+- 格式化后的代码应该符合标准编程规范`;
+    
+    const userPrompt = `${instruction || '请格式化以下内容，只清理代码块中的多余空行，保留所有题目文字内容'}
+
+原始内容（包含HTML格式）：
+${content}`;
+    
+    const response = await axios.post(API_URL, {
+      model: MODEL,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt }
+      ],
+      temperature: 0.1,
+      max_tokens: 4096
+    }, {
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${API_KEY}`
+      },
+      timeout: 60000
+    });
+    
+    let formattedContent = response.data.choices?.[0]?.message?.content || content;
+    
+    // 后处理：移除 markdown 代码块标记
+    formattedContent = formattedContent
+      .replace(/^```[a-z]*\n/i, '') // 移除开头的 ```c 或 ```
+      .replace(/\n```$/i, '') // 移除结尾的 ```
+      .replace(/^```[a-z]*$/i, '') // 移除只有 ``` 的情况
+      .trim();
+    
+    // 后处理：修复LaTeX格式问题
+    // 先处理HTML实体（必须在其他处理之前）
+    formattedContent = formattedContent
+      .replace(/&amp;/g, '&')
+      .replace(/&gt;/g, '>')
+      .replace(/&lt;/g, '<')
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'");
+    
+    // 处理LaTeX命令
+    formattedContent = formattedContent
+      // 修复 \operatorname, \mathrm 等命令
+      .replace(/\\operatorname\{([^}]+)\}/g, '\\text{$1}')
+      .replace(/\\mathrm\{([^}]+)\}/g, '$1')
+      // 修复多余的空格和换行在公式中
+      .replace(/\$\s+/g, '$')
+      .replace(/\s+\$/g, '$')
+      // 修复连续的空格
+      .replace(/\$([^$]+)\$/g, (match, p1) => {
+        return '$' + p1.replace(/\s+/g, ' ').trim() + '$';
+      });
+    
+    // 后处理：确保删除所有多余空行
+    formattedContent = cleanEmptyLines(formattedContent);
+    
+    res.json(successResponse({ 
+      formattedContent,
+      model: MODEL
+    }));
+  } catch (error) {
+    console.error('AI格式化失败:', error.message);
+    // 如果AI调用失败，返回基础清理后的内容
+    const cleanedContent = cleanEmptyLines(content);
+    
+    res.json(successResponse({ 
+      formattedContent: cleanedContent,
+      error: error.message,
+      fallback: true
+    }));
+  }
+};
+
+// 清理多余空行的辅助函数（支持HTML内容）
+const cleanEmptyLines = (content) => {
+  if (!content) return content;
+  
+  let cleaned = content;
+  
+  // 1. 去除 --- 分隔符
+  cleaned = cleaned.replace(/---+/g, '');
+  
+  // 2. 删除代码块内的 <br> 标签（替换为换行符）
+  cleaned = cleaned.replace(/(<pre[^>]*>[\s\S]*?<\/pre>)/gi, (match) => {
+    return match.replace(/<br\s*\/?>/gi, '\n');
+  });
+  
+  // 3. 删除所有空段落（只包含 <br> 或 &nbsp; 或空白的段落）
+  cleaned = cleaned.replace(/<p[^>]*>\s*(<br\s*\/?>|&nbsp;|\s)*\s*<\/p>/gi, '');
+  
+  // 4. 删除段落末尾的 <br>
+  cleaned = cleaned.replace(/<br\s*\/?>\s*<\/p>/gi, '</p>');
+  
+  // 5. 删除段落开头的 <br>
+  cleaned = cleaned.replace(/<p>\s*<br\s*\/?>/gi, '<p>');
+  
+  // 6. 删除开头的 <br>
+  cleaned = cleaned.replace(/^\s*<br\s*\/?>/gi, '');
+  
+  // 7. 删除结尾的 <br>
+  cleaned = cleaned.replace(/<br\s*\/?>\s*$/gi, '');
+  
+  // 8. 删除连续的 <br> 标签
+  cleaned = cleaned.replace(/(<br\s*\/?>\s*){2,}/gi, '<br>');
+  
+  // 9. 处理纯文本换行符（针对代码块内的文本，但要保护LaTeX公式）
+  // 先保护LaTeX公式中的特殊字符
+  const latexPlaceholders = [];
+  cleaned = cleaned.replace(/\$[^$]+\$/g, (match) => {
+    latexPlaceholders.push(match);
+    return `__LATEX_${latexPlaceholders.length - 1}__`;
+  });
+  
+  // 处理换行符
+  cleaned = cleaned
+    .replace(/\n[ \t]*\n[ \t]*\n+/g, '\n\n') // 3个及以上空行变成2个
+    .replace(/\n[ \t]*\n([ \t]*[}\]])/g, '\n$1') // 删除 } 或 ] 前的空行
+    .replace(/([{\[])[ \t]*\n[ \t]*\n/g, '$1\n') // 删除 { 或 [ 后的空行
+    .replace(/^\s+|\s+$/g, ''); // 去除首尾空白
+  
+  // 恢复LaTeX公式
+  latexPlaceholders.forEach((latex, index) => {
+    cleaned = cleaned.replace(`__LATEX_${index}__`, latex);
+  });
+  
+  return cleaned;
+};
+
 const getStats = async (req, res) => {
   try {
     const pool = require('../config/mysql');
@@ -1190,5 +1362,6 @@ module.exports = {
   createChapter,
   updateChapter,
   deleteChapter,
-  parseArticleLink
+  parseArticleLink,
+  aiFormatCode
 };

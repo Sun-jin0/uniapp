@@ -605,6 +605,45 @@
         <el-button type="primary" @click="saveQuestion" :loading="savingQuestion">保存</el-button>
       </template>
     </el-dialog>
+
+    <!-- AI 代码格式化弹窗 -->
+    <el-dialog
+      v-model="aiFixModalVisible"
+      title="AI 代码格式化"
+      width="70%"
+      :close-on-click-modal="false"
+    >
+      <div class="ai-fix-container">
+        <div class="ai-fix-section">
+          <h4>原始内容</h4>
+          <el-input
+            v-model="aiFixOriginalText"
+            type="textarea"
+            :rows="8"
+            placeholder="请选择要格式化的内容..."
+            readonly
+          />
+        </div>
+        <div class="ai-fix-arrow">
+          <el-button type="primary" @click="callAIFix" :loading="aiFixLoading">
+            <el-icon><MagicStick /></el-icon> AI格式化
+          </el-button>
+        </div>
+        <div class="ai-fix-section">
+          <h4>格式化后</h4>
+          <el-input
+            v-model="aiFixResultText"
+            type="textarea"
+            :rows="8"
+            placeholder="AI格式化后的内容将显示在这里..."
+          />
+        </div>
+      </div>
+      <template #footer>
+        <el-button @click="aiFixModalVisible = false">取消</el-button>
+        <el-button type="primary" @click="applyAIFixResult" :disabled="!aiFixResultText">应用</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -959,6 +998,65 @@ const renderMath = (text) => {
 const editQuestionModalVisible = ref(false)
 const editingQuestionForm = ref(null)
 const savingQuestion = ref(false)
+
+// AI 代码格式化相关
+const aiFixModalVisible = ref(false)
+const aiFixField = ref('')
+const aiFixOriginalText = ref('')
+const aiFixResultText = ref('')
+const aiFixLoading = ref(false)
+
+const openAIFixModal = (field) => {
+  aiFixField.value = field
+  aiFixOriginalText.value = editingQuestionForm.value[field] || ''
+  aiFixResultText.value = ''
+  aiFixModalVisible.value = true
+}
+
+// 清理多余空行的辅助函数
+const cleanEmptyLines = (content) => {
+  return content
+    .replace(/---+/g, '') // 去除 --- 分隔符
+    .replace(/\n[ \t]*\n[ \t]*\n+/g, '\n\n') // 3个及以上空行变成2个
+    .replace(/\n[ \t]*\n([ \t]*[}\]])/g, '\n$1') // 删除 } 或 ] 前的空行
+    .replace(/([{\[])[ \t]*\n[ \t]*\n/g, '$1\n') // 删除 { 或 [ 后的空行
+    .replace(/^\s+|\s+$/g, '') // 去除首尾空白
+}
+
+const callAIFix = async () => {
+  if (!aiFixOriginalText.value) {
+    ElMessage.warning('请先选择要格式化的内容')
+    return
+  }
+  
+  aiFixLoading.value = true
+  try {
+    // 调用 AI API 进行格式化
+    const res = await adminApi.aiFormatCode({
+      content: aiFixOriginalText.value,
+      instruction: '请格式化以下代码，删除所有多余空行，特别是代码块中的空行。保持原有逻辑和内容不变，只调整格式。'
+    })
+    
+    // 使用后端返回的结果，再进行一次清理确保空行被删除
+    aiFixResultText.value = cleanEmptyLines(res.data.formattedContent || aiFixOriginalText.value)
+    ElMessage.success('AI格式化完成')
+  } catch (error) {
+    console.error('AI格式化失败:', error)
+    // 如果AI调用失败，返回清理后的内容
+    aiFixResultText.value = cleanEmptyLines(aiFixOriginalText.value)
+    ElMessage.warning('AI服务暂时不可用，已进行基础清理')
+  } finally {
+    aiFixLoading.value = false
+  }
+}
+
+const applyAIFixResult = () => {
+  if (aiFixResultText.value && editingQuestionForm.value) {
+    editingQuestionForm.value[aiFixField.value] = aiFixResultText.value
+    ElMessage.success('已应用格式化结果')
+    aiFixModalVisible.value = false
+  }
+}
 
 const openEditQuestionModal = (question) => {
   editingQuestionForm.value = JSON.parse(JSON.stringify(question))
@@ -1834,5 +1932,50 @@ onMounted(() => {
   display: flex;
   gap: 10px;
   align-items: flex-start;
+}
+
+/* AI 格式化工具栏 */
+.editor-toolbar-actions {
+  display: flex;
+  justify-content: flex-end;
+  padding: 8px;
+  background: #f5f7fa;
+  border-bottom: 1px solid #dcdfe6;
+}
+
+/* AI 格式化弹窗样式 */
+.ai-fix-container {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.ai-fix-section {
+  flex: 1;
+}
+
+.ai-fix-section h4 {
+  margin: 0 0 10px 0;
+  color: #303133;
+  font-size: 14px;
+}
+
+.ai-fix-arrow {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 10px 0;
+}
+
+@media (min-width: 768px) {
+  .ai-fix-container {
+    flex-direction: row;
+    align-items: stretch;
+  }
+  
+  .ai-fix-arrow {
+    flex-direction: column;
+    padding: 0 20px;
+  }
 }
 </style>
