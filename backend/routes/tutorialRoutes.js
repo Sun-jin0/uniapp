@@ -5,6 +5,15 @@ const tutorialController = require('../controllers/tutorialController');
 // 教辅列表
 router.get('/computer/tutorials', tutorialController.getTutorials);
 
+// 导入教辅数据（必须在 :id 路由之前）
+router.post('/computer/tutorials/import', tutorialController.importTutorialData);
+
+// 重置教辅ID（需要管理员权限，必须在 :id 路由之前）
+router.post('/computer/tutorials/reset-ids', tutorialController.resetTutorialIds);
+
+// 创建教辅
+router.post('/computer/tutorials', tutorialController.createTutorial);
+
 // 教辅详情
 router.get('/computer/tutorials/:id', tutorialController.getTutorialDetail);
 
@@ -17,17 +26,11 @@ router.post('/computer/tutorial-questions', tutorialController.addTutorialQuesti
 router.delete('/computer/tutorials/:tutorialId/questions/:questionId', tutorialController.removeTutorialQuestion);
 router.put('/computer/tutorial-questions/order', tutorialController.updateTutorialQuestionOrder);
 
-// 创建教辅
-router.post('/computer/tutorials', tutorialController.createTutorial);
-
 // 更新教辅
 router.put('/computer/tutorials/:id', tutorialController.updateTutorial);
 
 // 删除教辅
 router.delete('/computer/tutorials/:id', tutorialController.deleteTutorial);
-
-// 导入教辅数据
-router.post('/computer/tutorials/import', tutorialController.importTutorialData);
 
 // 教辅章节管理
 // 获取章节列表
@@ -52,8 +55,5 @@ router.post('/computer/tutorial-collections', tutorialController.createCollectio
 router.put('/computer/tutorial-collections/:id', tutorialController.updateCollection);
 // 删除合集
 router.delete('/computer/tutorial-collections/:id', tutorialController.deleteCollection);
-
-// 重置教辅ID（需要管理员权限）
-router.post('/computer/tutorials/reset-ids', tutorialController.resetTutorialIds);
 
 module.exports = router;

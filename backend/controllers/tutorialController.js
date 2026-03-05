@@ -366,10 +366,30 @@ const calculateQuestionHash = (question) => {
 
 // 导入教辅数据
 const importTutorialData = async (req, res) => {
-  const { tutorialName, version, year, data, collectionId, subject } = req.body;
+  let { version, year, data } = req.body;
 
-  if (!tutorialName || !version || !data) {
-    return res.status(400).json(errorResponse('参数不完整'));
+  console.log('导入教辅数据请求:', { version, year, dataType: typeof data, isArray: Array.isArray(data), dataLength: Array.isArray(data) ? data.length : 'N/A' });
+
+  if (!data) {
+    console.error('数据为空，req.body:', req.body);
+    return res.status(400).json(errorResponse('数据为空'));
+  }
+
+  // 处理数据格式：如果 data 是对象且有 data 属性，则提取内部数组
+  if (data && typeof data === 'object' && !Array.isArray(data) && data.data) {
+    console.log('检测到嵌套 data 属性，提取内部数组');
+    data = data.data;
+  }
+
+  if (!Array.isArray(data) || data.length === 0) {
+    console.error('数据验证失败: data 不是数组或为空，实际类型:', typeof data, '值:', data);
+    return res.status(400).json(errorResponse('数据格式错误或为空数组'));
+  }
+
+  // 版本默认为当前年份
+  if (!version || typeof version !== 'string' || version.trim() === '') {
+    console.log('版本为空，使用默认值');
+    version = new Date().getFullYear().toString() + '版';
   }
 
   const connection = await mysqlPool.getConnection();
@@ -377,64 +397,81 @@ const importTutorialData = async (req, res) => {
   try {
     await connection.beginTransaction();
 
-    // 1. 创建或获取教辅
-    let tutorialId;
-    const [existingTutorial] = await connection.query(
-      'SELECT id FROM computer1_tutorial WHERE name = ? AND version = ?',
-      [tutorialName, version]
-    );
-
-    if (existingTutorial.length > 0) {
-      tutorialId = existingTutorial[0].id;
-      // 更新合集关联和科目
-      if (collectionId) {
-        await connection.query(
-          'UPDATE computer1_tutorial SET collection_id = ?, subject = ? WHERE id = ?',
-          [collectionId, subject || tutorialName, tutorialId]
-        );
-      }
-      // 删除旧的章节和题目关联
-      await connection.query('DELETE FROM computer1_tutorial_question WHERE tutorial_id = ?', [tutorialId]);
-      await connection.query('DELETE FROM computer1_tutorial_chapter WHERE tutorial_id = ?', [tutorialId]);
-    } else {
-      const [result] = await connection.query(
-        'INSERT INTO computer1_tutorial (name, version, year, collection_id, subject) VALUES (?, ?, ?, ?, ?)',
-        [tutorialName, version, year || null, collectionId || null, subject || tutorialName]
-      );
-      tutorialId = result.insertId;
-    }
-    
-    const stats = {
+    // 统计数据
+    const globalStats = {
+      tutorialsCreated: 0,
+      tutorialsUpdated: 0,
       chaptersCreated: 0,
       questionsCreated: 0,
       questionsReused: 0,
       linksCreated: 0
     };
-    
-    // 2. 遍历数据创建章节和题目
-    for (const book of data) {
-      // book 是顶级（如"DS 全书习题（800题）"）
-      for (const chapter of (book.children || [])) {
-        // chapter 是章（如"第一章 绪论"）
-        const [chapterResult] = await connection.query(
-          'INSERT INTO computer1_tutorial_chapter (tutorial_id, parent_id, name, level, sort_order, subject) VALUES (?, 0, ?, 1, ?, ?)',
-          [tutorialId, chapter.name, chapter.id || 0, subject || tutorialName]
-        );
-        const chapterId = chapterResult.insertId;
-        stats.chaptersCreated++;
 
-        for (const section of (chapter.children || [])) {
-          // section 是节（如"1.1 数据结构的基本概念"）
-          const [sectionResult] = await connection.query(
-            'INSERT INTO computer1_tutorial_chapter (tutorial_id, parent_id, name, level, sort_order, subject) VALUES (?, ?, ?, 2, ?, ?)',
-            [tutorialId, chapterId, section.name, section.id || 0, subject || tutorialName]
-          );
-          const sectionId = sectionResult.insertId;
-          stats.chaptersCreated++;
-          
-          // 遍历题库中的题目
-          for (const questionBank of (section.question_banks || [])) {
-            for (const question of (questionBank.questions || [])) {
+    // 为 data 数组中的每本书创建独立的教辅
+    for (const book of data) {
+      const tutorialName = book?.name || '未命名教辅';
+      const subject = tutorialName;
+
+      console.log('处理教辅:', tutorialName, '版本:', version);
+
+      // 1. 创建或获取教辅
+      let tutorialId;
+      const [existingTutorial] = await connection.query(
+        'SELECT id FROM computer1_tutorial WHERE name = ? AND version = ?',
+        [tutorialName, version]
+      );
+
+      if (existingTutorial.length > 0) {
+        tutorialId = existingTutorial[0].id;
+        globalStats.tutorialsUpdated++;
+        // 更新科目
+        await connection.query(
+          'UPDATE computer1_tutorial SET subject = ? WHERE id = ?',
+          [subject, tutorialId]
+        );
+        // 删除旧的章节和题目关联
+        await connection.query('DELETE FROM computer1_tutorial_question WHERE tutorial_id = ?', [tutorialId]);
+        await connection.query('DELETE FROM computer1_tutorial_chapter WHERE tutorial_id = ?', [tutorialId]);
+      } else {
+        const [result] = await connection.query(
+          'INSERT INTO computer1_tutorial (name, version, year, subject) VALUES (?, ?, ?, ?)',
+          [tutorialName, version, year || null, subject]
+        );
+        tutorialId = result.insertId;
+        globalStats.tutorialsCreated++;
+      }
+    
+    // 2. 遍历书籍的章节创建章节和题目
+    for (let chapterIndex = 0; chapterIndex < (book.children || []).length; chapterIndex++) {
+      const chapter = book.children[chapterIndex];
+      // chapter 是章（如"第一章 绪论"）
+      const [chapterResult] = await connection.query(
+        'INSERT INTO computer1_tutorial_chapter (tutorial_id, parent_id, name, level, sort_order, subject) VALUES (?, 0, ?, 1, ?, ?)',
+        [tutorialId, chapter.name, chapter.id || chapterIndex + 1, subject || tutorialName]
+      );
+      const chapterId = chapterResult.insertId;
+      globalStats.chaptersCreated++;
+
+      // 检测数据结构：三层结构（章->节->题目）或两层结构（章->题目）
+      // 三层结构：章有children（节），且章本身没有question_banks或question_banks为空
+      const hasSections = chapter.children && chapter.children.length > 0 && 
+                          (!chapter.question_banks || chapter.question_banks.length === 0);
+        
+        if (hasSections) {
+          // 三层结构：章 -> 节 -> 题目
+          for (let sectionIndex = 0; sectionIndex < (chapter.children || []).length; sectionIndex++) {
+            const section = chapter.children[sectionIndex];
+            // section 是节（如"1.1 数据结构的基本概念"）
+            const [sectionResult] = await connection.query(
+              'INSERT INTO computer1_tutorial_chapter (tutorial_id, parent_id, name, level, sort_order, subject) VALUES (?, ?, ?, 2, ?, ?)',
+              [tutorialId, chapterId, section.name, section.id || sectionIndex + 1, subject || tutorialName]
+            );
+            const sectionId = sectionResult.insertId;
+            globalStats.chaptersCreated++;
+            
+            // 遍历题库中的题目
+            for (const questionBank of (section.question_banks || [])) {
+              for (const question of (questionBank.questions || [])) {
               // 计算题目哈希
               const questionHash = calculateQuestionHash(question);
               
@@ -488,7 +525,7 @@ const importTutorialData = async (req, res) => {
               if (existingQuestions.length > 0) {
                 // 复用现有题目
                 questionId = existingQuestions[0].question_id;
-                stats.questionsReused++;
+                globalStats.questionsReused++;
                 
                 // 更新现有题目的科目和章节信息（如果之前没有）
                 try {
@@ -527,7 +564,7 @@ const importTutorialData = async (req, res) => {
                   chapterIdForQuestion
                 ]);
                 
-                stats.questionsCreated++;
+                globalStats.questionsCreated++;
               }
               
               // 保存选项（选择题）- 无论题目是否已存在都执行
@@ -625,7 +662,7 @@ const importTutorialData = async (req, res) => {
                 'INSERT INTO computer1_tutorial_question (tutorial_id, chapter_id, question_id, sort_order) VALUES (?, ?, ?, ?)',
                 [tutorialId, sectionId, questionId, question.exerciseNumber || 0]
               );
-              stats.linksCreated++;
+              globalStats.linksCreated++;
             }
           }
           
@@ -640,7 +677,7 @@ const importTutorialData = async (req, res) => {
           );
         }
         
-        // 更新章的题目数量
+        // 更新章的题目数量（三层结构：汇总所有节的题目）
         const [chapterCount] = await connection.query(
           'SELECT COALESCE(SUM(question_count), 0) as count FROM computer1_tutorial_chapter WHERE parent_id = ?',
           [chapterId]
@@ -649,24 +686,239 @@ const importTutorialData = async (req, res) => {
           'UPDATE computer1_tutorial_chapter SET question_count = ? WHERE id = ?',
           [chapterCount[0].count, chapterId]
         );
+        } else {
+          // 两层结构：章 -> 题目（没有节）
+          // 为两层结构创建一个默认的小节，以便前端统一显示
+          const [defaultSectionResult] = await connection.query(
+            'INSERT INTO computer1_tutorial_chapter (tutorial_id, parent_id, name, level, sort_order, subject) VALUES (?, ?, ?, 2, ?, ?)',
+            [tutorialId, chapterId, '本章习题', 1, subject || tutorialName]
+          );
+          const defaultSectionId = defaultSectionResult.insertId;
+          globalStats.chaptersCreated++;
+          
+          for (const questionBank of (chapter.question_banks || [])) {
+            for (const question of (questionBank.questions || [])) {
+              // 计算题目哈希
+              const questionHash = calculateQuestionHash(question);
+              
+              let questionId;
+              
+              // 通过 content_hash 字段查找是否已存在
+              const [existingQuestions] = await connection.query(
+                'SELECT question_id FROM computer1_question WHERE content_hash = ? LIMIT 1',
+                [questionHash]
+              );
+              
+              // 映射题型
+              let exerciseType = 1;
+              const typeName = question.exerciseType || '单选题';
+              if (typeName.includes('单选')) exerciseType = 1;
+              else if (typeName.includes('多选')) exerciseType = 2;
+              else if (typeName.includes('填空')) exerciseType = 3;
+              else if (typeName.includes('解答') || typeName.includes('综合')) exerciseType = 4;
+              else if (typeName.includes('判断')) exerciseType = 5;
+              
+              // 解析 knowledgeTags 获取科目和章节
+              let majorId = null;
+              let chapterIdForQuestion = null;
+              const knowledgeTags = question.knowledgeTags || [];
+              
+              if (knowledgeTags.length > 0) {
+                const firstTagId = knowledgeTags.find(tag => tag && (typeof tag === 'number' || (typeof tag === 'string' && tag.length > 10 && /^\d+$/.test(tag))));
+                
+                if (firstTagId) {
+                  try {
+                    const [tagRows] = await connection.query(
+                      `SELECT kt.chapter_id, c.major_id 
+                       FROM computer1_knowledge_tag kt 
+                       LEFT JOIN computer1_chapter c ON kt.chapter_id = c.chapter_id 
+                       WHERE kt.tag_id = ? OR kt.exam_group_id = ?
+                       LIMIT 1`,
+                      [firstTagId, firstTagId]
+                    );
+                    
+                    if (tagRows.length > 0) {
+                      chapterIdForQuestion = tagRows[0].chapter_id;
+                      majorId = tagRows[0].major_id;
+                    }
+                  } catch (err) {
+                    console.error('根据考点组ID查询章节信息失败:', err);
+                  }
+                }
+              }
+              
+              if (existingQuestions.length > 0) {
+                questionId = existingQuestions[0].question_id;
+                globalStats.questionsReused++;
+                
+                try {
+                  await connection.query(
+                    'UPDATE computer1_question SET major_id = COALESCE(major_id, ?), chapter_id = COALESCE(chapter_id, ?) WHERE question_id = ?',
+                    [majorId, chapterIdForQuestion, questionId]
+                  );
+                } catch (err) {
+                  console.error('更新题目科目章节失败:', err);
+                }
+              } else {
+                questionId = Date.now().toString() + Math.random().toString(36).substr(2, 9);
+                
+                await connection.query(`
+                  INSERT INTO computer1_question (
+                    question_id, content_hash, exercise_type, exercise_type_name, stem, 
+                    answer, analysis, from_school, exam_time, exam_code, 
+                    exam_full_name, exercise_number, total_score, major_id, chapter_id, create_time
+                  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+                `, [
+                  questionId,
+                  questionHash,
+                  exerciseType,
+                  typeName,
+                  question.stem,
+                  question.answer,
+                  question.analysis,
+                  question.fromSchool || null,
+                  question.examTime || null,
+                  question.examCode || null,
+                  question.examFullName || null,
+                  question.exerciseNumber || 0,
+                  question.totalScore || 0,
+                  majorId,
+                  chapterIdForQuestion
+                ]);
+                
+                globalStats.questionsCreated++;
+              }
+              
+              // 保存选项
+              const options = question.options;
+              if (options && typeof options === 'object' && !Array.isArray(options)) {
+                const [existingOptions] = await connection.query(
+                  'SELECT COUNT(*) as count FROM computer1_question_option WHERE question_id = ?',
+                  [questionId]
+                );
+                
+                if (existingOptions[0].count === 0) {
+                  const optionEntries = Object.entries(options);
+                  for (let i = 0; i < optionEntries.length; i++) {
+                    const [key, value] = optionEntries[i];
+                    let sortVal = i + 1;
+                    if (key && typeof key === 'string') {
+                      sortVal = key.charCodeAt(0);
+                    }
+                    try {
+                      await connection.query(
+                        'INSERT INTO computer1_question_option (question_id, option_key, option_value, option_sort) VALUES (?, ?, ?, ?)',
+                        [questionId, key, value, sortVal]
+                      );
+                    } catch (err) {
+                      if (err.code !== 'ER_DUP_ENTRY') {
+                        console.error('创建选项失败:', err);
+                      }
+                    }
+                  }
+                }
+              }
+              
+              // 保存小题
+              if (exerciseType === 4 && question.subs && Array.isArray(question.subs)) {
+                const [existingSubs] = await connection.query(
+                  'SELECT COUNT(*) as count FROM computer1_question_sub WHERE question_id = ?',
+                  [questionId]
+                );
+                
+                if (existingSubs[0].count === 0) {
+                  for (let i = 0; i < question.subs.length; i++) {
+                    const sub = question.subs[i];
+                    try {
+                      await connection.query(
+                        'INSERT INTO computer1_question_sub (question_id, stem, answer, analysis, question_order, score) VALUES (?, ?, ?, ?, ?, ?)',
+                        [
+                          questionId,
+                          sub.stem || sub.sub_stem || '',
+                          sub.answer || sub.sub_answer || '',
+                          sub.analysis || sub.sub_analysis || '',
+                          i + 1,
+                          sub.score || sub.totalScore || 0
+                        ]
+                      );
+                    } catch (err) {
+                      if (err.code !== 'ER_DUP_ENTRY') {
+                        console.error('创建小题失败:', err);
+                      }
+                    }
+                  }
+                }
+              }
+              
+              // 保存 knowledgeTags 关联
+              if (knowledgeTags.length > 0) {
+                for (const tagId of knowledgeTags) {
+                  if (tagId && (typeof tagId === 'number' || (typeof tagId === 'string' && tagId.length > 10 && /^\d+$/.test(tagId)))) {
+                    try {
+                      const [existingTag] = await connection.query(
+                        'SELECT tag_id FROM computer1_knowledge_tag WHERE tag_id = ? OR exam_group_id = ?',
+                        [tagId, tagId]
+                      );
+                      
+                      if (existingTag.length > 0) {
+                        await connection.query(
+                          'INSERT IGNORE INTO computer1_question_tag_relation (question_id, tag_id) VALUES (?, ?)',
+                          [questionId, existingTag[0].tag_id]
+                        );
+                      }
+                    } catch (err) {
+                      console.error('创建考点关联失败:', err);
+                    }
+                  }
+                }
+              }
+              
+              // 创建题目关联（使用默认小节ID作为chapter_id）
+              await connection.query(
+                'INSERT INTO computer1_tutorial_question (tutorial_id, chapter_id, question_id, sort_order) VALUES (?, ?, ?, ?)',
+                [tutorialId, defaultSectionId, questionId, question.exerciseNumber || 0]
+              );
+              globalStats.linksCreated++;
+            }
+          }
+          
+          // 更新默认小节的题目数量
+          const [sectionCount] = await connection.query(
+            'SELECT COUNT(*) as count FROM computer1_tutorial_question WHERE chapter_id = ?',
+            [defaultSectionId]
+          );
+          await connection.query(
+            'UPDATE computer1_tutorial_chapter SET question_count = ? WHERE id = ?',
+            [sectionCount[0].count, defaultSectionId]
+          );
+          
+          // 更新章的题目数量（汇总默认小节的题目）
+          const [chapterCount] = await connection.query(
+            'SELECT COALESCE(SUM(question_count), 0) as count FROM computer1_tutorial_chapter WHERE parent_id = ?',
+            [chapterId]
+          );
+          await connection.query(
+            'UPDATE computer1_tutorial_chapter SET question_count = ? WHERE id = ?',
+            [chapterCount[0].count, chapterId]
+          );
+        }
       }
+      
+      // 更新当前教辅总题数（使用关联数，不去重）
+      const [tutorialCount] = await connection.query(
+        'SELECT COUNT(*) as count FROM computer1_tutorial_question WHERE tutorial_id = ?',
+        [tutorialId]
+      );
+      await connection.query(
+        'UPDATE computer1_tutorial SET total_questions = ? WHERE id = ?',
+        [tutorialCount[0].count, tutorialId]
+      );
     }
-    
-    // 更新教辅总题数（使用关联数，不去重）
-    const [tutorialCount] = await connection.query(
-      'SELECT COUNT(*) as count FROM computer1_tutorial_question WHERE tutorial_id = ?',
-      [tutorialId]
-    );
-    await connection.query(
-      'UPDATE computer1_tutorial SET total_questions = ? WHERE id = ?',
-      [tutorialCount[0].count, tutorialId]
-    );
     
     await connection.commit();
     res.json(successResponse({
-      tutorialId,
-      ...stats
-    }, '导入成功'));
+      ...globalStats
+    }, `导入成功：创建${globalStats.tutorialsCreated}个新教辅，更新${globalStats.tutorialsUpdated}个教辅`));
     
   } catch (error) {
     await connection.rollback();
@@ -908,17 +1160,106 @@ const replaceChapterQuestion = async (req, res) => {
   }
 };
 
-// 获取教辅的所有题目关联
+// 获取教辅的所有题目关联（包含完整题目信息）
 const getTutorialQuestions = async (req, res) => {
   try {
     const { tutorialId } = req.params;
     
+    // 获取关联关系
     const [links] = await mysqlPool.query(
       'SELECT * FROM computer1_tutorial_question WHERE tutorial_id = ? ORDER BY chapter_id, sort_order',
       [tutorialId]
     );
     
-    res.json(successResponse(links));
+    if (links.length === 0) {
+      return res.json(successResponse([]));
+    }
+    
+    // 获取所有题目ID
+    const questionIds = links.map(link => link.question_id);
+    
+    // 获取题目详情
+    const [questions] = await mysqlPool.query(
+      `SELECT q.*, c.name as chapter_name, tc.name as section_name
+       FROM computer1_question q
+       LEFT JOIN computer1_tutorial_chapter tc ON tc.id = (
+         SELECT chapter_id FROM computer1_tutorial_question 
+         WHERE tutorial_id = ? AND question_id = q.question_id LIMIT 1
+       )
+       LEFT JOIN computer1_tutorial_chapter c ON c.id = tc.parent_id
+       WHERE q.question_id IN (?)`,
+      [tutorialId, questionIds]
+    );
+    
+    // 获取选项
+    const [options] = await mysqlPool.query(
+      'SELECT * FROM computer1_question_option WHERE question_id IN (?) ORDER BY question_id, option_sort',
+      [questionIds]
+    );
+    
+    // 获取小题
+    const [subs] = await mysqlPool.query(
+      'SELECT * FROM computer1_question_sub WHERE question_id IN (?) ORDER BY question_id, question_order',
+      [questionIds]
+    );
+    
+    // 获取考点关联
+    const [tagRelations] = await mysqlPool.query(
+      'SELECT * FROM computer1_question_tag_relation WHERE question_id IN (?)',
+      [questionIds]
+    );
+    
+    // 获取考点详情
+    let tags = [];
+    if (tagRelations.length > 0) {
+      const tagIds = [...new Set(tagRelations.map(r => r.tag_id))];
+      const [tagRows] = await mysqlPool.query(
+        `SELECT kt.*, c.chapter_name, c.major_id, s.subject_name as major_name
+         FROM computer1_knowledge_tag kt
+         LEFT JOIN computer1_chapter c ON kt.chapter_id = c.chapter_id
+         LEFT JOIN computer1_subject s ON c.major_id = s.major_id
+         WHERE kt.tag_id IN (?)`,
+        [tagIds]
+      );
+      tags = tagRows;
+    }
+    
+    // 组装数据
+    const questionMap = {};
+    questions.forEach(q => {
+      questionMap[q.question_id] = {
+        ...q,
+        options: [],
+        subs: [],
+        tags: []
+      };
+    });
+    
+    options.forEach(opt => {
+      if (questionMap[opt.question_id]) {
+        questionMap[opt.question_id].options.push(opt);
+      }
+    });
+    
+    subs.forEach(sub => {
+      if (questionMap[sub.question_id]) {
+        questionMap[sub.question_id].subs.push(sub);
+      }
+    });
+    
+    tagRelations.forEach(rel => {
+      if (questionMap[rel.question_id]) {
+        const tag = tags.find(t => t.tag_id === rel.tag_id);
+        if (tag) {
+          questionMap[rel.question_id].tags.push(tag);
+        }
+      }
+    });
+    
+    // 按关联顺序返回
+    const result = links.map(link => questionMap[link.question_id]).filter(Boolean);
+    
+    res.json(successResponse(result));
   } catch (error) {
     console.error('获取教辅题目关联失败:', error);
     res.status(500).json(errorResponse('获取教辅题目关联失败'));

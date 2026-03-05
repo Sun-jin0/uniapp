@@ -52,10 +52,11 @@
                 {{ formatDate(row.created_at) }}
               </template>
             </el-table-column>
-            <el-table-column label="操作" width="200" align="center" fixed="right">
+            <el-table-column label="操作" width="250" align="center" fixed="right">
               <template #default="{ row }">
                 <div class="action-buttons">
                   <el-button size="small" type="primary" @click="viewTutorialChapters(row)">章节</el-button>
+                  <el-button size="small" type="warning" @click="viewTutorialQuestions(row)">题目</el-button>
                   <el-button size="small" type="success" @click="openEditTutorialModal(row)">编辑</el-button>
                   <el-button size="small" type="info" @click="openCopyTutorialModal(row)">复制</el-button>
                 </div>
@@ -395,37 +396,8 @@
     </el-dialog>
 
     <!-- 教辅导入对话框 -->
-    <el-dialog v-model="tutorialImportModalVisible" title="导入教辅数据" width="700px" :close-on-click-modal="false">
+    <el-dialog v-model="tutorialImportModalVisible" title="导入教辅数据" width="600px" :close-on-click-modal="false">
       <el-form :model="tutorialImportForm" label-width="100px">
-        <el-form-item label="导入方式">
-          <el-radio-group v-model="tutorialImportForm.importMode">
-            <el-radio label="collection">创建新合集</el-radio>
-            <el-radio label="tutorial">导入到现有合集</el-radio>
-          </el-radio-group>
-        </el-form-item>
-        
-        <template v-if="tutorialImportForm.importMode === 'collection'">
-          <el-form-item label="合集名称" required>
-            <el-input v-model="tutorialImportForm.collectionName" placeholder="如：王道考研" style="width: 300px;" />
-          </el-form-item>
-        </template>
-        
-        <template v-else>
-          <el-form-item label="选择合集" required>
-            <el-select v-model="tutorialImportForm.collectionId" placeholder="请选择合集" style="width: 300px;">
-              <el-option 
-                v-for="collection in collections" 
-                :key="collection.id" 
-                :label="collection.name + ' ' + collection.version" 
-                :value="collection.id" 
-              />
-            </el-select>
-            <el-button type="primary" link @click="fetchCollections" style="margin-left: 10px;">
-              <el-icon><Refresh /></el-icon> 刷新
-            </el-button>
-          </el-form-item>
-        </template>
-        
         <el-form-item label="版本">
           <el-input v-model="tutorialImportForm.version" placeholder="如：25版、26版" style="width: 200px;" />
         </el-form-item>
@@ -448,9 +420,189 @@
       
       <template #footer>
         <el-button @click="tutorialImportModalVisible = false">取消</el-button>
-        <el-button type="primary" @click="confirmImportTutorial" :loading="importingTutorial" :disabled="!canImport">
+        <el-button type="primary" @click="confirmImportTutorial" :loading="importingTutorial" :disabled="!tutorialImportForm.data">
           开始导入
         </el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 题目查看/编辑弹窗 -->
+    <el-dialog 
+      v-model="questionsModalVisible" 
+      :title="currentTutorial?.name + ' - 题目管理'" 
+      width="90%" 
+      :close-on-click-modal="false"
+      class="questions-dialog"
+      destroy-on-close
+    >
+      <div class="questions-container" v-loading="loadingQuestions">
+        <!-- 左侧题目列表 -->
+        <div class="questions-sidebar">
+          <div class="questions-header">
+            <span>共 {{ tutorialQuestions.length }} 题</span>
+            <el-input 
+              v-model="questionSearchKeyword" 
+              placeholder="搜索题目..." 
+              size="small"
+              clearable
+              @input="filterQuestions"
+            />
+          </div>
+          <div class="questions-list">
+            <div 
+              v-for="(q, index) in filteredQuestions" 
+              :key="q.question_id"
+              class="question-item"
+              :class="{ active: currentQuestionIndex === index }"
+              @click="selectQuestion(index)"
+            >
+              <div class="question-number">{{ index + 1 }}</div>
+              <div class="question-preview" v-html="stripHtml(q.stem).substring(0, 50) + '...'"></div>
+              <div class="question-type">{{ q.exercise_type_name }}</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 右侧题目详情/编辑 -->
+        <div class="question-detail" v-if="currentQuestion">
+          <div class="detail-header">
+            <div class="question-nav">
+              <el-button size="small" @click="prevQuestion" :disabled="currentQuestionIndex === 0">
+                <el-icon><ArrowLeft /></el-icon> 上一题
+              </el-button>
+              <span class="question-counter">{{ currentQuestionIndex + 1 }} / {{ tutorialQuestions.length }}</span>
+              <el-button size="small" @click="nextQuestion" :disabled="currentQuestionIndex === tutorialQuestions.length - 1">
+                下一题 <el-icon><ArrowRight /></el-icon>
+              </el-button>
+            </div>
+            <div class="question-actions">
+              <el-button type="primary" size="small" @click="openEditQuestionModal(currentQuestion)">
+                <el-icon><Edit /></el-icon> 编辑题目
+              </el-button>
+            </div>
+          </div>
+
+          <div class="question-content">
+            <div class="info-row">
+              <el-tag size="small">{{ currentQuestion.exercise_type_name }}</el-tag>
+              <el-tag size="small" type="info">ID: {{ currentQuestion.question_id }}</el-tag>
+            </div>
+
+            <div class="content-section">
+              <h4>题干</h4>
+              <div class="content-text" v-html="renderMath(currentQuestion.stem)"></div>
+            </div>
+
+            <!-- 选择题选项 -->
+            <div class="content-section" v-if="currentQuestion.options && currentQuestion.options.length > 0">
+              <h4>选项</h4>
+              <div class="options-list">
+                <div v-for="opt in currentQuestion.options" :key="opt.option_key" class="option-item">
+                  <span class="option-key">{{ opt.option_key }}.</span>
+                  <span class="option-value" v-html="renderMath(opt.option_value)"></span>
+                </div>
+              </div>
+            </div>
+
+            <div class="content-section">
+              <h4>答案</h4>
+              <div class="content-text" v-html="renderMath(currentQuestion.answer)"></div>
+            </div>
+
+            <div class="content-section">
+              <h4>解析</h4>
+              <div class="content-text" v-html="renderMath(currentQuestion.analysis) || '暂无解析'"></div>
+            </div>
+
+            <!-- 小题（解答题） -->
+            <div class="content-section" v-if="currentQuestion.subs && currentQuestion.subs.length > 0">
+              <h4>小题</h4>
+              <div v-for="(sub, idx) in currentQuestion.subs" :key="idx" class="sub-item">
+                <div class="sub-title">小题 {{ idx + 1 }}</div>
+                <div class="sub-stem" v-html="renderMath(sub.stem || sub.sub_stem)"></div>
+                <div class="sub-answer" v-if="sub.answer || sub.sub_answer">
+                  <strong>答案：</strong><span v-html="renderMath(sub.answer || sub.sub_answer)"></span>
+                </div>
+              </div>
+            </div>
+
+            <!-- 考点标签 -->
+            <div class="content-section" v-if="currentQuestion.tags && currentQuestion.tags.length > 0">
+              <h4>考点</h4>
+              <div class="tags-list">
+                <el-tag v-for="tag in currentQuestion.tags" :key="tag.tag_id" size="small" class="mr-5">
+                  {{ tag.tag_name }}
+                </el-tag>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="empty-state" v-else>
+          <el-empty description="暂无题目" />
+        </div>
+      </div>
+    </el-dialog>
+
+    <!-- 题目编辑弹窗 -->
+    <el-dialog
+      v-model="editQuestionModalVisible"
+      title="编辑题目"
+      width="80%"
+      :close-on-click-modal="false"
+      destroy-on-close
+    >
+      <el-form :model="editingQuestionForm" label-width="100px" v-if="editingQuestionForm">
+        <el-form-item label="题型">
+          <el-select v-model="editingQuestionForm.exercise_type" style="width: 200px">
+            <el-option label="单选题" :value="1" />
+            <el-option label="多选题" :value="2" />
+            <el-option label="填空题" :value="3" />
+            <el-option label="解答题" :value="4" />
+            <el-option label="判断题" :value="5" />
+          </el-select>
+        </el-form-item>
+
+        <el-form-item label="题干">
+          <div class="editor-wrapper">
+            <RichEditor v-model="editingQuestionForm.stem" placeholder="请输入题干" :height="120" />
+          </div>
+        </el-form-item>
+
+        <!-- 选择题选项编辑 -->
+        <el-form-item label="选项" v-if="[1, 2].includes(editingQuestionForm.exercise_type)">
+          <div class="options-edit">
+            <div v-for="(opt, idx) in editingQuestionForm.options" :key="idx" class="option-edit-item">
+              <el-input v-model="opt.option_key" style="width: 60px" />
+              <div class="option-editor-wrapper">
+                <RichEditor v-model="opt.option_value" placeholder="选项内容" :height="80" />
+              </div>
+              <el-button type="danger" link @click="removeEditOption(idx)">
+                <el-icon><Delete /></el-icon>
+              </el-button>
+            </div>
+            <el-button type="primary" link @click="addEditOption">
+              <el-icon><Plus /></el-icon> 添加选项
+            </el-button>
+          </div>
+        </el-form-item>
+
+        <el-form-item label="答案">
+          <div class="editor-wrapper">
+            <RichEditor v-model="editingQuestionForm.answer" placeholder="请输入答案" :height="100" />
+          </div>
+        </el-form-item>
+
+        <el-form-item label="解析">
+          <div class="editor-wrapper">
+            <RichEditor v-model="editingQuestionForm.analysis" placeholder="请输入解析" :height="120" />
+          </div>
+        </el-form-item>
+      </el-form>
+
+      <template #footer>
+        <el-button @click="editQuestionModalVisible = false">取消</el-button>
+        <el-button type="primary" @click="saveQuestion" :loading="savingQuestion">保存</el-button>
       </template>
     </el-dialog>
   </div>
@@ -461,7 +613,9 @@ import { ref, reactive, onMounted, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { adminApi } from '@/api'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, Search, Refresh, Upload, RefreshLeft } from '@element-plus/icons-vue'
+import { Plus, Search, Refresh, Upload, RefreshLeft, ArrowLeft, ArrowRight, Edit, Delete } from '@element-plus/icons-vue'
+import RichEditor from '@/components/RichEditor.vue'
+import { transformContextString } from '@/utils/latex'
 
 const router = useRouter()
 
@@ -726,12 +880,152 @@ const viewTutorialChapters = (row) => {
   router.push(`/computer/tutorials/${row.id}/chapters`)
 }
 
+// ==================== 题目查看/编辑 ====================
+const questionsModalVisible = ref(false)
+const currentTutorial = ref(null)
+const tutorialQuestions = ref([])
+const filteredQuestions = ref([])
+const currentQuestionIndex = ref(0)
+const currentQuestion = computed(() => filteredQuestions.value[currentQuestionIndex.value] || null)
+const loadingQuestions = ref(false)
+const questionSearchKeyword = ref('')
+
+const viewTutorialQuestions = async (row) => {
+  currentTutorial.value = row
+  questionsModalVisible.value = true
+  await fetchTutorialQuestions(row.id)
+}
+
+const fetchTutorialQuestions = async (tutorialId, keepIndex = null) => {
+  loadingQuestions.value = true
+  try {
+    const res = await adminApi.getTutorialQuestions(tutorialId)
+    tutorialQuestions.value = res.data || []
+    filteredQuestions.value = [...tutorialQuestions.value]
+    // 如果有 keepIndex，恢复到指定索引，否则重置为0
+    if (keepIndex !== null && keepIndex < filteredQuestions.value.length) {
+      currentQuestionIndex.value = keepIndex
+    } else {
+      currentQuestionIndex.value = 0
+    }
+  } catch (error) {
+    console.error('获取题目列表失败:', error)
+    ElMessage.error('获取题目列表失败')
+  } finally {
+    loadingQuestions.value = false
+  }
+}
+
+const filterQuestions = () => {
+  const keyword = questionSearchKeyword.value.toLowerCase()
+  if (!keyword) {
+    filteredQuestions.value = [...tutorialQuestions.value]
+  } else {
+    filteredQuestions.value = tutorialQuestions.value.filter(q => 
+      (q.stem && q.stem.toLowerCase().includes(keyword)) ||
+      (q.question_id && q.question_id.toLowerCase().includes(keyword))
+    )
+  }
+  currentQuestionIndex.value = 0
+}
+
+const selectQuestion = (index) => {
+  currentQuestionIndex.value = index
+}
+
+const prevQuestion = () => {
+  if (currentQuestionIndex.value > 0) {
+    currentQuestionIndex.value--
+  }
+}
+
+const nextQuestion = () => {
+  if (currentQuestionIndex.value < tutorialQuestions.value.length - 1) {
+    currentQuestionIndex.value++
+  }
+}
+
+const stripHtml = (html) => {
+  if (!html) return ''
+  return html.replace(/<[^>]*>/g, '')
+}
+
+// 渲染 LaTeX/Math 公式
+const renderMath = (text) => {
+  return transformContextString(text || '')
+}
+
+// 题目编辑
+const editQuestionModalVisible = ref(false)
+const editingQuestionForm = ref(null)
+const savingQuestion = ref(false)
+
+const openEditQuestionModal = (question) => {
+  editingQuestionForm.value = JSON.parse(JSON.stringify(question))
+  // 确保 options 是数组
+  if (typeof editingQuestionForm.value.options === 'string') {
+    try {
+      editingQuestionForm.value.options = JSON.parse(editingQuestionForm.value.options)
+    } catch (e) {
+      editingQuestionForm.value.options = []
+    }
+  }
+  if (!editingQuestionForm.value.options) {
+    editingQuestionForm.value.options = []
+  }
+  editQuestionModalVisible.value = true
+}
+
+const addEditOption = () => {
+  if (!editingQuestionForm.value.options) {
+    editingQuestionForm.value.options = []
+  }
+  const nextKey = String.fromCharCode(65 + editingQuestionForm.value.options.length)
+  editingQuestionForm.value.options.push({ option_key: nextKey, option_value: '' })
+}
+
+const removeEditOption = (index) => {
+  if (!editingQuestionForm.value.options) return
+  editingQuestionForm.value.options.splice(index, 1)
+  // 重新排序选项键
+  editingQuestionForm.value.options.forEach((opt, idx) => {
+    opt.option_key = String.fromCharCode(65 + idx)
+  })
+}
+
+const saveQuestion = async () => {
+  if (!editingQuestionForm.value) return
+  
+  savingQuestion.value = true
+  // 保存当前题目索引
+  const savedIndex = currentQuestionIndex.value
+  
+  try {
+    const saveData = {
+      ...editingQuestionForm.value,
+      knowledgeTags: (editingQuestionForm.value.tags || []).map(t => t.tag_name).filter(Boolean)
+    }
+    
+    await adminApi.updateComputerQuestion(editingQuestionForm.value.question_id, saveData)
+    
+    ElMessage.success('保存成功')
+    editQuestionModalVisible.value = false
+    
+    // 刷新题目列表，保持当前索引
+    if (currentTutorial.value) {
+      await fetchTutorialQuestions(currentTutorial.value.id, savedIndex)
+    }
+  } catch (error) {
+    console.error('保存失败:', error)
+    ElMessage.error('保存失败')
+  } finally {
+    savingQuestion.value = false
+  }
+}
+
 // 导入教辅
 const tutorialImportModalVisible = ref(false)
 const tutorialImportForm = reactive({
-  importMode: 'collection',
-  collectionName: '',
-  collectionId: null,
   version: '',
   year: '',
   data: null
@@ -739,20 +1033,10 @@ const tutorialImportForm = reactive({
 const tutorialFileList = ref([])
 const importingTutorial = ref(false)
 
-const canImport = computed(() => {
-  if (tutorialImportForm.importMode === 'collection') {
-    return !!tutorialImportForm.collectionName.trim()
-  } else {
-    return !!tutorialImportForm.collectionId
-  }
-})
-
 const openTutorialImportModal = () => {
-  tutorialImportForm.importMode = 'collection'
-  tutorialImportForm.collectionName = ''
-  tutorialImportForm.collectionId = null
   tutorialImportForm.version = ''
   tutorialImportForm.year = ''
+  tutorialImportForm.data = null
   tutorialFileList.value = []
   tutorialImportModalVisible.value = true
 }
@@ -778,12 +1062,24 @@ const confirmImportTutorial = async () => {
   }
   importingTutorial.value = true
   try {
-    await adminApi.importTutorial(tutorialImportForm)
+    // 构建请求数据
+    const requestData = {
+      version: tutorialImportForm.version,
+      year: tutorialImportForm.year,
+      data: tutorialImportForm.data
+    }
+    console.log('发送导入请求:', requestData)
+    console.log('data 类型:', typeof requestData.data, '是否数组:', Array.isArray(requestData.data))
+    const res = await adminApi.importTutorial(requestData)
+    console.log('导入响应:', res)
     ElMessage.success('导入成功')
     tutorialImportModalVisible.value = false
     fetchTutorials()
     fetchCollections()
   } catch (error) {
+    console.error('导入失败:', error)
+    console.error('错误响应:', error.response?.data)
+    ElMessage.error(error.response?.data?.message || '导入失败')
     console.error('导入失败:', error)
     ElMessage.error('导入失败')
   } finally {
@@ -1240,5 +1536,303 @@ onMounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+
+/* 题目查看弹窗样式 */
+:deep(.questions-dialog .el-dialog__body) {
+  padding: 0;
+}
+
+.questions-container {
+  display: flex;
+  height: 75vh;
+  overflow: hidden;
+}
+
+.questions-sidebar {
+  width: 300px;
+  border-right: 1px solid #e4e7ed;
+  display: flex;
+  flex-direction: column;
+  background: #f5f7fa;
+}
+
+.questions-header {
+  padding: 15px;
+  border-bottom: 1px solid #e4e7ed;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.questions-header span {
+  font-weight: bold;
+  color: #606266;
+}
+
+.questions-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px;
+}
+
+.question-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  margin-bottom: 8px;
+  background: white;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.3s;
+  border: 1px solid transparent;
+}
+
+.question-item:hover {
+  border-color: #409eff;
+  box-shadow: 0 2px 8px rgba(64, 158, 255, 0.1);
+}
+
+.question-item.active {
+  background: #ecf5ff;
+  border-color: #409eff;
+}
+
+.question-number {
+  width: 28px;
+  height: 28px;
+  background: #409eff;
+  color: white;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: bold;
+  flex-shrink: 0;
+}
+
+.question-preview {
+  flex: 1;
+  font-size: 13px;
+  color: #606266;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.question-type {
+  font-size: 11px;
+  color: #909399;
+  background: #f0f2f5;
+  padding: 2px 6px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.question-detail {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.detail-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 15px 20px;
+  border-bottom: 1px solid #e4e7ed;
+  background: white;
+}
+
+.question-nav {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+.question-counter {
+  font-weight: bold;
+  color: #606266;
+}
+
+.question-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.question-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px;
+  background: white;
+}
+
+.info-row {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.content-section {
+  margin-bottom: 15px;
+}
+
+.content-section h4 {
+  margin: 0 0 8px 0;
+  color: #303133;
+  font-size: 13px;
+  border-left: 3px solid #409eff;
+  padding-left: 8px;
+  line-height: 1.4;
+}
+
+.content-text {
+  line-height: 1.6;
+  color: #606266;
+  background: #f5f7fa;
+  padding: 10px 12px;
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+.content-text :deep(p) {
+  margin: 0 0 8px 0;
+}
+
+.content-text :deep(p:last-child) {
+  margin-bottom: 0;
+}
+
+/* 富文本公式样式 */
+.content-text :deep(.katex) {
+  font-size: 1em;
+}
+
+.content-text :deep(img) {
+  max-width: 100%;
+  height: auto;
+}
+
+.options-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.option-item {
+  display: flex;
+  gap: 8px;
+  padding: 8px 12px;
+  background: #f5f7fa;
+  border-radius: 4px;
+  line-height: 1.5;
+}
+
+.option-key {
+  font-weight: bold;
+  color: #409eff;
+  min-width: 20px;
+  flex-shrink: 0;
+}
+
+.option-value {
+  flex: 1;
+  color: #606266;
+}
+
+.option-value :deep(p) {
+  margin: 0;
+}
+
+.sub-item {
+  margin-bottom: 10px;
+  padding: 10px 12px;
+  background: #f5f7fa;
+  border-radius: 4px;
+}
+
+.sub-title {
+  font-weight: bold;
+  color: #409eff;
+  margin-bottom: 6px;
+  font-size: 13px;
+}
+
+.sub-stem {
+  margin-bottom: 6px;
+  color: #606266;
+  line-height: 1.5;
+}
+
+.sub-stem :deep(p) {
+  margin: 0;
+}
+
+.sub-answer {
+  color: #67c23a;
+  line-height: 1.5;
+}
+
+.sub-answer :deep(p) {
+  margin: 0;
+}
+
+.tags-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.empty-state {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 题目编辑样式 */
+.options-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.option-edit-item {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.option-edit-item .el-input[type="textarea"] {
+  flex: 1;
+}
+
+/* 富文本编辑器样式 */
+.editor-wrapper {
+  border: 1px solid #dcdfe6;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.option-editor-wrapper {
+  flex: 1;
+  border: 1px solid #dcdfe6;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.options-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.option-edit-item {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
 }
 </style>

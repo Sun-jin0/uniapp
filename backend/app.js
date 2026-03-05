@@ -24,6 +24,14 @@ app.use(morgan('dev', {
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use('/assets', express.static(path.join(__dirname, 'assets')));
 
+// 请求日志中间件
+app.use((req, res, next) => {
+  if (req.url.includes('/computer/tutorials')) {
+    console.log(`[Request] ${req.method} ${req.url}`);
+  }
+  next();
+});
+
 app.use('/api/user', require('./routes/userRoutes'));
 app.use('/api', require('./routes/publicRoutes'));
 app.use('/api', require('./routes/examRoutes'));
