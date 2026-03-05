@@ -271,7 +271,7 @@ function preprocessTextForMp(text) {
  */
 export function parseTextWithLatexForMp(text) {
   if (!text || typeof text !== 'string') {
-    return [];
+    return {};
   }
 
   try {
@@ -282,17 +282,17 @@ export function parseTextWithLatexForMp(text) {
     // Towxml 会自动处理 $...$ 和 $$...$$ 中的 LaTeX 公式
     const result = towxml(processedText, 'markdown');
     
-    // Towxml 返回的对象可能包含 nodes 属性
-    if (result && result.nodes) {
-      return result.nodes;
+    // Towxml 返回的是包含 child 数组的对象
+    if (result && result.child) {
+      return result;
     }
     
-    // 如果没有 nodes 属性，返回空数组
-    return [];
+    // 如果没有 child 属性，返回空对象
+    return {};
   } catch (error) {
     console.error('parseTextWithLatexForMp error:', error);
-    // 出错时返回空数组
-    return [];
+    // 出错时返回空对象
+    return {};
   }
 }
 

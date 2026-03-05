@@ -17,6 +17,13 @@ const questions = ref([]);
 const allQuestionIds = ref([]); // 存储所有题目ID
 const loadedQuestionIds = ref(new Set()); // 已加载的题目ID
 
+// #ifdef MP-WEIXIN
+// Towxml nodes 缓存
+const titleNodesCache = ref({});
+const optionNodesCache = ref({});
+const explanationNodesCache = ref({});
+// #endif
+
 // 获取文件基础路径 (从 BASE_URL 提取，如 http://localhost:3000/api -> http://localhost:3000)
 const getFileBaseUrl = () => {
   if (!BASE_URL) return 'https://cheese.yanzhishi.cn';
@@ -890,6 +897,28 @@ const fetchQuestions = async () => {
         }
       });
       
+      // #ifdef MP-WEIXIN
+      // 预解析 Towxml nodes
+      loadedQuestions.forEach((q, idx) => {
+        const cacheKey = idx;
+        // 预解析题干
+        const stemText = q.truncatedStem || q.originalStem || q.stem || '';
+        if (stemText) {
+          titleNodesCache.value[cacheKey] = parseTextWithLatexForMp(stemText);
+        }
+        // 预解析选项
+        if (q.content && q.content.options) {
+          q.content.options.forEach((opt, optIdx) => {
+            const optKey = `${cacheKey}_${optIdx}`;
+            const optText = opt.text || opt;
+            if (optText) {
+              optionNodesCache.value[optKey] = parseTextWithLatexForMp(optText);
+            }
+          });
+        }
+      });
+      // #endif
+
       // 加载当前索引附近的题目
       if (questions.value.length > 0) {
         await loadNearbyQuestions(currentIndex.value);
@@ -1938,15 +1967,15 @@ const formatContent = (text, type = 'explanation', isRich = false, qIndex = -1, 
     // 微信小程序环境下，使用 Towxml 解析为 nodes
     try {
       const nodes = parseTextWithLatexForMp(processedHtml);
-      // 确保返回的是数组或对象
-      if (nodes && (Array.isArray(nodes) || typeof nodes === 'object')) {
+      // 确保返回的是对象（Towxml 格式）
+      if (nodes && typeof nodes === 'object') {
         return nodes;
       }
       console.warn('parseTextWithLatexForMp returned invalid format:', nodes);
-      return [];
+      return {};
     } catch (e) {
       console.error('parseTextWithLatexForMp error:', e);
-      return [];
+      return {};
     }
     // #endif
     
@@ -1957,7 +1986,7 @@ const formatContent = (text, type = 'explanation', isRich = false, qIndex = -1, 
   } catch (e) {
       console.error('formatContent error:', e, text);
       // #ifdef MP-WEIXIN
-      return [];
+      return {};
       // #endif
       // #ifdef H5
       return `<div class="content-error">${text}</div>`;
@@ -2090,9 +2119,9 @@ const submitFeedback = async () => {
                     <view class="question-title" :style="{ fontSize: dynamicFontSize.title }">
                       <!-- 如果是填空题，先尝试行内渲染 -->
                       <!-- #ifdef MP-WEIXIN -->
-                      <towxml v-if="question.exercise_type === 3" :nodes="formatTitle(question.truncatedStem || question.stem, qIndex, 3)" class="title-rich-text"></towxml>
+                      <towxml v-if="question.exercise_type === 3" :nodes="titleNodesCache[qIndex] || {}" class="title-rich-text"></towxml>
                       <!-- 其他题型：如果有截断题干则显示截断的，否则显示完整的原始题干 -->
-                      <towxml v-else :nodes="formatTitle(question.truncatedStem || question.originalStem, qIndex, question.exercise_type)" class="title-rich-text"></towxml>
+                      <towxml v-else :nodes="titleNodesCache[qIndex] || {}" class="title-rich-text"></towxml>
                       <!-- #endif -->
                       <!-- #ifdef H5 -->
                       <rich-text v-if="question.exercise_type === 3" :nodes="formatTitle(question.truncatedStem || question.stem, qIndex, 3)" class="title-rich-text"></rich-text>
@@ -2120,7 +2149,7 @@ const submitFeedback = async () => {
                   <view class="option-label">{{ String.fromCharCode(65 + index) }}</view>
                   <view class="option-content" :style="{ fontSize: dynamicFontSize.option }">
                     <!-- #ifdef MP-WEIXIN -->
-                    <towxml :nodes="formatContent(option.text || option, 'option', false, qIndex, question.exercise_type)"></towxml>
+                    <towxml :nodes="optionNodesCache[`${qIndex}_${index}`] || {}"></towxml>
                     <!-- #endif -->
                     <!-- #ifdef H5 -->
                     <rich-text :nodes="formatContent(option.text || option, 'option', false, qIndex, question.exercise_type)"></rich-text>
