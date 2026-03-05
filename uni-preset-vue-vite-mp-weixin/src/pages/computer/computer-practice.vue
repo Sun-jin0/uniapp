@@ -7,7 +7,10 @@ import publicApi from '../../api/public';
 import { transformContextString, parseTextWithLatexForMp } from '../../utils/latex';
 import SvgIcon from '../../components/SvgIcon/SvgIcon.vue';
 import { checkTextContent } from '@/utils/contentSecurity.js';
+
+// #ifdef MP-WEIXIN
 import Towxml from '@/wxcomponents/towxml/towxml.vue';
+// #endif
 
 const statusBarHeight = ref(0);
 const questions = ref([]);
