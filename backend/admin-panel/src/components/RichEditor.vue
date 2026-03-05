@@ -1,26 +1,11 @@
 <template>
   <div class="rich-editor">
-    <div class="custom-toolbar">
-      <Toolbar
-        :editor="editorRef"
-        :defaultConfig="toolbarConfig"
-        :mode="mode"
-        class="editor-toolbar"
-      />
-      <div class="toolbar-actions">
-        <el-select v-model="selectedModel" size="small" style="width: 200px; margin-bottom: 4px;">
-          <el-option label="DeepSeek-V3.2" value="deepseek-ai/DeepSeek-V3.2" />
-          <el-option label="GLM-4.6" value="zai-org/GLM-4.6" />
-          <el-option label="Qwen3-235B" value="Qwen/Qwen3-235B-A22B-Instruct-2507" />
-        </el-select>
-        <el-button type="success" size="small" @click="aiFormat" :loading="aiFormatting">
-          <el-icon><MagicStick /></el-icon> AI格式化
-        </el-button>
-        <el-button type="primary" size="small" @click="removeEmptyLines" :loading="cleaning" style="margin-top: 4px;">
-          <el-icon><Delete /></el-icon> 删除空行
-        </el-button>
-      </div>
-    </div>
+    <Toolbar
+      :editor="editorRef"
+      :defaultConfig="toolbarConfig"
+      :mode="mode"
+      class="editor-toolbar"
+    />
     <Editor
       :defaultConfig="editorConfig"
       :mode="mode"
@@ -29,6 +14,19 @@
       @onChange="handleChange"
       class="editor-content"
     />
+    <div class="editor-actions">
+      <el-select v-model="selectedModel" size="small" style="width: 180px;">
+        <el-option label="DeepSeek-V3.2" value="deepseek-ai/DeepSeek-V3.2" />
+        <el-option label="GLM-4.6" value="zai-org/GLM-4.6" />
+        <el-option label="Qwen3-235B" value="Qwen/Qwen3-235B-A22B-Instruct-2507" />
+      </el-select>
+      <el-button type="success" size="small" @click="aiFormat" :loading="aiFormatting">
+        <el-icon><MagicStick /></el-icon> AI格式化
+      </el-button>
+      <el-button type="primary" size="small" @click="removeEmptyLines" :loading="cleaning">
+        <el-icon><Delete /></el-icon> 删除空行
+      </el-button>
+    </div>
   </div>
 </template>
 
@@ -274,29 +272,21 @@ onBeforeUnmount(() => {
   overflow: hidden;
 }
 
-.custom-toolbar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  border-bottom: 1px solid #e4e7ed;
-  background: #f5f7fa;
-}
-
 .editor-toolbar {
-  flex: 1;
-  border-bottom: none;
-}
-
-.toolbar-actions {
-  padding: 0 10px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  z-index: 100;
+  border-bottom: 1px solid #e4e7ed;
 }
 
 .editor-content {
   min-height: v-bind('height + "px"');
+}
+
+.editor-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: #f5f7fa;
+  border-top: 1px solid #e4e7ed;
 }
 
 :deep(.w-e-text-container) {
