@@ -477,11 +477,9 @@ onUnmounted(() => {
   color: #1a1a1a;
   font-weight: 500;
   display: -webkit-box;
-  display: box;
+  display: flex;
   -webkit-box-orient: vertical;
-  box-orient: vertical;
   -webkit-line-clamp: 2; /* 最多两行 */
-  line-clamp: 2;
   overflow: hidden;
 }
 .dark-mode .material-title { color: #e6e6e6; }

@@ -8,8 +8,6 @@ import { transformContextString } from '../../utils/latex';
 import SvgIcon from '../../components/SvgIcon/SvgIcon.vue';
 import MpHtml from '../../components/mp-html/mp-html.vue';
 import { checkTextContent } from '@/utils/contentSecurity.js';
-import { useInviteRestriction } from '@/composables/useInviteRestriction';
-import InviteModal from '@/components/InviteModal/InviteModal.vue';
 
 const statusBarHeight = ref(0);
 const questions = ref([]);
@@ -1936,86 +1934,19 @@ const submitFeedback = async () => {
   }
 };
 
-// ============ 邀请限制功能 ============
-const {
-  showInviteModal,
-  inviteInfo,
-  answerCount,
-  checkRestriction,
-  logAnswer,
-  closeInviteModal,
-  onShare,
-  onCopy,
-  refreshAfterInvite
-} = useInviteRestriction();
-
-// 答题计数阈值
-const INVITE_THRESHOLD = 60;
-
-// 检查是否需要显示邀请弹窗
-const checkInviteOnAnswer = async () => {
-  // 每答5题检查一次，或者达到阈值时检查
-  const currentCount = sessionStats.value.answered;
-  if (currentCount > 0 && (currentCount % 5 === 0 || currentCount >= INVITE_THRESHOLD)) {
-    const result = await checkRestriction(currentCount);
-    if (result.needInvite) {
-      // 显示邀请弹窗
-      return true;
-    }
-  }
-  return false;
-};
-
-// 分享邀请
-const handleInviteShare = (shareData) => {
-  onShare(shareData);
-  
-  // 设置分享内容
-  const shareTitle = `考研刷题宝 - 邀请你一起刷题备考`;
-  const sharePath = `/pages/index/index?inviteCode=${inviteInfo.value.inviteCode}`;
-  
-  // #ifdef MP-WEIXIN
-  uni.showShareMenu({
-    withShareTicket: true,
-    menus: shareData.type === 'timeline' ? ['shareTimeline'] : ['shareAppMessage']
-  });
-  // #endif
-};
-
-// 复制邀请码
-const handleInviteCopy = (code) => {
-  onCopy(code);
-};
-
-// 关闭邀请弹窗后的处理
-const handleInviteClose = () => {
-  closeInviteModal();
-  // 可以选择返回首页或继续刷题
-  uni.showModal({
-    title: '提示',
-    content: '邀请好友后即可继续刷题，是否前往首页？',
-    success: (res) => {
-      if (res.confirm) {
-        uni.switchTab({ url: '/pages/index/index' });
-      }
-    }
-  });
-};
-
 // 页面分享配置
 // #ifdef MP-WEIXIN
 onShareAppMessage(() => {
   return {
-    title: `考研刷题宝 - 邀请你一起刷题备考`,
-    path: `/pages/index/index?inviteCode=${inviteInfo.value.inviteCode}`,
+    title: `考研刷题宝 - 一起刷题备考`,
+    path: `/pages/index/index`,
     imageUrl: '/static/logo.png'
   };
 });
 
 onShareTimeline(() => {
   return {
-    title: `考研刷题宝 - 邀请你一起刷题备考`,
-    query: `inviteCode=${inviteInfo.value.inviteCode}`,
+    title: `考研刷题宝 - 一起刷题备考`,
     imageUrl: '/static/logo.png'
   };
 });
@@ -2694,15 +2625,6 @@ onShareTimeline(() => {
       </view>
     </view>
     
-    <!-- 邀请弹窗 -->
-    <InviteModal
-      :visible="showInviteModal"
-      :inviteCode="inviteInfo.inviteCode"
-      :inviteCount="inviteInfo.inviteCount"
-      @close="handleInviteClose"
-      @share="handleInviteShare"
-      @copy="handleInviteCopy"
-    />
   </view>
 </template>
 
