@@ -101,9 +101,11 @@
         <view class="my-text">
           <view class="my-name">
             {{ myRankData.name }}
-            <text class="my-rank-tag">第 {{ myRankData.rank }} 名</text>
+            <text class="my-rank-tag" v-if="showInRanking">第 {{ myRankData.rank }} 名</text>
+            <text class="my-rank-tag inactive" v-else>未参与排行</text>
           </view>
-          <view class="my-status">当前排名：{{ myRankData.rank }} | 答题数：{{ myRankData.score }}</view>
+          <view class="my-status" v-if="showInRanking">当前排名：{{ myRankData.rank }} | 答题数：{{ myRankData.score }}</view>
+          <view class="my-status inactive" v-else>您已关闭排行榜显示，其他用户看不到您的排名</view>
         </view>
       </view>
       <view class="settings-icon" @click="openPrivacyPopup">⚙</view>
@@ -124,13 +126,6 @@
                 <view class="item-desc">关闭后您的数据将不会出现在榜单中</view>
               </view>
               <switch :checked="showInRanking" @change="updatePrivacySetting" color="#3498db" />
-            </view>
-            <view class="privacy-item">
-              <view class="item-left">
-                <view class="item-title">显示详细数据</view>
-                <view class="item-desc">关闭后其他用户无法查看您的练习详情</view>
-              </view>
-              <switch :checked="showDetail" @change="updateDetailSetting" color="#3498db" />
             </view>
           </view>
           <view class="popup-footer">
@@ -193,7 +188,6 @@ const showPrivacyPopup = ref(false);
 
 // 隐私设置状态
 const showInRanking = ref(true);
-const showDetail = ref(true);
 
 // 打开弹窗方法
 const openPrivacyPopup = () => {
@@ -283,23 +277,52 @@ const showUserDetail = (user) => {
 };
 
 // 更新隐私设置
-const updatePrivacySetting = (event) => {
-  showInRanking.value = event.detail.value;
-  uni.setStorageSync('showInRanking', showInRanking.value);
-  uni.showToast({
-    title: showInRanking.value ? '已开启排行榜显示' : '已关闭排行榜显示',
-    icon: 'none'
-  });
-  loadRankingData();
+const updatePrivacySetting = async (event) => {
+  const newValue = event.detail.value;
+  
+  try {
+    const api = instance?.appContext?.config?.globalProperties?.$api;
+    if (!api) {
+      throw new Error('API not found');
+    }
+    
+    const res = await api.wrongBookApi.updateParticipateRanking(newValue);
+    
+    if (res.code === 0) {
+      showInRanking.value = newValue;
+      uni.showToast({
+        title: res.data.message || (newValue ? '已开启排行榜显示' : '已关闭排行榜显示'),
+        icon: 'none'
+      });
+      // 重新加载排行榜数据
+      loadRankingData();
+    } else {
+      throw new Error(res.message || '设置失败');
+    }
+  } catch (error) {
+    console.error('更新参与排行榜设置失败:', error);
+    // 恢复原值
+    showInRanking.value = !newValue;
+    uni.showToast({
+      title: '设置失败: ' + (error.message || '请重试'),
+      icon: 'none'
+    });
+  }
 };
 
-const updateDetailSetting = (event) => {
-  showDetail.value = event.detail.value;
-  uni.setStorageSync('showDetail', showDetail.value);
-  uni.showToast({
-    title: showDetail.value ? '已显示详细数据' : '已隐藏详细数据',
-    icon: 'none'
-  });
+// 加载参与排行榜设置
+const loadParticipateSetting = async () => {
+  try {
+    const api = instance?.appContext?.config?.globalProperties?.$api;
+    if (!api) return;
+    
+    const res = await api.wrongBookApi.getParticipateRanking();
+    if (res.code === 0 && res.data) {
+      showInRanking.value = res.data.participate !== false;
+    }
+  } catch (error) {
+    console.error('加载参与排行榜设置失败:', error);
+  }
 };
 
 // 初始化
@@ -315,6 +338,8 @@ onMounted(() => {
     isDarkMode.value = darkMode;
   });
   
+  // 加载设置和排行榜数据
+  loadParticipateSetting();
   loadRankingData();
 });
 
@@ -767,6 +792,11 @@ onUnmounted(() => {
   font-weight: bold;
 }
 
+.my-rank-tag.inactive {
+  background: #95a5a6;
+  color: #fff;
+}
+
 .gender-tag {
   font-size: 22rpx;
   padding: 2rpx 12rpx;
@@ -785,6 +815,11 @@ onUnmounted(() => {
 .my-status {
   font-size: 26rpx;
   color: rgba(255,255,255,0.6);
+}
+
+.my-status.inactive {
+  color: #e74c3c;
+  font-size: 24rpx;
 }
 
 .settings-icon {

@@ -425,8 +425,18 @@
 				{
 					"path": "article-detail",
 					"style": {
-						"navigationBarTitleText": "文章详情",
-						"navigationStyle": "custom"
+						"navigationBarTitleText": "文章详情"
+					}
+				}
+			]
+		},
+		{
+			"root": "pages/invite",
+			"pages": [
+				{
+					"path": "invite-record",
+					"style": {
+						"navigationBarTitleText": "我的邀请"
 					}
 				}
 			]

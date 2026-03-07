@@ -10,6 +10,9 @@ import { ref, onMounted } from 'vue';
 // 当前主题状态
 const isDarkMode = ref(false);
 
+// 全局分享配置
+// 微信小程序分享功能已在 main.js 中通过全局 mixin 配置
+
 // 更新导航栏样式
 const updateNavigationBarStyle = () => {
   if (isDarkMode.value) {

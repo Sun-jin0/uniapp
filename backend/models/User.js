@@ -121,10 +121,11 @@ class User {
     // 为微信登录用户生成随机密码和学号
     const password = userData.password || Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
     const studentId = userData.studentId || `WX${Date.now()}${Math.floor(Math.random() * 1000)}`;
+    const loginType = userData.loginType || 'wechat';
     
     const [result] = await pool.query(
-      'INSERT INTO users (username, password, studentId, phone, avatar, openid) VALUES (?, ?, ?, ?, ?, ?)',
-      [userData.username, password, studentId, userData.phone || null, userData.avatar || null, userData.openid || null]
+      'INSERT INTO users (username, password, studentId, phone, avatar, openid, login_type) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [userData.username, password, studentId, userData.phone || null, userData.avatar || null, userData.openid || null, loginType]
     );
     
     return await this.findById(result.insertId);

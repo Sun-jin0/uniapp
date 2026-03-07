@@ -550,6 +550,20 @@ const logout = () => {
 .privacy-bg { background: #e0e7ff; }
 .privacy { background-color: #6366f1; mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/></svg>'); }
 
+.item-badge {
+  padding: 4rpx 16rpx;
+  background: #fef3c7;
+  border-radius: 20rpx;
+  font-size: 24rpx;
+  color: #f59e0b;
+  margin-right: 16rpx;
+}
+
+.item-badge.completed {
+  background: #dcfce7;
+  color: #10b981;
+}
+
 .night-bg { background: #f3f4f6; }
 .night { background-color: #4b5563; mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9c0-.46-.04-.92-.1-1.36-.98 1.37-2.58 2.26-4.4 2.26-2.98 0-5.4-2.42-5.4-5.4 0-1.81.89-3.42 2.26-4.4-.44-.06-.9-.1-1.36-.1z"/></svg>'); }
 

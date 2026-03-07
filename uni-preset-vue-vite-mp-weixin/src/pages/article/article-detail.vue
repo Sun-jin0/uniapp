@@ -1,24 +1,13 @@
 <template>
   <view class="container" :class="{ 'dark-mode': isDarkMode }">
-    <!-- 顶部导航栏 -->
-    <view class="nav-bar" :style="{ paddingTop: statusBarHeight + 'px' }">
-      <view class="nav-content">
-        <view class="back-btn" @click="goBack">
-          <text class="back-icon">←</text>
-        </view>
-        <view class="nav-title">文章详情</view>
-        <view class="nav-right"></view>
-      </view>
-    </view>
-    
     <!-- 加载中状态 -->
-    <view v-if="isCheckingLogin" class="loading-container" :style="{ marginTop: (statusBarHeight + 44) + 'px' }">
+    <view v-if="isCheckingLogin" class="loading-container">
       <view class="loading-spinner"></view>
       <text class="loading-text">加载中...</text>
     </view>
     
     <!-- 未登录提示 -->
-    <view v-else-if="!isLoggedIn" class="unlogin-container" :style="{ marginTop: (statusBarHeight + 44) + 'px' }">
+    <view v-else-if="!isLoggedIn" class="unlogin-container">
       <view class="unlogin-card">
         <view class="unlogin-icon">
           <text class="icon-text">📖</text>
@@ -30,7 +19,7 @@
     </view>
     
     <!-- 文章内容 -->
-    <scroll-view v-else class="article-content" scroll-y :style="{ height: 'calc(100vh - ' + (statusBarHeight + 44) + 'px)', marginTop: (statusBarHeight + 44) + 'px' }">
+    <scroll-view v-else class="article-content" scroll-y>
       <view v-if="article" class="article-detail">
         <!-- 文章标题 -->
         <view class="article-title">{{ article.title }}</view>
@@ -77,9 +66,6 @@ import { ref, onMounted, computed, getCurrentInstance } from 'vue';
 
 const { proxy } = getCurrentInstance();
 
-// 状态栏高度
-const statusBarHeight = ref(0);
-
 // 主题状态
 const isDarkMode = ref(false);
 
@@ -121,11 +107,6 @@ const formatDate = (dateString) => {
   return `${year}-${month}-${day}`;
 };
 
-// 返回上一页
-const goBack = () => {
-  uni.navigateBack();
-};
-
 // 初始化文章数据
 const initArticle = async () => {
   const params = getCurrentPageParams();
@@ -140,6 +121,15 @@ const initArticle = async () => {
       if (res.code === 0 && res.data) {
         article.value = res.data;
         
+        // 存储文章标题到页面实例，供分享使用
+        const pages = getCurrentPages();
+        const currentPage = pages[pages.length - 1];
+        if (currentPage) {
+          currentPage.$articleTitle = article.value.title;
+          currentPage.$articleDesc = article.value.description || article.value.summary;
+          currentPage.$articleCover = article.value.coverImage;
+        }
+        
         // 如果是跳转链接或微信链接类型，直接跳转
         if ((article.value.noticeType === 'link' || article.value.noticeType === 'wechat') && article.value.linkUrl) {
           uni.hideLoading();
@@ -150,40 +140,35 @@ const initArticle = async () => {
         }
         
         // 递增阅读数
-        proxy.$api.publicApi.incrementNoticeViewCount(articleId).catch(err => {
-          console.error('递增阅读数失败:', err);
+        proxy.$api.publicApi.incrementNoticeViewCount(articleId).catch(() => {
+          // 递增阅读数失败
         });
       } else {
         uni.showToast({
           title: '文章不存在',
           icon: 'none'
         });
-        setTimeout(() => goBack(), 1500);
+        setTimeout(() => uni.navigateBack(), 1500);
       }
     } catch (error) {
       uni.hideLoading();
-      console.error('加载文章失败:', error);
       uni.showToast({
         title: '加载失败',
         icon: 'none'
       });
-      setTimeout(() => goBack(), 1500);
+      setTimeout(() => uni.navigateBack(), 1500);
     }
   } else {
     uni.showToast({
       title: '文章ID无效',
       icon: 'none'
     });
-    setTimeout(() => goBack(), 1500);
+    setTimeout(() => uni.navigateBack(), 1500);
   }
 };
 
 // 初始化主题状态
 onMounted(() => {
-  // 获取系统信息
-  const systemInfo = uni.getSystemInfoSync();
-  statusBarHeight.value = systemInfo.statusBarHeight || 0;
-  
   // 检查登录状态
   checkLoginStatus();
   
@@ -200,7 +185,58 @@ onMounted(() => {
   if (isLoggedIn.value) {
     initArticle();
   }
+  
+  // #ifdef MP-WEIXIN
+// 显示分享菜单
+  uni.showShareMenu({
+    withShareTicket: true,
+    menus: ['shareAppMessage', 'shareTimeline']
+  });
+  // #endif
 });
+</script>
+
+<script>
+// #ifdef MP-WEIXIN
+// 页面级别的分享配置（需要在独立的 script 标签中定义）
+export default {
+  onShareAppMessage() {
+    // 获取当前页面参数
+    const pages = getCurrentPages();
+    const currentPage = pages[pages.length - 1];
+    const options = currentPage ? currentPage.options : {};
+    const articleId = options.id;
+    
+    // 从页面实例中获取文章标题
+    const articleTitle = currentPage && currentPage.$articleTitle ? currentPage.$articleTitle : '文章详情';
+    const articleDesc = currentPage && currentPage.$articleDesc ? currentPage.$articleDesc : '点击查看更多精彩内容';
+    const articleCover = currentPage && currentPage.$articleCover ? currentPage.$articleCover : '/static/logo.png';
+    
+    return {
+      title: articleTitle,
+      desc: articleDesc,
+      path: '/pages/article/article-detail?id=' + articleId,
+      imageUrl: articleCover
+    };
+  },
+  onShareTimeline() {
+    const pages = getCurrentPages();
+    const currentPage = pages[pages.length - 1];
+    const options = currentPage ? currentPage.options : {};
+    const articleId = options.id;
+    
+    // 从页面实例中获取文章标题
+    const articleTitle = currentPage && currentPage.$articleTitle ? currentPage.$articleTitle : '文章详情';
+    const articleCover = currentPage && currentPage.$articleCover ? currentPage.$articleCover : '/static/logo.png';
+    
+    return {
+      title: articleTitle,
+      query: 'id=' + articleId,
+      imageUrl: articleCover
+    };
+  }
+}
+// #endif
 </script>
 
 <style scoped>
@@ -208,54 +244,6 @@ onMounted(() => {
   background-color: #ffffff;
   min-height: 100vh;
   transition: all 0.3s ease;
-}
-
-/* 顶部导航栏 */
-.nav-bar {
-  background-color: #ffffff;
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  z-index: 1000;
-  transition: all 0.3s ease;
-}
-
-.nav-content {
-  height: 44px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0 30rpx;
-  border-bottom: 1rpx solid #eee;
-}
-
-.dark-mode .nav-content {
-  border-bottom-color: #333;
-}
-
-.back-btn {
-  width: 60rpx;
-  height: 60rpx;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-}
-
-.back-icon {
-  font-size: 40rpx;
-  color: #333333;
-}
-
-.nav-title {
-  font-size: 32rpx;
-  font-weight: bold;
-  color: #333333;
-}
-
-.nav-right {
-  width: 60rpx;
 }
 
 /* 文章内容 */

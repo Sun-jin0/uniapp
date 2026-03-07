@@ -11,6 +11,8 @@ router.post('/favorites', auth, questionIdValidation, studyController.addFavorit
 router.delete('/favorites/:id', auth, idValidation, studyController.deleteFavorite);
 router.get('/study/stats', auth, studyController.getStudyStats);
 router.get('/study/leaderboard', auth, studyController.getLeaderboard);
+router.get('/study/participate-ranking', auth, studyController.getParticipateRanking);
+router.put('/study/participate-ranking', auth, studyController.updateParticipateRanking);
 router.get('/study/recent', auth, studyController.getRecentLearning);
 router.get('/study/history', auth, studyController.getStudyHistory);
 router.get('/study/overview', auth, studyController.getHomeOverview);

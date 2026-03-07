@@ -6,7 +6,10 @@ import medicalApi from '../../api/medical';
 import publicApi from '../../api/public';
 import { transformContextString } from '../../utils/latex';
 import SvgIcon from '../../components/SvgIcon/SvgIcon.vue';
+import MpHtml from '../../components/mp-html/mp-html.vue';
 import { checkTextContent } from '@/utils/contentSecurity.js';
+import { useInviteRestriction } from '@/composables/useInviteRestriction';
+import InviteModal from '@/components/InviteModal/InviteModal.vue';
 
 const statusBarHeight = ref(0);
 const questions = ref([]);
@@ -112,7 +115,7 @@ const loadQuestionsRange = async (startIndex, endIndex) => {
       });
     }
   } catch (error) {
-    console.error('加载题目详情失败:', error);
+    // 加载题目详情失败
   }
 };
 
@@ -124,7 +127,6 @@ const loadNearbyQuestions = async (centerIndex) => {
 };
 
 onLoad((options) => {
-  console.log('[Computer Practice] Received Options:', options);
   pageOptions.value = options || {};
   // 在 onLoad 中调用 fetchQuestions，确保参数已设置
   fetchQuestions();
@@ -193,14 +195,13 @@ const fetchNotes = async (questionId) => {
             isRepliesExpanded: false
           };
         } catch (e) {
-          console.error(`fetchReplies error for note ${note.id}:`, e);
           return { ...note, replies: [] };
         }
       }));
       notes.value = notesWithReplies;
     }
   } catch (error) {
-    console.error('fetchNotes error:', error);
+    // fetchNotes error
   }
 };
 
@@ -254,7 +255,6 @@ const submitReply = async () => {
       fetchNotes(question.question_id);
     }
   } catch (error) {
-    console.error('submitReply error:', error);
     uni.showToast({ title: '回复失败', icon: 'none' });
   }
 };
@@ -307,7 +307,6 @@ const submitNote = async () => {
       fetchNotes(question.question_id);
     }
   } catch (error) {
-    console.error('submitNote error:', error);
     uni.showToast({ title: editingNote.value ? '修改失败' : '发布失败', icon: 'none' });
   }
 };
@@ -415,7 +414,6 @@ const deleteReply = async (reply, note) => {
             note.replies = note.replies.filter(r => r.id !== reply.id);
           }
         } catch (error) {
-          console.error('deleteReply error:', error);
           uni.showToast({ title: '删除失败', icon: 'none' });
         }
       }
@@ -525,7 +523,7 @@ const fetchRelatedArticles = async () => {
       relatedArticles.value = res.data;
     }
   } catch (error) {
-    console.error('获取相关文章失败:', error);
+    // 获取相关文章失败
   } finally {
     articleLoading.value = false;
   }
@@ -626,15 +624,7 @@ const getQuestionSource = (q) => {
 };
 
 watch(currentQuestion, (newVal) => {
-  if (newVal) {
-    console.log('[Diagnostic] Current Question Changed:', {
-      id: newVal.question_id,
-      type: newVal.exercise_type,
-      stem_exists: !!newVal.stem,
-      options_count: newVal.options?.length,
-      loaded: questionStates.value[currentIndex.value]?.loaded
-    });
-  }
+  // 当前题目变化监听
 }, { immediate: true });
 
 const currentQuestionTypeLabel = computed(() => {
@@ -677,9 +667,6 @@ const fetchQuestions = async () => {
   const options = pageOptions.value;
   const questionId = options.questionId;
   const mode = options.mode;
-  
-  console.log('[fetchQuestions] options:', options);
-  console.log('[fetchQuestions] questionId:', questionId);
   
   try {
     let res;
@@ -737,7 +724,7 @@ const fetchQuestions = async () => {
         try {
           idList = JSON.parse(cachedIdsJson);
         } catch (e) {
-          console.error('解析题目ID列表失败:', e);
+          // 解析题目ID列表失败
         }
       }
       
@@ -752,7 +739,6 @@ const fetchQuestions = async () => {
         if (questionId) {
           // 如果有目标题目ID，找到它的索引并加载它附近的题目
           const targetIndex = idList.findIndex(id => String(id) === String(questionId));
-          console.log('[缓存模式] 目标题目索引:', targetIndex);
           if (targetIndex !== -1) {
             // 设置当前索引
             currentIndex.value = targetIndex;
@@ -760,7 +746,6 @@ const fetchQuestions = async () => {
             const start = Math.max(0, targetIndex - 1);
             const end = Math.min(idList.length, targetIndex + 2);
             idsToLoad = idList.slice(start, end);
-            console.log('[缓存模式] 加载题目范围:', start, '-', end, 'IDs:', idsToLoad);
           } else {
             // 目标题目不在列表中，加载前3道
             idsToLoad = idList.slice(0, Math.min(PAGE_SIZE, idList.length));
@@ -777,18 +762,13 @@ const fetchQuestions = async () => {
         });
       } else if (options.majorId === 'tutorial' && options.chapterId) {
         // 教辅模式：获取章节下的题目
-        console.log('[Tutorial Mode] Fetching questions for chapter:', options.chapterId);
         res = await request({
           url: `/computer/tutorial-chapters/${options.chapterId}/questions`
         });
-        console.log('[Tutorial Mode] API Response:', res);
         
         // 教辅模式也需要设置 allQuestionIds 以支持分页加载
         if (res.code === 0 && res.data && res.data.length > 0) {
           const questionIds = res.data.map(q => q.question_id);
-          console.log('[Tutorial Mode] Question IDs:', questionIds);
-          console.log('[Tutorial Mode] First question options:', res.data[0].options);
-          console.log('[Tutorial Mode] questionId to find:', options.questionId);
           allQuestionIds.value = questionIds;
           // 初始化题目数组（用空对象占位）
           questions.value = new Array(questionIds.length).fill(null);
@@ -835,13 +815,9 @@ const fetchQuestions = async () => {
       
       // 如果指定了跳转的题目ID，定位到该题
       if (questionId) {
-        console.log('[定位题目] questionId:', questionId);
-        console.log('[定位题目] questions.value:', questions.value.map(q => q ? q.question_id : null));
         const index = questions.value.findIndex(q => q && String(q.question_id) === String(questionId));
-        console.log('[定位题目] findIndex result:', index);
         if (index > -1) {
           currentIndex.value = index;
-          console.log('[定位题目] currentIndex set to:', currentIndex.value);
           // 加载目标题目附近的题目
           await loadNearbyQuestions(index);
         }
@@ -895,7 +871,6 @@ const fetchQuestions = async () => {
       errorMsg.value = '暂无相关题目';
     }
   } catch (error) {
-    console.error('获取题目失败:', error);
     errorMsg.value = '网络请求失败，请稍后重试';
   } finally {
     loading.value = false;
@@ -935,7 +910,6 @@ const fixHtmlImages = (html) => {
 };
 
 const processQuestionData = (data) => {
-  console.log('[Diagnostic] processQuestionData input:', JSON.parse(JSON.stringify(data)));
   if (!data) return data;
 
   const possibleStemFields = ['stem', 'title', 'question', 'content_stem', 'question_stem'];
@@ -1111,13 +1085,6 @@ const processQuestionData = (data) => {
     });
   }
 
-  console.log('[Diagnostic] processQuestionData output:', {
-    stem: data.stem,
-    truncatedStem: data.truncatedStem,
-    optionsCount: data.options?.length,
-    answer: data.answer,
-    analysis: data.analysis
-  });
   return data;
 };
 
@@ -1168,7 +1135,6 @@ const loadQuestionDetails = async (index) => {
     ]);
     
     if (detailRes.code === 0 && detailRes.data) {
-      console.log('[Diagnostic] API Detail Response Data:', JSON.parse(JSON.stringify(detailRes.data)));
       // 合并详情数据（包含 options 等）
       const detailedQuestion = processQuestionData(detailRes.data);
       questions.value[index] = { ...question, ...detailedQuestion };
@@ -1183,7 +1149,7 @@ const loadQuestionDetails = async (index) => {
       prefetchQuestion(index + 1);
     }
   } catch (e) {
-    console.error('加载题目详情失败:', e);
+    // 加载题目详情失败
   }
 };
 
@@ -1390,7 +1356,7 @@ const confirmAnswer = async (index) => {
       }
     });
   } catch (err) {
-    console.error('update progress error:', err);
+    // update progress error
   }
 
   // 如果答错了，自动加入错题本
@@ -1408,7 +1374,7 @@ const confirmAnswer = async (index) => {
         });
       }
     } catch (err) {
-      console.error('add to wrong book error:', err);
+      // add to wrong book error
     }
   }
 
@@ -1436,7 +1402,7 @@ const confirmAnswer = async (index) => {
         }
       }
     } catch (err) {
-      console.error('update wrong book status error:', err);
+      // update wrong book status error
     }
   }
 
@@ -1448,6 +1414,9 @@ const confirmAnswer = async (index) => {
       }
     }, 1000);
   }
+  
+  // 检查邀请限制（答题后检查）
+  checkInviteOnAnswer();
 };
 
 const jumpToQuestion = (index) => {
@@ -1476,7 +1445,9 @@ const updateProgress = (index) => {
       userAnswer: lastAnswer,
       status: 'answering'
     }
-  }).catch(err => console.error('update progress error:', err));
+  }).catch(() => {
+    // update progress error
+  });
 };
 
 const getSheetItemClass = (index) => {
@@ -1530,7 +1501,7 @@ const toggleFavorite = async () => {
     state.isFavorite = res.data.isFavorite;
     uni.showToast({ title: state.isFavorite ? '收藏成功' : '已取消收藏', icon: 'none' });
   } catch (error) {
-    console.error('切换收藏状态失败:', error);
+    // 切换收藏状态失败
   }
 };
 
@@ -1621,13 +1592,11 @@ const shouldShowAnswer = (qIndex) => {
 
 const formatContent = (text, type = 'explanation', isRich = false, qIndex = -1, exerciseType = null) => {
   if (!text) {
-    console.warn(`[Diagnostic] formatContent received empty text for type: ${type}`);
     return '';
   }
   
   try {
     let processedHtml = String(text);
-    // console.log(`[Diagnostic] formatContent input (${type}):`, text.substring(0, 50) + (text.length > 50 ? '...' : ''));
 
   // 如果没有显式传 exerciseType，尝试从 questions 中获取
   if (exerciseType === null && qIndex !== -1 && questions.value[qIndex]) {
@@ -1928,10 +1897,8 @@ const formatContent = (text, type = 'explanation', isRich = false, qIndex = -1, 
     processedHtml = processedHtml.replace(/\n+/g, '<br/>');
   }
     
-    // console.log(`[Diagnostic] formatContent output (${type}):`, processedHtml.substring(0, 50) + (processedHtml.length > 50 ? '...' : ''));
     return processedHtml;
   } catch (e) {
-    console.error('formatContent error:', e, text);
     return `<div class="content-error">${text}</div>`;
   }
 };
@@ -1965,10 +1932,94 @@ const submitFeedback = async () => {
     showFeedback.value = false;
     feedbackContent.value = '';
   } catch (error) {
-    console.error('提交反馈失败:', error);
     uni.showToast({ title: '提交失败，请重试', icon: 'none' });
   }
 };
+
+// ============ 邀请限制功能 ============
+const {
+  showInviteModal,
+  inviteInfo,
+  answerCount,
+  checkRestriction,
+  logAnswer,
+  closeInviteModal,
+  onShare,
+  onCopy,
+  refreshAfterInvite
+} = useInviteRestriction();
+
+// 答题计数阈值
+const INVITE_THRESHOLD = 60;
+
+// 检查是否需要显示邀请弹窗
+const checkInviteOnAnswer = async () => {
+  // 每答5题检查一次，或者达到阈值时检查
+  const currentCount = sessionStats.value.answered;
+  if (currentCount > 0 && (currentCount % 5 === 0 || currentCount >= INVITE_THRESHOLD)) {
+    const result = await checkRestriction(currentCount);
+    if (result.needInvite) {
+      // 显示邀请弹窗
+      return true;
+    }
+  }
+  return false;
+};
+
+// 分享邀请
+const handleInviteShare = (shareData) => {
+  onShare(shareData);
+  
+  // 设置分享内容
+  const shareTitle = `考研刷题宝 - 邀请你一起刷题备考`;
+  const sharePath = `/pages/index/index?inviteCode=${inviteInfo.value.inviteCode}`;
+  
+  // #ifdef MP-WEIXIN
+  uni.showShareMenu({
+    withShareTicket: true,
+    menus: shareData.type === 'timeline' ? ['shareTimeline'] : ['shareAppMessage']
+  });
+  // #endif
+};
+
+// 复制邀请码
+const handleInviteCopy = (code) => {
+  onCopy(code);
+};
+
+// 关闭邀请弹窗后的处理
+const handleInviteClose = () => {
+  closeInviteModal();
+  // 可以选择返回首页或继续刷题
+  uni.showModal({
+    title: '提示',
+    content: '邀请好友后即可继续刷题，是否前往首页？',
+    success: (res) => {
+      if (res.confirm) {
+        uni.switchTab({ url: '/pages/index/index' });
+      }
+    }
+  });
+};
+
+// 页面分享配置
+// #ifdef MP-WEIXIN
+onShareAppMessage(() => {
+  return {
+    title: `考研刷题宝 - 邀请你一起刷题备考`,
+    path: `/pages/index/index?inviteCode=${inviteInfo.value.inviteCode}`,
+    imageUrl: '/static/logo.png'
+  };
+});
+
+onShareTimeline(() => {
+  return {
+    title: `考研刷题宝 - 邀请你一起刷题备考`,
+    query: `inviteCode=${inviteInfo.value.inviteCode}`,
+    imageUrl: '/static/logo.png'
+  };
+});
+// #endif
 </script>
 
 <!-- v20260129-01: 优化填空题横线、移除冗余标签并修复图片渲染 -->
@@ -2060,9 +2111,9 @@ const submitFeedback = async () => {
                   <view class="question-title-content">
                     <view class="question-title" :style="{ fontSize: dynamicFontSize.title }">
                       <!-- 如果是填空题，先尝试行内渲染 -->
-                      <rich-text v-if="question.exercise_type === 3" :nodes="formatTitle(question.truncatedStem || question.stem, qIndex, 3)" class="title-rich-text"></rich-text>
+                      <mp-html v-if="question.exercise_type === 3" :content="question.truncatedStem || question.stem" class="title-rich-text" markdown></mp-html>
                       <!-- 其他题型：如果有截断题干则显示截断的，否则显示完整的原始题干 -->
-                      <rich-text v-else :nodes="formatTitle(question.truncatedStem || question.originalStem, qIndex, question.exercise_type)" class="title-rich-text"></rich-text>
+                      <mp-html v-else :content="question.truncatedStem || question.originalStem" class="title-rich-text" markdown></mp-html>
                     </view>
                   </view>
                 </view>
@@ -2084,7 +2135,7 @@ const submitFeedback = async () => {
                 >
                   <view class="option-label">{{ String.fromCharCode(65 + index) }}</view>
                   <view class="option-content" :style="{ fontSize: dynamicFontSize.option }">
-                    <rich-text :nodes="formatContent(option.text || option, 'option', false, qIndex, question.exercise_type)"></rich-text>
+                    <mp-html :content="option.text || option"></mp-html>
                   </view>
                   <view v-if="shouldShowAnswer(qIndex)" class="result-icon">
                     <SvgIcon v-if="isCorrectOption(question, index)" name="correct" size="32" fill="#4caf50" />
@@ -2120,7 +2171,7 @@ const submitFeedback = async () => {
                       </view>
                     <view class="sub-stem">
                       <view class="sub-index">{{ sIdx + 1 }}.</view>
-                      <rich-text :nodes="formatContent(sub.stem, 'explanation', true, qIndex, 4)"></rich-text>
+                      <mp-html :content="sub.stem"></mp-html>
                     </view>
                     <textarea 
                       v-if="questionStates[qIndex]?.subAnswers"
@@ -2137,11 +2188,11 @@ const submitFeedback = async () => {
                     <view v-if="shouldShowAnswer(qIndex)" class="sub-answer-section animated fadeIn">
                       <view class="sub-answer-item">
                         <text class="label">【答案】</text>
-                        <view class="value"><rich-text :nodes="formatContent(sub.answer || sub.originalAnswer || sub.standard_answer || sub.correct_answer, 'explanation', true, qIndex, 4)"></rich-text></view>
+                        <view class="value"><mp-html :content="sub.answer || sub.originalAnswer || sub.standard_answer || sub.correct_answer"></mp-html></view>
                       </view>
                       <view class="sub-answer-item" v-if="sub.analysis || sub.commentary || sub.method || sub.explanation || sub.solution">
                         <text class="label">【解析】</text>
-                        <view class="value"><rich-text :nodes="formatContent(sub.analysis || sub.commentary || sub.method || sub.explanation || sub.solution, 'explanation', true, qIndex, 4)"></rich-text></view>
+                        <view class="value"><mp-html :content="sub.analysis || sub.commentary || sub.method || sub.explanation || sub.solution"></mp-html></view>
                       </view>
                     </view>
                   </view>
@@ -2231,7 +2282,7 @@ const submitFeedback = async () => {
                   </view>
                 </view>
                 <view class="explanation-content" :style="{ fontSize: dynamicFontSize.explanation }">
-                  <rich-text :nodes="formatContent(question.displayAnswer || question.answer, 'explanation', true, qIndex, question.exercise_type)"></rich-text>
+                  <mp-html :content="question.displayAnswer || question.answer"></mp-html>
                 </view>
               </view>
 
@@ -2244,7 +2295,7 @@ const submitFeedback = async () => {
                   </view>
                 </view>
                 <view class="explanation-content" :style="{ fontSize: dynamicFontSize.explanation }">
-                  <rich-text :nodes="formatContent(question.answer, 'explanation', true, qIndex, 4)"></rich-text>
+                  <mp-html :content="question.answer"></mp-html>
                 </view>
               </view>
 
@@ -2257,7 +2308,7 @@ const submitFeedback = async () => {
                   </view>
                 </view>
                 <view class="explanation-content" :style="{ fontSize: dynamicFontSize.explanation }">
-                  <rich-text :nodes="formatExplanation(question.analysis, qIndex, question.exercise_type)"></rich-text>
+                  <mp-html :content="question.analysis"></mp-html>
                 </view>
               </view>
 
@@ -2350,7 +2401,7 @@ const submitFeedback = async () => {
                         </view>
                       </view>
                       <view class="note-content">
-                        <rich-text :nodes="formatContent(note.content, 'note')"></rich-text>
+                        <mp-html :content="note.content"></mp-html>
                       </view>
                       
                       <!-- 笔记回复列表 -->
@@ -2367,7 +2418,7 @@ const submitFeedback = async () => {
                           <view v-for="reply in note.replies" :key="reply.id" class="reply-item" @longpress="showReplyActions(reply, note)">
                             <view class="reply-content-row">
                               <text class="reply-user">{{ reply.username }}:</text>
-                              <rich-text class="reply-content" :nodes="formatContent(reply.content, 'note')"></rich-text>
+                              <mp-html class="reply-content" :content="reply.content"></mp-html>
                               <text 
                                 v-if="String(reply.user_id || reply.userId) === String(currentUserId)" 
                                 class="delete-reply-btn" 
@@ -2642,6 +2693,16 @@ const submitFeedback = async () => {
         </view>
       </view>
     </view>
+    
+    <!-- 邀请弹窗 -->
+    <InviteModal
+      :visible="showInviteModal"
+      :inviteCode="inviteInfo.inviteCode"
+      :inviteCount="inviteInfo.inviteCount"
+      @close="handleInviteClose"
+      @share="handleInviteShare"
+      @copy="handleInviteCopy"
+    />
   </view>
 </template>
 

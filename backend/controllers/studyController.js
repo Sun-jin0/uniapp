@@ -94,22 +94,22 @@ const getLeaderboard = async (req, res) => {
     console.log('valueField:', valueField, 'period:', period);
     
     if (period === 'all') {
-      // 全部时间：直接从 users 表获取
+      // 全部时间：直接从 users 表获取，只查询参与排行榜的用户
       sql = `
         SELECT u.id, u.username, u.nickname, u.avatar, ` + valueField + ` as value 
         FROM users u 
-        WHERE u.status = 1
+        WHERE u.status = 1 AND u.participate_ranking = 1
         ORDER BY ` + valueField + ` DESC 
         LIMIT 50
       `;
     } else {
-      // 按时间段：从 answer_records 表统计
+      // 按时间段：从 answer_records 表统计，只查询参与排行榜的用户
       const days = period === 'week' ? 7 : (period === 'day' ? 1 : 30);
       sql = `
         SELECT u.id, u.username, u.nickname, u.avatar, COALESCE(SUM(a.` + valueField + `), 0) as value 
         FROM users u 
         LEFT JOIN answer_records a ON u.id = a.userId AND a.createdAt >= DATE_SUB(CURDATE(), INTERVAL ` + days + ` DAY)
-        WHERE u.status = 1
+        WHERE u.status = 1 AND u.participate_ranking = 1
         GROUP BY u.id, u.username, u.nickname, u.avatar
         ORDER BY value DESC 
         LIMIT 50
@@ -120,42 +120,45 @@ const getLeaderboard = async (req, res) => {
 
     // 获取当前用户排名 - 使用兼容MySQL 5.7的写法
     if (period === 'all') {
-      // 全部时间：使用子查询计算排名
+      // 全部时间：使用子查询计算排名（只统计参与排行榜的用户）
       rankSql = `
         SELECT 
-          (SELECT COUNT(*) + 1 FROM users u2 WHERE u2.` + valueField + ` > u.` + valueField + ` AND u2.status = 1) as \`rank\`,
+          (SELECT COUNT(*) + 1 FROM users u2 WHERE u2.` + valueField + ` > u.` + valueField + ` AND u2.status = 1 AND u2.participate_ranking = 1) as \`rank\`,
           u.` + valueField + ` as value,
-          u.avatar
+          u.avatar,
+          u.participate_ranking
         FROM users u
         WHERE u.id = ? AND u.status = 1
       `;
       console.log('period=all rankSql:', rankSql);
     } else {
-      // 按时间段：使用子查询计算排名
+      // 按时间段：使用子查询计算排名（只统计参与排行榜的用户）
       const days = period === 'week' ? 7 : (period === 'day' ? 1 : 30);
       rankSql = `
         SELECT 
           (SELECT COUNT(DISTINCT userId) + 1 FROM (
-            SELECT userId, SUM(` + valueField + `) as total
-            FROM answer_records
-            WHERE createdAt >= DATE_SUB(CURDATE(), INTERVAL ` + days + ` DAY)
-            GROUP BY userId
+            SELECT a.userId, SUM(a.` + valueField + `) as total
+            FROM answer_records a
+            JOIN users u ON a.userId = u.id
+            WHERE a.createdAt >= DATE_SUB(CURDATE(), INTERVAL ` + days + ` DAY) AND u.participate_ranking = 1
+            GROUP BY a.userId
             HAVING total > COALESCE((SELECT SUM(` + valueField + `) FROM answer_records WHERE userId = ? AND createdAt >= DATE_SUB(CURDATE(), INTERVAL ` + days + ` DAY)), 0)
           ) t) as \`rank\`,
           COALESCE((SELECT SUM(` + valueField + `) FROM answer_records WHERE userId = ? AND createdAt >= DATE_SUB(CURDATE(), INTERVAL ` + days + ` DAY)), 0) as value,
-          (SELECT avatar FROM users WHERE id = ?) as avatar
+          (SELECT avatar FROM users WHERE id = ?) as avatar,
+          (SELECT participate_ranking FROM users WHERE id = ?) as participate_ranking
       `;
     }
     
     // 如果没有 userId，不查询用户排名
-    let userRank = [{ rank: '-', value: 0 }];
+    let userRank = [{ rank: '-', value: 0, participate_ranking: 1 }];
     if (userId) {
       let rankParams;
       if (period === 'all') {
         rankParams = [userId];
       } else {
-        // period !== 'all' 时需要3个参数：userId, userId, userId
-        rankParams = [userId, userId, userId];
+        // period !== 'all' 时需要4个参数：userId, userId, userId, userId
+        rankParams = [userId, userId, userId, userId];
       }
       const [rankResult] = await pool.query(rankSql, rankParams);
       userRank = rankResult;
@@ -163,13 +166,63 @@ const getLeaderboard = async (req, res) => {
 
     res.json(successResponse({
       list: rankList,
-      myRank: userRank[0] || { rank: '-', value: 0 }
+      myRank: userRank[0] || { rank: '-', value: 0, participate_ranking: 1 }
     }));
   } catch (error) {
     console.error('获取排行榜失败:', error);
     console.error('错误详情:', error.message);
     console.error('SQL:', sql);
     console.error('rankSql:', rankSql);
+    res.status(500).json(errorResponse('服务器错误: ' + error.message));
+  }
+};
+
+// 更新参与排行榜设置
+const updateParticipateRanking = async (req, res) => {
+  try {
+    const userId = req.userId;
+    const { participate } = req.body;
+    
+    if (participate === undefined || participate === null) {
+      return res.status(400).json(errorResponse('参数错误：participate 不能为空'));
+    }
+    
+    const participateValue = participate ? 1 : 0;
+    
+    await pool.query(
+      'UPDATE users SET participate_ranking = ? WHERE id = ?',
+      [participateValue, userId]
+    );
+    
+    res.json(successResponse({ 
+      participate: participateValue === 1,
+      message: participateValue === 1 ? '已开启排行榜显示' : '已关闭排行榜显示'
+    }));
+  } catch (error) {
+    console.error('更新参与排行榜设置失败:', error);
+    res.status(500).json(errorResponse('服务器错误: ' + error.message));
+  }
+};
+
+// 获取参与排行榜设置
+const getParticipateRanking = async (req, res) => {
+  try {
+    const userId = req.userId;
+    
+    const [rows] = await pool.query(
+      'SELECT participate_ranking FROM users WHERE id = ?',
+      [userId]
+    );
+    
+    if (rows.length === 0) {
+      return res.status(404).json(errorResponse('用户不存在'));
+    }
+    
+    res.json(successResponse({ 
+      participate: rows[0].participate_ranking === 1
+    }));
+  } catch (error) {
+    console.error('获取参与排行榜设置失败:', error);
     res.status(500).json(errorResponse('服务器错误: ' + error.message));
   }
 };
@@ -476,6 +529,8 @@ module.exports = {
   deleteFavorite,
   getStudyStats,
   getLeaderboard,
+  getParticipateRanking,
+  updateParticipateRanking,
   getRecentLearning,
   getStudyHistory,
   getHomeOverview

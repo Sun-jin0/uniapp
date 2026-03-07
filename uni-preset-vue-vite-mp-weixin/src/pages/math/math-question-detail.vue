@@ -70,7 +70,7 @@
             <div class="card-preview" v-html="getQuestionPreview(sid)"></div>
             <!-- #endif -->
             <!-- #ifdef MP-WEIXIN -->
-            <towxml class="card-preview" :nodes="parseTextWithLatexForMp(getQuestionPreview(sid))"></towxml>
+            <mp-html class="card-preview" :content="getQuestionPreview(sid)" markdown></mp-html>
             <!-- #endif -->
           </div>
         </div>
@@ -95,7 +95,7 @@
             <view class="question-text" v-if="currentQuestionData.first_request[0].QuestionText" v-html="transformContextString(displayQuestionText)" :style="{ fontSize: fontSize + 'px' }"></view>
             <!-- #endif -->
             <!-- #ifdef MP-WEIXIN -->
-            <towxml class="question-text" v-if="currentQuestionData.first_request[0].QuestionText" :nodes="questionTextNodes"></towxml>
+            <mp-html class="question-text" v-if="currentQuestionData.first_request[0].QuestionText" :content="displayQuestionText" markdown></mp-html>
             <!-- #endif -->
             
             <!-- 题目报错按钮 -->
@@ -123,7 +123,7 @@
                 <view class="option-content" v-html="transformContextString(option.content)"></view>
                 <!-- #endif -->
                 <!-- #ifdef MP-WEIXIN -->
-                <towxml class="option-content" :nodes="optionNodesCache[option.label] || {}"></towxml>
+                <mp-html class="option-content" :content="option.content || ''" markdown></mp-html>
                 <!-- #endif -->
               </view>
             </view>
@@ -160,14 +160,14 @@
                     <view class="analysis-card-title" v-html="getDetailHeader(item)"></view>
                     <!-- #endif -->
                     <!-- #ifdef MP-WEIXIN -->
-                    <towxml class="analysis-card-title" :nodes="contentNodesCache[`analysis_${index}_header`] || parseTextWithLatexForMp(getDetailHeader(item))"></towxml>
+                    <mp-html class="analysis-card-title" :content="getDetailHeader(item)" markdown></mp-html>
                     <!-- #endif -->
                   </view>
                   <!-- #ifdef H5 -->
                   <view class="analysis-card-body" v-if="item.Context" v-html="transformContextString(item.Context)" :style="{ fontSize: (fontSize - 2) + 'px' }"></view>
                   <!-- #endif -->
                   <!-- #ifdef MP-WEIXIN -->
-                  <towxml class="analysis-card-body" v-if="item.Context" :nodes="contentNodesCache[`analysis_${index}_body`] || parseTextWithLatexForMp(item.Context)"></towxml>
+                  <mp-html class="analysis-card-body" v-if="item.Context" :content="item.Context" markdown></mp-html>
                   <!-- #endif -->
                 </view>
               </view>
@@ -187,7 +187,7 @@
                     <view class="kaodian-content" v-if="item._question_code?.KPContent || item._question_code?.Content || item.Context" v-html="transformContextString(item._question_code?.KPContent || item._question_code?.Content || item.Context)" :style="{ fontSize: (fontSize - 2) + 'px' }"></view>
                     <!-- #endif -->
                     <!-- #ifdef MP-WEIXIN -->
-                    <towxml v-if="item._question_code?.KPContent || item._question_code?.Content || item.Context" class="kaodian-content" :nodes="contentNodesCache[`knowledge_${index}`] || parseTextWithLatexForMp(item._question_code?.KPContent || item._question_code?.Content || item.Context)"></towxml>
+                    <mp-html v-if="item._question_code?.KPContent || item._question_code?.Content || item.Context" class="kaodian-content" :content="(item._question_code?.KPContent || item._question_code?.Content || item.Context)" markdown></mp-html>
                     <!-- #endif -->
                   </view>
                 </view>
@@ -208,7 +208,7 @@
                     <view class="kaodian-content" v-if="item._question_code?.KPContent || item._question_code?.Content || item.Context" v-html="transformContextString(item._question_code?.KPContent || item._question_code?.Content || item.Context)" :style="{ fontSize: (fontSize - 2) + 'px' }"></view>
                     <!-- #endif -->
                     <!-- #ifdef MP-WEIXIN -->
-                    <towxml v-if="item._question_code?.KPContent || item._question_code?.Content || item.Context" class="kaodian-content" :nodes="contentNodesCache[`difficulty_${index}`] || parseTextWithLatexForMp(item._question_code?.KPContent || item._question_code?.Content || item.Context)"></towxml>
+                    <mp-html v-if="item._question_code?.KPContent || item._question_code?.Content || item.Context" class="kaodian-content" :content="(item._question_code?.KPContent || item._question_code?.Content || item.Context)" markdown></mp-html>
                     <!-- #endif -->
                   </view>
                 </view>
@@ -236,7 +236,7 @@
                   <!-- #endif -->
                   <!-- #ifdef MP-WEIXIN -->
                   <image v-if="rel.QuestionImg" :src="rel.QuestionImg.replace('http://', 'https://')" class="related-tab-img" mode="widthFix" @error="handleImageError($event)"></image>
-                  <towxml class="related-tab-preview" v-else-if="rel.QuestionText" :nodes="parseTextWithLatexForMp(rel.QuestionText.substring(0, 150) + '...')"></towxml>
+                  <mp-html class="related-tab-preview" v-else-if="rel.QuestionText" :content="rel.QuestionText.substring(0, 150) + '...'" markdown></mp-html>
                   <!-- #endif -->
                 </view>
               </view>
@@ -264,7 +264,7 @@
                 <!-- #endif -->
                 <!-- #ifdef MP-WEIXIN -->
                 <image v-if="rel.QuestionImg" :src="rel.QuestionImg.replace('http://', 'https://')" class="related-question-img" mode="widthFix" @error="handleImageError($event)"></image>
-                <towxml class="related-content" v-else-if="rel.RelatedQuestionText || rel.QuestionText" :nodes="parseTextWithLatexForMp(rel.RelatedQuestionText || rel.QuestionText)"></towxml>
+                <mp-html class="related-content" v-else-if="rel.RelatedQuestionText || rel.QuestionText" :content="rel.RelatedQuestionText || rel.QuestionText" markdown></mp-html>
                 <!-- #endif -->
               </view>
             </view>
@@ -593,6 +593,7 @@
 import { ref, reactive, computed, onMounted, onUnmounted, watch, nextTick } from 'vue';
 import { onLoad } from '@dcloudio/uni-app';
 import SvgIcon from '../../components/SvgIcon/SvgIcon.vue';
+import MpHtml from '../../components/mp-html/mp-html.vue';
 import { request } from '../../api/request';
 import api from '../../api/index';
 import publicApi from '../../api/public';
@@ -666,6 +667,8 @@ const questionTextNodes = ref({});
 const optionNodesCache = reactive({});
 // 其他内容的解析缓存（解析、考点、疑难点等）
 const contentNodesCache = reactive({});
+// 侧边栏预览缓存
+const sidebarPreviewCache = reactive({});
 
 // #ifdef MP-WEIXIN
 // 微信小程序下更新节点缓存
@@ -691,13 +694,11 @@ const updateOptionNodes = (key, text) => {
 const preparseAllContent = (questionData) => {
   if (!questionData || !questionData.first_request) return;
   
-  console.log('[Preparse] Starting to preparse all content...');
-  
+  // #ifdef MP
   try {
     // 1. 预解析题目文本
     const questionText = questionData.first_request[0]?.QuestionText;
     if (questionText) {
-      console.log('[Preparse] Preparing question text...');
       questionTextNodes.value = parseTextWithLatexForMp(questionText);
     }
     
@@ -707,7 +708,6 @@ const preparseAllContent = (questionData) => {
       options.forEach((opt, idx) => {
         const key = String.fromCharCode(65 + idx);
         if (opt && opt.content) {
-          console.log(`[Preparse] Preparing option ${key}...`);
           optionNodesCache[key] = parseTextWithLatexForMp(opt.content);
         }
       });
@@ -720,12 +720,10 @@ const preparseAllContent = (questionData) => {
         // 解析标题
         const header = getDetailHeader(item);
         if (header) {
-          console.log(`[Preparse] Preparing analysis header ${idx}...`);
           contentNodesCache[`${cacheKey}_header`] = parseTextWithLatexForMp(header);
         }
         // 解析内容
         if (item.Context) {
-          console.log(`[Preparse] Preparing analysis context ${idx}...`);
           contentNodesCache[`${cacheKey}_body`] = parseTextWithLatexForMp(item.Context);
         }
       });
@@ -736,7 +734,6 @@ const preparseAllContent = (questionData) => {
       questionData.third_request.forEach((item, idx) => {
         const content = item._question_code?.KPContent || item._question_code?.Content || item.Context;
         if (content) {
-          console.log(`[Preparse] Preparing knowledge point ${idx}...`);
           contentNodesCache[`knowledge_${idx}`] = parseTextWithLatexForMp(content);
         }
       });
@@ -747,16 +744,20 @@ const preparseAllContent = (questionData) => {
       questionData.fourth_request.forEach((item, idx) => {
         const content = item._question_code?.KPContent || item._question_code?.Content || item.Context;
         if (content) {
-          console.log(`[Preparse] Preparing difficulty point ${idx}...`);
           contentNodesCache[`difficulty_${idx}`] = parseTextWithLatexForMp(content);
         }
       });
     }
     
-    console.log('[Preparse] All content preparsed successfully!');
+    // 6. 预解析侧边栏预览
+    const sourceId = questionData.first_request[0]?.QuestionID || questionData.first_request[0]?.GlobalQuestionID;
+    if (sourceId && questionText) {
+      const previewText = transformContextString(questionText.substring(0, 100) + '...');
+      sidebarPreviewCache[sourceId] = parseTextWithLatexForMp(previewText);
+    }
   } catch (error) {
-    console.error('[Preparse] Error preparsing content:', error);
   }
+  // #endif
 };
 
 // 预加载后N个题目的数据（提前获取数据并渲染公式）

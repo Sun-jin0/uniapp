@@ -75,5 +75,22 @@ export default {
       url: '/study/overview',
       method: 'GET'
     })
+  },
+
+  // 获取参与排行榜设置
+  getParticipateRanking: () => {
+    return request({
+      url: '/study/participate-ranking',
+      method: 'GET'
+    })
+  },
+
+  // 更新参与排行榜设置
+  updateParticipateRanking: (participate) => {
+    return request({
+      url: '/study/participate-ranking',
+      method: 'PUT',
+      data: { participate }
+    })
   }
 }

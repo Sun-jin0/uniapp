@@ -57,6 +57,7 @@
     "ant-design-vue": "^4.2.6",
     "crypto-js": "^4.2.0",
     "katex": "^0.16.28",
+    "painter-kernel": "^1.0.7",
     "towxml": "^3.0.6",
     "vue": "^3.4.21",
     "vue-i18n": "^9.1.9"

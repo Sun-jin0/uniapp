@@ -1,3 +1,4 @@
+// #ifdef H5
 import katex from 'katex';
 import renderMathInElement from 'katex/dist/contrib/auto-render';
 import 'katex/dist/katex.min.css';
@@ -7,9 +8,10 @@ if (typeof window !== 'undefined') {
   window.katex = katex;
   window.renderMathInElement = renderMathInElement;
 }
+// #endif
 
 // #ifdef MP-WEIXIN
-// 导入 Towxml 用于微信小程序
+// 微信小程序下静态导入 towxml
 const towxml = require("../wxcomponents/towxml/index");
 // #endif
 
@@ -23,6 +25,166 @@ function escapeHtml(text) {
     "'": '&#039;'
   };
   return text.replace(/[&<>"']/g, m => map[m]);
+}
+
+/**
+ * 常见 LaTeX 符号到 Unicode 的映射
+ */
+const LATEX_TO_UNICODE = {
+  '\\alpha': 'α', '\\beta': 'β', '\\gamma': 'γ', '\\delta': 'δ', '\\epsilon': 'ε',
+  '\\zeta': 'ζ', '\\eta': 'η', '\\theta': 'θ', '\\iota': 'ι', '\\kappa': 'κ',
+  '\\lambda': 'λ', '\\mu': 'μ', '\\nu': 'ν', '\\xi': 'ξ', '\\omicron': 'ο',
+  '\\pi': 'π', '\\rho': 'ρ', '\\sigma': 'σ', '\\tau': 'τ', '\\upsilon': 'υ',
+  '\\phi': 'φ', '\\chi': 'χ', '\\psi': 'ψ', '\\omega': 'ω',
+  '\\Gamma': 'Γ', '\\Delta': 'Δ', '\\Theta': 'Θ', '\\Lambda': 'Λ', '\\Xi': 'Ξ',
+  '\\Pi': 'Π', '\\Sigma': 'Σ', '\\Phi': 'Φ', '\\Psi': 'Ψ', '\\Omega': 'Ω',
+  '\\pm': '±', '\\mp': '∓', '\\times': '×', '\\div': '÷', '\\cdot': '·',
+  '\\leq': '≤', '\\geq': '≥', '\\neq': '≠', '\\approx': '≈', '\\equiv': '≡',
+  '\\subset': '⊂', '\\supset': '⊃', '\\subseteq': '⊆', '\\supseteq': '⊇',
+  '\\in': '∈', '\\notin': '∉', '\\ni': '∋', '\\forall': '∀', '\\exists': '∃',
+  '\\sum': '∑', '\\prod': '∏', '\\int': '∫', '\\oint': '∮',
+  '\\sqrt': '√', '\\partial': '∂', '\\nabla': '∇', '\\infty': '∞',
+  '\\rightarrow': '→', '\\leftarrow': '←', '\\Rightarrow': '⇒', '\\Leftarrow': '⇐',
+  '\\leftrightarrow': '↔', '\\Leftrightarrow': '⇔', '\\uparrow': '↑', '\\downarrow': '↓',
+  '\\angle': '∠', '\\perp': '⊥', '\\parallel': '∥', '\\triangle': '△',
+  '\\circ': '∘', '\\bullet': '•', '\\star': '★', '\\oplus': '⊕', '\\otimes': '⊗',
+  '\\cap': '∩', '\\cup': '∪', '\\emptyset': '∅', '\\therefore': '∴', '\\because': '∵',
+  '\\prime': '′', '\\doubleprime': '″', '\\degree': '°', '\\%': '%', '\\$': '$',
+  '\\{': '{', '\\}': '}', '\\_': '_', '\\#': '#', '\\&': '&',
+  '\\ldots': '…', '\\cdots': '⋯', '\\vdots': '⋮', '\\ddots': '⋱',
+  '\\frac': '', '\\left': '', '\\right': '', '\\mathrm': '', '\\text': '',
+  '\\mathbf': '', '\\mathit': '', '\\mathcal': '', '\\mathbb': '',
+  '\\,': ' ', '\\;': ' ', '\\!': '', '\\ ': ' ', '~': ' ',
+  '\\quad': '  ', '\\qquad': '    ',
+};
+
+/**
+ * 将 LaTeX 公式转换为 Unicode 字符（用于微信小程序 rich-text）
+ * @param {string} formula - LaTeX 公式内容（不含 $ 符号）
+ * @returns {string} - Unicode 字符串
+ */
+function latexToUnicode(formula) {
+  if (!formula || typeof formula !== 'string') return '';
+  
+  let result = formula;
+  
+  // 处理 \frac{a}{b} -> a/b
+  result = result.replace(/\\frac\{([^}]*)\}\{([^}]*)\}/g, (match, a, b) => {
+    return `${latexToUnicode(a)}/${latexToUnicode(b)}`;
+  });
+  
+  // 处理 \sqrt{x} -> √x
+  result = result.replace(/\\sqrt\{([^}]*)\}/g, (match, content) => {
+    return `√${latexToUnicode(content)}`;
+  });
+  
+  // 处理 \sqrt[n]{x} -> ⁿ√x
+  result = result.replace(/\\sqrt\[([^\]]*)\]\{([^}]*)\}/g, (match, n, content) => {
+    return `${latexToUnicode(n)}√${latexToUnicode(content)}`;
+  });
+  
+  // 处理 \mathrm{text}, \text{text}, \mathbf{text} 等
+  result = result.replace(/\\(?:mathrm|text|mathbf|mathit|mathcal|mathbb)\{([^}]*)\}/g, '$1');
+  
+  // 处理 \left 和 \right
+  result = result.replace(/\\left\s*([(\[{|)])/g, '$1');
+  result = result.replace(/\\right\s*([)\]}|)])/g, '$1');
+  result = result.replace(/\\left\s*\\?/g, '');
+  result = result.replace(/\\right\s*\\?/g, '');
+  
+  // 处理上标 ^{...}
+  result = result.replace(/\^\{([^}]*)\}/g, (match, content) => {
+    const superscripts = '⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻⁼⁽⁾ᵃᵇᶜᵈᵉᶠᵍʰⁱʲᵏˡᵐⁿᵒᵖʳˢᵗᵘᵛʷˣʸᶻ';
+    const normal = '0123456789+-=()abcdefghijklmnopqrstuvwxyz';
+    let converted = '';
+    for (const char of content) {
+      const idx = normal.indexOf(char.toLowerCase());
+      if (idx !== -1) {
+        converted += superscripts[idx];
+      } else {
+        converted += char;
+      }
+    }
+    return converted;
+  });
+  
+  // 处理简单上标 ^x
+  result = result.replace(/\^([0-9+\-=()])/g, (match, char) => {
+    const superscripts = '⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻⁼⁽⁾';
+    const normal = '0123456789+-=()';
+    const idx = normal.indexOf(char);
+    return idx !== -1 ? superscripts[idx] : match;
+  });
+  
+  // 处理下标 _{...}
+  result = result.replace(/_\{([^}]*)\}/g, (match, content) => {
+    const subscripts = '₀₁₂₃₄₅₆₇₈₉₊₋₌₍₎ₐₑₕᵢⱼₖₗₘₙₒₚᵣₛₜᵤᵥₓ';
+    const normal = '0123456789+-=()aehijklmnoprstuvx';
+    let converted = '';
+    for (const char of content) {
+      const idx = normal.indexOf(char.toLowerCase());
+      if (idx !== -1) {
+        converted += subscripts[idx];
+      } else {
+        converted += char;
+      }
+    }
+    return converted;
+  });
+  
+  // 处理简单下标 _x
+  result = result.replace(/_([0-9+\-=()a-z])/gi, (match, char) => {
+    const subscripts = '₀₁₂₃₄₅₆₇₈₉₊₋₌₍₎ₐₑₕᵢⱼₖₗₘₙₒₚᵣₛₜᵤᵥₓ';
+    const normal = '0123456789+-=()aehijklmnoprstuvx';
+    const idx = normal.indexOf(char.toLowerCase());
+    return idx !== -1 ? subscripts[idx] : match;
+  });
+  
+  // 替换 LaTeX 符号为 Unicode
+  for (const [latex, unicode] of Object.entries(LATEX_TO_UNICODE)) {
+    result = result.split(latex).join(unicode);
+  }
+  
+  // 清理多余空格
+  result = result.replace(/\s+/g, ' ').trim();
+  
+  // 移除剩余的反斜杠命令（未识别的）
+  result = result.replace(/\\[a-zA-Z]+/g, '');
+  
+  return result;
+}
+
+/**
+ * 将文本中的 LaTeX 公式转换为 Unicode（用于微信小程序 rich-text）
+ * @param {string} text - 包含 LaTeX 公式的文本
+ * @returns {string} - 转换后的文本
+ */
+function convertLatexToUnicode(text) {
+  if (!text || typeof text !== 'string') return '';
+  
+  let result = text;
+  
+  // 先处理行间公式 $$...$$（避免被行内公式匹配）
+  result = result.replace(/\$\$([\s\S]*?)\$\$/g, (match, formula) => {
+    return latexToUnicode(formula);
+  });
+  
+  // 再处理行内公式 $...$
+  result = result.replace(/\$([\s\S]*?)\$/g, (match, formula) => {
+    // 确保不是 $$ 的一部分
+    if (formula.trim() === '') return match;
+    return latexToUnicode(formula);
+  });
+  
+  // 处理 \[...\] 和 \(...\) 格式
+  result = result.replace(/\\\[([\s\S]*?)\\\]/g, (match, formula) => {
+    return latexToUnicode(formula);
+  });
+  result = result.replace(/\\\(([\s\S]*?)\\\)/g, (match, formula) => {
+    return latexToUnicode(formula);
+  });
+  
+  return result;
 }
 
 /**
@@ -264,12 +426,13 @@ function preprocessTextForMp(text) {
 }
 
 /**
- * 使用 Towxml 解析包含 LaTeX 公式的文本
+ * 解析包含 LaTeX 公式的文本为微信小程序可用的 nodes 对象
  * 适用于微信小程序
  * @param {string} text - 包含 LaTeX 公式的文本
  * @returns {Object} - Towxml 可用的 nodes 对象
  */
 export function parseTextWithLatexForMp(text) {
+  // #ifdef MP-WEIXIN
   if (!text || typeof text !== 'string') {
     return {};
   }
@@ -279,7 +442,7 @@ export function parseTextWithLatexForMp(text) {
     let processedText = preprocessTextForMp(text);
     
     // 2. 使用 Towxml 解析为 Markdown/LaTeX
-    // Towxml 会自动处理 $...$ 和 $$...$$ 中的 LaTeX 公式
+    // towxml 已在文件顶部静态导入
     const result = towxml(processedText, 'markdown');
     
     return result || {};
@@ -292,9 +455,16 @@ export function parseTextWithLatexForMp(text) {
       children: [{ type: 'text', text: text }]
     };
   }
+  // #endif
+  
+  // #ifndef MP-WEIXIN
+  // 非 MP-WEIXIN 环境下返回空对象
+  return {};
+  // #endif
 }
 
-// H5 版本的 transformContextString 函数保持不变
+// H5 版本的 transformContextString 函数
+// #ifdef H5
 export function transformContextString(rawContextString) {
   if (typeof rawContextString !== 'string') return '';
 
@@ -306,23 +476,6 @@ export function transformContextString(rawContextString) {
   };
 
   let currentText = rawContextString.trim().replace(/\t/g, ' ').replace(/ {2,}/g, ' ');
-  
-  // 0. 预处理 HTML 标签：将 <p>...</p> 转换为带换行的段落，<br> 转换为换行
-  // 这样可以确保富文本内容正确分段显示
-  currentText = currentText
-    // 处理 <p> 标签：保留内容，并在段落之间添加换行
-    .replace(/<p[^>]*>([\s\S]*?)<\/p>/gi, (match, content) => {
-      // 清理段落内的 <br> 标签，避免重复换行
-      const cleanedContent = content.replace(/<br\s*\/?>/gi, '\n');
-      return cleanedContent + '\n';
-    })
-    // 处理独立的 <br> 标签
-    .replace(/<br\s*\/?>/gi, '\n')
-    // 处理其他常见的 HTML 块级标签
-    .replace(/<div[^>]*>([\s\S]*?)<\/div>/gi, (match, content) => content + '\n')
-    // 清理多余的换行（超过2个的换行合并为2个）
-    .replace(/\n{3,}/g, '\n\n')
-    .trim();
   
   // 1. 提取并保护所有数学公式 (在反转义 HTML 之前，避免公式内的符号被破坏)
   let mathRegex;
@@ -454,6 +607,66 @@ export function transformContextString(rawContextString) {
 
   return currentText;
 }
+// #endif
+
+// #ifndef H5
+// 非 H5 版本的 transformContextString 函数（小程序环境）
+export function transformContextString(rawContextString) {
+  if (typeof rawContextString !== 'string') return '';
+  
+  let currentText = rawContextString.trim().replace(/\t/g, ' ').replace(/ {2,}/g, ' ');
+  
+  // 1. 处理 HTML 实体
+  currentText = currentText
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#039;/g, "'")
+    .replace(/&#36;/g, '$');
+  
+  // 2. 处理 《答案》等自定义标签
+  currentText = currentText
+    .replace(/《答案》/g, '<span style="color:#009688;font-weight:bold;">【答案】</span>')
+    .replace(/《\/答案》/g, '')
+    .replace(/《分析》/g, '<span style="color:#009688;font-weight:bold;">【思路分析】</span>')
+    .replace(/《\/分析》/g, '')
+    .replace(/《点评》/g, '<span style="color:#FF5405;font-weight:bold;">【点评】</span>')
+    .replace(/《\/点评》/g, '')
+    .replace(/《注释》/g, '<span style="color:#666;font-style:italic;">')
+    .replace(/《\/注释》/g, '</span>')
+    .replace(/《步骤》/g, '<span style="color:#FF5405;font-weight:bold;">')
+    .replace(/《\/步骤》/g, '</span>');
+  
+  // 3. 处理 \color 和 \bold 命令
+  currentText = currentText
+    .replace(/\\color\{#([0-9A-Fa-f]{6})\}\{([^}]+)\}/g, '<span style="color:#$1;">$2</span>')
+    .replace(/\\bold\{([^}]+)\}/g, '<b>$1</b>')
+    .replace(/\\mathbf\{([^}]+)\}/g, '<b>$1</b>');
+  
+  // 4. 处理 Markdown 格式图片
+  currentText = currentText.replace(
+    /!\[([^\]]*)\]\(([^)]+)\)/g,
+    (match, alt, url) => {
+      let decodedUrl = url;
+      try {
+        decodedUrl = decodeURIComponent(url);
+      } catch (e) {}
+      let cleanUrl = decodedUrl.replace(/(_yjs|_thumb|_small|_medium|_large)(\?.*)?$/i, '$2');
+      cleanUrl = cleanUrl.replace(/^http:\/\//i, 'https://');
+      return `<img src="${cleanUrl}" alt="${alt}" style="max-width:100%;height:auto;display:block;margin:10px 0;border-radius:4px;" />`;
+    }
+  );
+  
+  // 5. 将 LaTeX 公式转换为 Unicode 字符
+  currentText = convertLatexToUnicode(currentText);
+  
+  // 6. 将换行符转换为 <br>
+  currentText = currentText.replace(/\n/g, '<br>');
+  
+  return currentText;
+}
+// #endif
 
 /**
  * 包装 LaTeX 命令（将未包裹的命令用 $...$ 包裹）
