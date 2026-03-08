@@ -3121,6 +3121,7 @@ onShareTimeline(() => {
       box-sizing: border-box !important;
       white-space: pre-wrap !important;
       word-wrap: break-word !important;
+      word-break: break-all !important;
       overflow-x: hidden !important;
       display: block !important;
     }
