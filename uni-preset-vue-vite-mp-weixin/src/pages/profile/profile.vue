@@ -19,8 +19,8 @@
         <view class="user-profile-header">
           <view class="user-card-glass">
             <view class="avatar-section">
-              <view class="avatar-frame-container">
-                <image class="avatar-frame" src="../../static/images/珍品传说.png" mode="aspectFit"></image>
+              <view class="avatar-frame-container" @click="goToAvatarFrameSelect">
+                <image class="avatar-frame" :src="avatarFrameUrl || '../../static/images/珍品传说.png'" mode="aspectFit"></image>
                 <image class="main-avatar" :src="userAvatar || 'https://picsum.photos/id/1005/100/100'" mode="aspectFill"></image>
               </view>
             </view>
@@ -125,6 +125,8 @@ const couponCount = ref(3);
 const isDarkMode = ref(false);
 const statusBarHeight = ref(0);
 const userAvatar = ref('');
+const avatarFrameUrl = ref('');
+const avatarFrameId = ref(null);
 // 排名信息
 const questionRank = ref(0);
 // 登录状态
@@ -163,7 +165,24 @@ const loadUserInfo = async () => {
         }
       };
       userLevel.value = res.data.level || calcLevel(res.data.totalQuestions || 0);
-      userAvatar.value = res.data.avatar || '';
+      // 优先使用本地存储的头像（避免缓存问题）
+      const localAvatar = uni.getStorageSync('userAvatar');
+      userAvatar.value = localAvatar || res.data.avatar || '';
+      
+      // 保存头像框ID
+      avatarFrameId.value = res.data.avatar_frame_id || null;
+      
+      // 加载头像框信息
+      if (avatarFrameId.value) {
+        const frameRes = await instance.appContext.config.globalProperties.$api.userApi.getUserAvatarFrames();
+        if (frameRes.code === 0 && frameRes.data) {
+          const currentFrame = frameRes.data.find(f => f.id === avatarFrameId.value);
+          if (currentFrame) {
+            avatarFrameUrl.value = currentFrame.image_url || '';
+          }
+        }
+      }
+      
       // 加载排行榜数据获取排名
       const rankRes = await instance.appContext.config.globalProperties.$api.wrongBookApi.getLeaderboard('questions', 'all');
       if (rankRes.code === 0 && rankRes.data && rankRes.data.myRank) {
@@ -327,18 +346,7 @@ const updateGlowColor = async () => {
 
 // 启动头像框循环动画
 const startFrameAnimation = () => {
-  // 先提取颜色
-  updateGlowColor();
-  
-  // 每4秒重新触发动画
-  frameAnimationTimer = setInterval(() => {
-    const frameEl = document.querySelector('.avatar-frame');
-    if (frameEl) {
-      frameEl.classList.remove('repeat-animation');
-      void frameEl.offsetWidth;
-      frameEl.classList.add('repeat-animation');
-    }
-  }, 4000);
+  // 微信小程序中不需要浏览器端的动画逻辑
 };
 
 // 初始化主题状态
@@ -359,8 +367,11 @@ onMounted(() => {
   });
   
   // 监听头像更新事件
-  uni.$on('avatarUpdated', () => {
-    if (isLoggedIn.value) {
+  uni.$on('avatarUpdated', (newAvatar) => {
+    if (newAvatar) {
+      uni.setStorageSync('userAvatar', newAvatar);
+      userAvatar.value = newAvatar;
+    } else if (isLoggedIn.value) {
       loadUserInfo();
     }
   });
@@ -397,6 +408,13 @@ const goToSettings = () => {
 
 
 
+
+// 跳转到头像框选择页面
+const goToAvatarFrameSelect = () => {
+  uni.navigateTo({
+    url: '/pages/profile/avatar-frame-select'
+  });
+};
 
 // 跳转到排行榜
 const goToRanking = () => {

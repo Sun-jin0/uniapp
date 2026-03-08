@@ -9,8 +9,8 @@ function Latex () {
 }
 
 Latex.prototype.onParse = function (node, vm) {
-  // $...$包裹的内容为latex公式
-  if (!vm.options.editable && node.type === 'text' && node.text.includes('$')) {
+  // $...$ 或 \(...\) 包裹的内容为latex公式
+  if (!vm.options.editable && node.type === 'text' && (node.text.includes('$') || node.text.includes('\\(') || node.text.includes('\\['))) {
     // 修复常见的 LaTeX 语法问题
     let text = node.text
     // 修复 \left{ 和 \right} 为 \left\{ 和 \right\}
@@ -28,9 +28,10 @@ Latex.prototype.onParse = function (node, vm) {
     const children = []
     let lastIndex = 0
     
-    // 使用正则表达式匹配 $$...$$ 和 $...$
-    // 先匹配 $$...$$，再匹配 $...$
-    const regex = /\$\$([\s\S]*?)\$\$|\$([^\$\n]*?)\$/g
+    // 使用正则表达式匹配 $$...$$、$...$、\[...\] 和 \(...\)
+    // 先匹配块级公式，再匹配行内公式
+    // 注意：\(...\) 使用非贪婪匹配，但需要处理嵌套括号
+    const regex = /\$\$([\s\S]*?)\$\$|\\\[([\s\S]*?)\\\]|\$([^\$\n]*?)\$|\\\(([\s\S]*?)\\\)/g
     let match
     
     while ((match = regex.exec(text)) !== null) {
@@ -65,9 +66,52 @@ Latex.prototype.onParse = function (node, vm) {
           })
         }
       } else if (match[2] !== undefined) {
-        // 行内公式 $...$
+        // 块公式 \[...\]
         try {
           const formula = match[2].trim()
+          const nodes = parse.default(formula, {
+            displayMode: true,
+            strict: false
+          })
+          children.push({
+            name: 'div',
+            attrs: {
+              style: 'text-align:center;margin:10px 0;'
+            },
+            children: nodes
+          })
+        } catch (e) {
+          // 解析失败，显示原始文本
+          children.push({
+            type: 'text',
+            text: match[0]
+          })
+        }
+      } else if (match[3] !== undefined) {
+        // 行内公式 $...$
+        try {
+          const formula = match[3].trim()
+          const nodes = parse.default(formula, {
+            strict: false
+          })
+          children.push({
+            name: 'span',
+            attrs: {},
+            l: 'T',
+            f: 'display:inline;word-wrap:break-word;white-space:normal;vertical-align:middle;',
+            children: nodes
+          })
+        } catch (e) {
+          // 解析失败，显示原始文本
+          children.push({
+            type: 'text',
+            text: match[0]
+          })
+        }
+      } else if (match[4] !== undefined) {
+        // 行内公式 \(...\)
+        try {
+          const formula = match[4].trim()
           const nodes = parse.default(formula, {
             strict: false
           })

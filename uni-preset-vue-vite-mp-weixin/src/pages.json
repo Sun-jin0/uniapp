@@ -34,6 +34,12 @@
 			}
 		},
 		{
+			"path": "pages/profile/avatar-frame-select",
+			"style": {
+				"navigationBarTitleText": "选择头像框"
+			}
+		},
+		{
 			"path": "pages/profile/privacy-policy",
 			"style": {
 				"navigationBarTitleText": "隐私政策",

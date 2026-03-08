@@ -114,6 +114,7 @@ const wechatLogin = async (req, res) => {
       userId: user.id,
       username: user.username,
       avatar: user.avatar,
+      avatar_frame_id: user.avatar_frame_id,
       role: user.role,
       openid: user.openid
     }));
@@ -160,6 +161,7 @@ const login = async (req, res) => {
       token,
       userId: user.id,
       username: user.username,
+      avatar_frame_id: user.avatar_frame_id,
       role: user.role,
     }));
   } catch (error) {
@@ -216,6 +218,7 @@ const getUserInfo = async (req, res) => {
       studentId: user.studentId,
       phone: user.phone,
       avatar: user.avatar,
+      avatar_frame_id: user.avatar_frame_id,
       role: user.role,
       totalQuestions: user.total_questions || 0,
       studyDays: user.study_days || 0,

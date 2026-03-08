@@ -12,6 +12,7 @@
         <view class="podium-item rank-2" v-if="rankingData.length >= 2" @click="showUserDetail(rankingData[1])">
           <view class="avatar-wrapper">
             <image :src="rankingData[1].avatar || DEFAULT_AVATAR" alt="avatar" class="avatar" mode="aspectFill"></image>
+            <image v-if="rankingData[1].avatarFrameUrl" :src="rankingData[1].avatarFrameUrl" class="avatar-frame" mode="aspectFit"></image>
             <view class="rank-badge-2">2</view>
           </view>
           <view class="podium-base">
@@ -26,6 +27,7 @@
         <view class="podium-item rank-1" v-if="rankingData.length >= 1" @click="showUserDetail(rankingData[0])">
           <view class="avatar-wrapper">
             <image :src="rankingData[0].avatar || DEFAULT_AVATAR" alt="avatar" class="avatar" mode="aspectFill"></image>
+            <image v-if="rankingData[0].avatarFrameUrl" :src="rankingData[0].avatarFrameUrl" class="avatar-frame" mode="aspectFit"></image>
             <view class="rank-badge-1">1</view>
           </view>
           <view class="podium-base">
@@ -40,6 +42,7 @@
         <view class="podium-item rank-3" v-if="rankingData.length >= 3" @click="showUserDetail(rankingData[2])">
           <view class="avatar-wrapper">
             <image :src="rankingData[2].avatar || DEFAULT_AVATAR" alt="avatar" class="avatar" mode="aspectFill"></image>
+            <image v-if="rankingData[2].avatarFrameUrl" :src="rankingData[2].avatarFrameUrl" class="avatar-frame" mode="aspectFit"></image>
             <view class="rank-badge-3">3</view>
           </view>
           <view class="podium-base">
@@ -69,7 +72,10 @@
               :key="item.id"
               @click="showUserDetail(item)">
           <view class="rank-number">{{ index + 4 }}</view>
-          <image :src="item.avatar || DEFAULT_AVATAR" alt="avatar" class="list-avatar" mode="aspectFill"></image>
+          <view class="avatar-container">
+            <image :src="item.avatar || DEFAULT_AVATAR" alt="avatar" class="list-avatar" mode="aspectFill"></image>
+            <image v-if="item.avatarFrameUrl" :src="item.avatarFrameUrl" class="list-avatar-frame" mode="aspectFit"></image>
+          </view>
           <view class="list-info">
             <view class="list-name">
               {{ item.name }}
@@ -97,7 +103,10 @@
     <!-- 底部我的信息卡片 -->
     <view class="my-card fade-in" v-if="myRankData">
       <view class="my-rank-info">
-        <image :src="myRankData.avatar || DEFAULT_AVATAR" alt="my avatar" class="my-avatar" mode="aspectFill"></image>
+        <view class="my-avatar-container">
+          <image :src="myRankData.avatar || DEFAULT_AVATAR" alt="my avatar" class="my-avatar" mode="aspectFill"></image>
+          <image v-if="myRankData.avatarFrameUrl" :src="myRankData.avatarFrameUrl" class="my-avatar-frame" mode="aspectFit"></image>
+        </view>
         <view class="my-text">
           <view class="my-name">
             {{ myRankData.name }}
@@ -224,6 +233,7 @@ const loadRankingData = async () => {
         id: item.id,
         name: item.nickname || item.username || '未命名用户',
         avatar: item.avatar || '',
+        avatarFrameId: item.avatar_frame_id || null,
         score: item.value || 0,
         gender: index % 3 === 0 ? 'female' : 'male', // 模拟性别
         liked: false,
@@ -235,9 +245,13 @@ const loadRankingData = async () => {
           rank: myRank.rank || '-',
           name: uni.getStorageSync('username') || '我',
           score: myRank.value || 0,
-          avatar: myRank.avatar || ''
+          avatar: myRank.avatar || '',
+          avatarFrameId: myRank.avatar_frame_id || null
         };
       }
+      
+      // 加载头像框信息
+      await loadAvatarFramesForRanking();
     }
     
     uni.hideLoading();
@@ -245,6 +259,44 @@ const loadRankingData = async () => {
     console.error('加载排行榜数据失败:', error);
     uni.hideLoading();
     uni.showToast({ title: '加载失败', icon: 'none' });
+  }
+};
+
+// 加载排行榜头像框信息
+const loadAvatarFramesForRanking = async () => {
+  try {
+    const api = instance.appContext.config.globalProperties.$api;
+    const frameRes = await api.userApi.getUserAvatarFrames();
+    console.log('头像框数据:', frameRes);
+    console.log('排行榜用户数据:', rankingData.value);
+    
+    if (frameRes.code === 0 && frameRes.data) {
+      const frames = frameRes.data;
+      
+      // 为每个用户设置头像框URL
+      rankingData.value = rankingData.value.map(item => {
+        console.log('用户:', item.name, 'avatarFrameId:', item.avatarFrameId);
+        if (item.avatarFrameId) {
+          const frame = frames.find(f => f.id === item.avatarFrameId);
+          if (frame) {
+            console.log('找到头像框:', frame);
+            return { ...item, avatarFrameUrl: frame.image_url || '' };
+          }
+        }
+        return item;
+      });
+      
+      // 更新我的排名数据
+      if (myRankData.value.avatarFrameId) {
+        const myFrame = frames.find(f => f.id === myRankData.value.avatarFrameId);
+        if (myFrame) {
+          myRankData.value.avatarFrameUrl = myFrame.image_url || '';
+        }
+      }
+      console.log('更新后的排行榜数据:', rankingData.value);
+    }
+  } catch (error) {
+    console.error('加载头像框信息失败:', error);
   }
 };
 
@@ -457,6 +509,7 @@ onUnmounted(() => {
   padding: 6rpx;
   background: linear-gradient(135deg, #c0c0c0 0%, #e8e8e8 100%);
   box-shadow: 0 8rpx 30rpx rgba(192, 192, 192, 0.4);
+  position: relative;
 }
 
 .rank-2 .podium-base {
@@ -569,6 +622,7 @@ onUnmounted(() => {
   padding: 6rpx;
   background: linear-gradient(135deg, #cd7f32 0%, #d4a373 100%);
   box-shadow: 0 8rpx 30rpx rgba(205, 127, 50, 0.4);
+  position: relative;
 }
 
 .rank-3 .podium-base {
@@ -610,6 +664,26 @@ onUnmounted(() => {
   border-radius: 50%;
   background: #fff;
   border: 4rpx solid white;
+}
+
+.avatar-frame {
+  position: absolute;
+  bottom: -12rpx;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  pointer-events: none;
+}
+
+.rank-1 .avatar-frame {
+  width: 200rpx;
+  height: 70rpx;
+}
+
+.rank-2 .avatar-frame,
+.rank-3 .avatar-frame {
+  width: 180rpx;
+  height: 65rpx;
 }
 
 .user-name {
@@ -684,6 +758,40 @@ onUnmounted(() => {
   margin-right: 24rpx;
   border: 4rpx solid rgba(255,255,255,0.8);
   box-shadow: 0 4rpx 16rpx rgba(0,0,0,0.1);
+}
+
+.avatar-container {
+  position: relative;
+  width: 96rpx;
+  height: 96rpx;
+  margin-right: 24rpx;
+}
+
+.list-avatar-frame {
+  position: absolute;
+  bottom: -8rpx;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 110rpx;
+  height: 40rpx;
+  z-index: 10;
+}
+
+.my-avatar-container {
+  position: relative;
+  width: 96rpx;
+  height: 96rpx;
+  flex-shrink: 0;
+}
+
+.my-avatar-frame {
+  position: absolute;
+  bottom: -8rpx;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 110rpx;
+  height: 40rpx;
+  z-index: 10;
 }
 
 .list-info {

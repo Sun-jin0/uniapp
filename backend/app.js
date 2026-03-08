@@ -55,6 +55,7 @@ app.use('/api/online-exam', require('./routes/onlineExamRoutes'));
 app.use('/api', require('./routes/uploadRoutes'));
 app.use('/api', require('./routes/tutorialRoutes'));
 app.use('/api/security', require('./routes/security'));
+app.use('/api', require('./routes/avatarFrameRoutes'));
 // 邀请功能已删除
 
 // 静态页面用于管理员管理纠错

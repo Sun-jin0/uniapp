@@ -1,16 +1,6 @@
 // 根据运行环境设置基础 URL
 const getBaseUrl = () => {
-  // #ifdef H5
-  // H5 环境使用服务器后端
-  return 'https://yizhancs.cn/api';
-  // #endif
-
-  // #ifdef MP-WEIXIN
-  // 微信小程序使用服务器后端
-  return 'https://yizhancs.cn/api';
-  // #endif
-
-  // 默认使用服务器后端
+  // 生产环境使用服务器后端
   return 'https://yizhancs.cn/api';
 };
 

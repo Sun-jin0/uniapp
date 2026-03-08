@@ -96,7 +96,7 @@ const getLeaderboard = async (req, res) => {
     if (period === 'all') {
       // 全部时间：直接从 users 表获取，只查询参与排行榜的用户
       sql = `
-        SELECT u.id, u.username, u.nickname, u.avatar, ` + valueField + ` as value 
+        SELECT u.id, u.username, u.nickname, u.avatar, u.avatar_frame_id, ` + valueField + ` as value 
         FROM users u 
         WHERE u.status = 1 AND u.participate_ranking = 1
         ORDER BY ` + valueField + ` DESC 
@@ -106,11 +106,11 @@ const getLeaderboard = async (req, res) => {
       // 按时间段：从 answer_records 表统计，只查询参与排行榜的用户
       const days = period === 'week' ? 7 : (period === 'day' ? 1 : 30);
       sql = `
-        SELECT u.id, u.username, u.nickname, u.avatar, COALESCE(SUM(a.` + valueField + `), 0) as value 
+        SELECT u.id, u.username, u.nickname, u.avatar, u.avatar_frame_id, COALESCE(SUM(a.` + valueField + `), 0) as value 
         FROM users u 
         LEFT JOIN answer_records a ON u.id = a.userId AND a.createdAt >= DATE_SUB(CURDATE(), INTERVAL ` + days + ` DAY)
         WHERE u.status = 1 AND u.participate_ranking = 1
-        GROUP BY u.id, u.username, u.nickname, u.avatar
+        GROUP BY u.id, u.username, u.nickname, u.avatar, u.avatar_frame_id
         ORDER BY value DESC 
         LIMIT 50
       `;
@@ -126,6 +126,7 @@ const getLeaderboard = async (req, res) => {
           (SELECT COUNT(*) + 1 FROM users u2 WHERE u2.` + valueField + ` > u.` + valueField + ` AND u2.status = 1 AND u2.participate_ranking = 1) as \`rank\`,
           u.` + valueField + ` as value,
           u.avatar,
+          u.avatar_frame_id,
           u.participate_ranking
         FROM users u
         WHERE u.id = ? AND u.status = 1
@@ -146,6 +147,7 @@ const getLeaderboard = async (req, res) => {
           ) t) as \`rank\`,
           COALESCE((SELECT SUM(` + valueField + `) FROM answer_records WHERE userId = ? AND createdAt >= DATE_SUB(CURDATE(), INTERVAL ` + days + ` DAY)), 0) as value,
           (SELECT avatar FROM users WHERE id = ?) as avatar,
+          (SELECT avatar_frame_id FROM users WHERE id = ?) as avatar_frame_id,
           (SELECT participate_ranking FROM users WHERE id = ?) as participate_ranking
       `;
     }
@@ -157,8 +159,8 @@ const getLeaderboard = async (req, res) => {
       if (period === 'all') {
         rankParams = [userId];
       } else {
-        // period !== 'all' 时需要4个参数：userId, userId, userId, userId
-        rankParams = [userId, userId, userId, userId];
+        // period !== 'all' 时需要5个参数：userId用于rank计算, userId用于value计算, userId用于avatar, userId用于avatar_frame_id, userId用于participate_ranking
+        rankParams = [userId, userId, userId, userId, userId];
       }
       const [rankResult] = await pool.query(rankSql, rankParams);
       userRank = rankResult;

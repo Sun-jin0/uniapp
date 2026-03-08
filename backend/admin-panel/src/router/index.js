@@ -102,6 +102,12 @@ const routes = [
     meta: { title: '轮播图管理' }
   },
   {
+    path: '/avatar-frame',
+    name: 'AvatarFrameManage',
+    component: () => import('../pages/AvatarFrameManage.vue'),
+    meta: { title: '头像框与特效管理' }
+  },
+  {
     path: '/questions/public-manage',
     name: 'PublicManagement',
     component: () => import('../pages/PublicManagement.vue'),

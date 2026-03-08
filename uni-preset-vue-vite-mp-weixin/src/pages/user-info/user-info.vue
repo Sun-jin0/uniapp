@@ -100,6 +100,24 @@
         </view>
       </view>
 
+      <!-- 头像框 -->
+      <view class="security-group">
+        <view class="group-title">头像框</view>
+        <view class="info-card">
+          <view class="info-item" @click="goToAvatarFrameSelect">
+            <view class="item-left">
+              <view class="item-icon frame-icon"></view>
+              <view class="info-label">选择头像框</view>
+            </view>
+            <view class="item-arrow"></view>
+          </view>
+          <view class="current-frame" v-if="currentFrameUrl">
+            <text class="frame-label">当前头像框：</text>
+            <image class="frame-preview-img" :src="currentFrameUrl" mode="aspectFit"></image>
+          </view>
+        </view>
+      </view>
+
       <!-- 保存按钮 -->
       <view class="action-section">
         <button class="save-btn" @click="saveUserInfo">保存修改</button>
@@ -110,6 +128,7 @@
 
 <script setup>
 import { ref, reactive, onMounted, onUnmounted, getCurrentInstance } from 'vue';
+import { onShow } from '@dcloudio/uni-app';
 import { checkTextContent } from '@/utils/contentSecurity.js';
 import { BASE_URL } from '@/api/request.js';
 
@@ -131,6 +150,10 @@ const userInfo = reactive({
   studentId: ''
 });
 
+// 头像框相关
+const currentFrameUrl = ref('');
+const avatarFrameId = ref(null);
+
 // 加载用户信息
 const loadUserInfo = async () => {
   try {
@@ -141,6 +164,18 @@ const loadUserInfo = async () => {
       userInfo.nickname = data.nickname || '';
       userInfo.avatar = data.avatar || 'https://picsum.photos/id/1005/100/100';
       userInfo.studentId = data.studentId || '';
+      
+      // 加载头像框信息
+      avatarFrameId.value = data.avatar_frame_id || null;
+      if (avatarFrameId.value) {
+        const frameRes = await instance.appContext.config.globalProperties.$api.userApi.getUserAvatarFrames();
+        if (frameRes.code === 0 && frameRes.data) {
+          const currentFrame = frameRes.data.find(f => f.id === avatarFrameId.value);
+          if (currentFrame) {
+            currentFrameUrl.value = currentFrame.image_url || '';
+          }
+        }
+      }
     }
   } catch (error) {
     console.error('加载用户信息失败:', error);
@@ -179,11 +214,18 @@ const uploadAvatar = async (tempFilePath) => {
         try {
           const res = JSON.parse(uploadRes.data);
           if (res.code === 0) {
-            userInfo.avatar = res.data.avatar;
+            // 添加时间戳避免缓存
+            const timestamp = Date.now();
+            const newAvatar = res.data.avatar + (res.data.avatar.includes('?') ? '&' : '?') + 't=' + timestamp;
+            userInfo.avatar = newAvatar;
+            
+            // 更新本地存储的头像
+            uni.setStorageSync('userAvatar', newAvatar);
+            
             uni.showToast({ title: '头像更新成功', icon: 'success' });
             
             // 发送事件通知其他页面更新头像
-            uni.$emit('avatarUpdated', res.data.avatar);
+            uni.$emit('avatarUpdated', newAvatar);
           } else {
             uni.showToast({ title: '上传失败: ' + res.message, icon: 'none' });
           }
@@ -260,6 +302,13 @@ const saveUserInfo = async () => {
 // 打开修改密码模态框
 const changePassword = () => {
   showPasswordModal.value = true;
+};
+
+// 跳转到头像框选择页面
+const goToAvatarFrameSelect = () => {
+  uni.navigateTo({
+    url: '/pages/profile/avatar-frame-select'
+  });
 };
 
 // 关闭修改密码模态框
@@ -360,12 +409,26 @@ onMounted(async () => {
     isDarkMode.value = darkMode;
   });
   
+  // 监听头像更新事件
+  uni.$on('avatarUpdated', (newAvatar) => {
+    if (newAvatar) {
+      userInfo.avatar = newAvatar;
+      uni.setStorageSync('userAvatar', newAvatar);
+    }
+  });
+  
   // 加载用户信息
   await loadUserInfo();
 });
 
 onUnmounted(() => {
   uni.$off('themeChange');
+  uni.$off('avatarUpdated');
+});
+
+// 每次显示页面时刷新用户信息
+onShow(() => {
+  loadUserInfo();
 });
 </script>
 
@@ -399,11 +462,16 @@ onUnmounted(() => {
 .avatar-wrapper {
   position: relative;
   margin-bottom: 28rpx;
+  width: 300rpx;
+  height: 300rpx;
+  display: flex;
+  justify-content: center;
+  align-items: center;
 }
 
 .user-avatar {
-  width: 220rpx;
-  height: 220rpx;
+  width: 280rpx;
+  height: 280rpx;
   border-radius: 50%;
   border: 10rpx solid #ffffff;
   box-shadow: 0 16rpx 40rpx rgba(0, 0, 0, 0.1);
@@ -411,10 +479,10 @@ onUnmounted(() => {
 
 .avatar-edit {
   position: absolute;
-  bottom: 12rpx;
-  right: 12rpx;
-  width: 72rpx;
-  height: 72rpx;
+  bottom: 20rpx;
+  right: 20rpx;
+  width: 80rpx;
+  height: 80rpx;
   border-radius: 50%;
   background-color: #6366f1;
   display: flex;
@@ -519,6 +587,30 @@ onUnmounted(() => {
 .password-icon {
   mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zM9 8V6c0-1.66 1.34-3 3-3s3 1.34 3 3v2H9z"/></svg>');
   -webkit-mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zM9 8V6c0-1.66 1.34-3 3-3s3 1.34 3 3v2H9z"/></svg>');
+}
+
+.frame-icon {
+  mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 14H4V6h16v12zM12 10.5c-1.38 0-2.5 1.12-2.5 2.5s1.12 2.5 2.5 2.5 2.5-1.12 2.5-2.5-1.12-2.5-2.5-2.5z"/></svg>');
+  -webkit-mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 14H4V6h16v12zM12 10.5c-1.38 0-2.5 1.12-2.5 2.5s1.12 2.5 2.5 2.5 2.5-1.12 2.5-2.5-1.12-2.5-2.5-2.5z"/></svg>');
+  background-color: #6366f1;
+}
+
+.current-frame {
+  display: flex;
+  align-items: center;
+  padding: 20rpx 30rpx;
+  border-top: 1rpx solid #f0f0f0;
+}
+
+.frame-label {
+  font-size: 28rpx;
+  color: #64748b;
+}
+
+.frame-preview-img {
+  width: 120rpx;
+  height: 70rpx;
+  margin-left: 20rpx;
 }
 
 .info-label {

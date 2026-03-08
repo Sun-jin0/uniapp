@@ -80,5 +80,20 @@ export default {
         'Content-Type': 'multipart/form-data'
       }
     })
+  },
+
+  getUserAvatarFrames: () => {
+    return request({
+      url: '/user/avatar-frames',
+      method: 'GET'
+    })
+  },
+
+  setUserAvatarFrame: (data) => {
+    return request({
+      url: '/user/avatar-frame',
+      method: 'PUT',
+      data: data
+    })
   }
 }

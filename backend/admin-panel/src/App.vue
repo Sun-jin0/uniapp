@@ -27,6 +27,7 @@
           <el-menu-item index="/video/list">视频管理</el-menu-item>
           <el-menu-item index="/content/notice">内容管理</el-menu-item>
           <el-menu-item index="/banner">轮播图管理</el-menu-item>
+          <el-menu-item index="/avatar-frame">头像框管理</el-menu-item>
           <el-menu-item index="/nav">导航管理</el-menu-item>
           <el-menu-item index="/homepage-card">首页卡片</el-menu-item>
         </el-sub-menu>
