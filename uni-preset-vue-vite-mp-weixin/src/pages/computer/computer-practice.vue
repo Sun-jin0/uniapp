@@ -3113,24 +3113,49 @@ onShareTimeline(() => {
       }
     }
     
-    /* 代码块样式 - 使用highlight插件 */
-    .question-title :deep(.hl-pre),
-    .question-title :deep(pre) {
-      background-color: #f5f5f5 !important;
-      border-radius: 8rpx !important;
-      padding: 20rpx !important;
-      margin: 16rpx 0 !important;
-      border: 1rpx solid #e0e0e0 !important;
+    /* pre 标签样式 - 允许自动换行 */
+    .question-title :deep(pre),
+    .question-title :deep(rich-text pre),
+    .question-title :deep(.rich-text pre) {
+      width: 100% !important;
+      box-sizing: border-box !important;
       white-space: pre-wrap !important;
       word-wrap: break-word !important;
-      line-height: 1.6 !important;
+      overflow-x: hidden !important;
+      display: block !important;
     }
     
-    .question-title :deep(.hl-code) {
-      font-family: Consolas, Monaco, 'Courier New', monospace !important;
+    /* 确保 pre 标签外层的 div 也不会超出边界 */
+    .question-title :deep(div:has(> pre)),
+    .question-title :deep(div[style*="overflow-x"]) {
+      width: 100% !important;
+      max-width: 100% !important;
+      box-sizing: border-box !important;
+      overflow-x: auto !important;
+      margin: 2px 0 !important;
+    }
+    
+    /* pre 标签样式 */
+    .question-title :deep(pre) {
+      margin: 2px 0 !important;
+      padding: 8px 12px !important;
+      background-color: #f0f9f8 !important;
+      border-radius: 8rpx !important;
+      border: 1rpx solid #5FBDB5 !important;
+      line-height: 1.0 !important;
+    }
+    
+    /* code 标签样式 */
+    .question-title :deep(code) {
+      font-family: 'Consolas', 'Monaco', 'Courier New', monospace !important;
       font-size: 28rpx !important;
-      line-height: 1.6 !important;
-      color: #333 !important;
+      line-height: 1.0 !important;
+      background: transparent !important;
+    }
+    
+    /* br 标签间距 */
+    .question-title :deep(br) {
+      display: none !important;
     }
     
     /* 确保 rich-text 内容不会超出 */
