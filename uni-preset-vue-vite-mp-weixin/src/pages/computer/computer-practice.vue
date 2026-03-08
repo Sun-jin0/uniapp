@@ -2039,10 +2039,8 @@ onShareTimeline(() => {
                   <!-- 题目内容 -->
                   <view class="question-title-content">
                     <view class="question-title" :style="{ fontSize: dynamicFontSize.title }">
-                      <!-- 如果是填空题，先尝试行内渲染 -->
-                      <mp-html v-if="question.exercise_type === 3" :content="question.truncatedStem || question.stem" class="title-rich-text" markdown></mp-html>
-                      <!-- 其他题型：如果有截断题干则显示截断的，否则显示完整的原始题干 -->
-                      <mp-html v-else :content="question.truncatedStem || question.originalStem" class="title-rich-text" markdown></mp-html>
+                      <!-- 使用v-html渲染，避免rich-text截断代码块 -->
+                      <view class="title-rich-text" v-html="question.exercise_type === 3 ? (question.truncatedStem || question.stem) : (question.truncatedStem || question.originalStem)"></view>
                     </view>
                   </view>
                 </view>
