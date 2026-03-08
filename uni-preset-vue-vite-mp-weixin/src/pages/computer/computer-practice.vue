@@ -1152,11 +1152,6 @@ const loadQuestionDetails = async (index) => {
   }
 };
 
-// 检查邀请限制（答题后检查）- 预留函数
-const checkInviteOnAnswer = () => {
-  // 暂时不实现具体逻辑
-};
-
 const prefetchQuestion = async (index) => {
   const question = questions.value[index];
   if (!question) return;
@@ -1418,9 +1413,6 @@ const confirmAnswer = async (index) => {
       }
     }, 1000);
   }
-  
-  // 检查邀请限制（答题后检查）
-  checkInviteOnAnswer();
 };
 
 const jumpToQuestion = (index) => {
