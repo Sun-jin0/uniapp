@@ -20,7 +20,7 @@
           <view class="user-card-glass">
             <view class="avatar-section">
               <view class="avatar-frame-container" @click="goToAvatarFrameSelect">
-                <image class="avatar-frame" :src="avatarFrameUrl || '../../static/images/珍品传说.png'" mode="aspectFit"></image>
+                <image v-if="avatarFrameUrl" class="avatar-frame" :src="avatarFrameUrl" mode="aspectFit"></image>
                 <image class="main-avatar" :src="userAvatar || 'https://picsum.photos/id/1005/100/100'" mode="aspectFill"></image>
               </view>
             </view>
@@ -116,7 +116,7 @@ const instance = getCurrentInstance();
 // 用户信息
 const userName = ref('考生');
 const userId = ref('');
-const userLevel = ref('学霸');
+const userLevel = ref(1);
 const totalQuestions = ref(0);
 const correctRate = ref(0);
 const practiceDays = ref(0);
