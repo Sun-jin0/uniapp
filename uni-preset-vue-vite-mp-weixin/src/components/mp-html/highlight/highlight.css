@@ -11,6 +11,11 @@
   line-height: 1.0;
 }
 
+._root .hl-pre::after,
+._root pre.hl-pre::after {
+  content: none;
+}
+
 ._root .hl-code {
   font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
   font-size: 28rpx;
@@ -19,6 +24,8 @@
   background: transparent;
   font-weight: 500;
   display: block;
+  margin: 0;
+  padding: 0;
 }
 
 ._root .hl-token.comment,

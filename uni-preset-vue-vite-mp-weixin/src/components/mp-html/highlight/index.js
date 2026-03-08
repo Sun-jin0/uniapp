@@ -41,7 +41,7 @@ Highlight.prototype.onParse = function (node, vm) {
     }
     const lang = className.substring(i, j)
     if (code.children.length) {
-      const text = this.vm.getText(code.children).replace(/&amp;/g, '&')
+      const text = this.vm.getText(code.children).replace(/&amp;/g, '&').replace(/\n+$/, '')
       if (!text) return
       if (node.c) {
         node.c = undefined
