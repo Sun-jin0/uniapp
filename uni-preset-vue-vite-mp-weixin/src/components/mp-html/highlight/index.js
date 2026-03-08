@@ -58,9 +58,7 @@ Highlight.prototype.onParse = function (node, vm) {
         }]
       }
       node.attrs.class = 'hl-pre'
-      node.attrs.style = 'background-color:#f0f9f8;padding:10px;border-radius:4px;white-space:pre-wrap;border:1px solid #5FBDB5;'
       code.attrs.class = 'hl-code'
-      code.attrs.style = 'color:#000000;font-weight:500;'
       if (config.showLanguageName) {
         node.children.push({
           name: 'div',
