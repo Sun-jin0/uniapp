@@ -71,6 +71,12 @@ const uploadImage = async (req, res) => {
       console.log('没有收到文件');
       return res.status(400).json(errorResponse('请选择要上传的图片'));
     }
+    
+    // 检查 ImageManagement 模块是否可用
+    if (!ImageManagement || !ImageManagement.create) {
+      console.error('ImageManagement 模块未正确加载');
+      return res.status(500).json(errorResponse('服务器配置错误：ImageManagement 模块不可用'));
+    }
 
     const filePath = req.file.path;
     const fileName = req.file.originalname || req.file.filename;
