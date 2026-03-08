@@ -211,6 +211,16 @@ const getUserInfo = async (req, res) => {
       return res.status(404).json(errorResponse('用户不存在'));
     }
     
+    // 计算用户等级：10级以前每20个题加一个等级，超过10级每50个题加一个等级
+    const calcLevel = (questions) => {
+      if (questions < 200) {
+        return Math.floor(questions / 20) + 1;
+      } else {
+        return 10 + Math.floor((questions - 200) / 50);
+      }
+    };
+    const level = user.level || calcLevel(user.total_questions || 0);
+    
     res.json(successResponse({
       userId: user.id,
       username: user.username,
@@ -220,6 +230,7 @@ const getUserInfo = async (req, res) => {
       avatar: user.avatar,
       avatar_frame_id: user.avatar_frame_id,
       role: user.role,
+      level: level,
       totalQuestions: user.total_questions || 0,
       studyDays: user.study_days || 0,
       correctRate: user.total_questions > 0 ? Math.round((user.total_correct / user.total_questions) * 100) : 0,
