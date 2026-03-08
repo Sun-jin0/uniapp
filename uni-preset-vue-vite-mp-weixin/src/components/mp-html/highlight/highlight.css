@@ -2,14 +2,13 @@
 ._root pre.hl-pre {
   background-color: #f0f9f8 !important;
   border-radius: 8rpx;
-  padding: 10rpx !important;
+  padding: 10rpx;
   overflow-x: auto;
   margin: 16rpx 0;
   border: 1rpx solid #5FBDB5;
-  white-space: pre !important;
+  white-space: pre;
   word-wrap: break-word;
-  line-height: 1.0 !important;
-  color: #000000 !important;
+  line-height: 1.0;
 }
 
 ._root .hl-pre::after,
@@ -21,7 +20,7 @@
   font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
   font-size: 28rpx;
   line-height: 1.0;
-  color: #000000 !important;
+  color: #24292e;
   background: transparent;
   font-weight: 500;
   display: block;

@@ -3136,8 +3136,20 @@ onShareTimeline(() => {
     
     /* pre 标签样式 */
     .question-title :deep(pre) {
-      margin: 0 !important;
+      margin: 2px 0 !important;
       padding: 8px 12px !important;
+      background-color: #f0f9f8 !important;
+      border-radius: 8rpx !important;
+      border: 1rpx solid #5FBDB5 !important;
+      line-height: 1.0 !important;
+    }
+    
+    /* code 标签样式 */
+    .question-title :deep(code) {
+      font-family: 'Consolas', 'Monaco', 'Courier New', monospace !important;
+      font-size: 28rpx !important;
+      line-height: 1.0 !important;
+      background: transparent !important;
     }
     
     /* br 标签间距 */
