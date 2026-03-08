@@ -1,51 +1,47 @@
+/* 代码块容器样式 */
 ._root .hl-pre,
 ._root pre.hl-pre {
-  background-color: #f0f9f8 !important;
+  background-color: #f5f5f5 !important;
   border-radius: 8rpx;
-  padding: 10rpx;
+  padding: 20rpx;
   overflow-x: auto;
   margin: 16rpx 0;
-  border: 1rpx solid #5FBDB5;
-  white-space: pre;
+  border: 1rpx solid #e0e0e0;
+  white-space: pre-wrap;
   word-wrap: break-word;
-  line-height: 1.0;
+  line-height: 1.6;
 }
 
-._root .hl-pre::after,
-._root pre.hl-pre::after {
-  content: none;
-}
-
+/* 代码内容样式 */
 ._root .hl-code {
-  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-family: Consolas, Monaco, 'Courier New', monospace;
   font-size: 28rpx;
-  line-height: 1.0;
-  color: #24292e;
+  line-height: 1.6;
+  color: #333;
   background: transparent;
-  font-weight: 500;
-  display: block;
-  margin: 0;
-  padding: 0;
+  font-weight: 400;
 }
 
+/* 注释 */
 ._root .hl-token.comment,
 ._root .hl-token.prolog,
 ._root .hl-token.doctype,
 ._root .hl-token.cdata {
-  color: #586069;
+  color: #6a737d;
   font-style: italic;
-  font-weight: 400;
 }
 
+/* 标点符号 */
 ._root .hl-token.punctuation {
   color: #24292e;
-  font-weight: 600;
 }
 
+/* 命名空间 */
 ._root .hl-token.namespace {
-  opacity: 0.8;
+  opacity: 0.7;
 }
 
+/* 属性、标签、布尔值、数字 */
 ._root .hl-token.property,
 ._root .hl-token.tag,
 ._root .hl-token.boolean,
@@ -54,9 +50,9 @@
 ._root .hl-token.symbol,
 ._root .hl-token.deleted {
   color: #005cc5;
-  font-weight: 600;
 }
 
+/* 选择器、属性名、字符串 */
 ._root .hl-token.selector,
 ._root .hl-token.attr-name,
 ._root .hl-token.string,
@@ -64,34 +60,34 @@
 ._root .hl-token.builtin,
 ._root .hl-token.inserted {
   color: #032f62;
-  font-weight: 600;
 }
 
+/* 操作符 */
 ._root .hl-token.operator,
 ._root .hl-token.entity,
 ._root .hl-token.url,
 ._root .language-css .hl-token.string,
 ._root .style .hl-token.string {
   color: #d73a49;
-  font-weight: 600;
 }
 
+/* 关键字 */
 ._root .hl-token.atrule,
 ._root .hl-token.attr-value,
 ._root .hl-token.keyword {
   color: #d73a49;
-  font-weight: 700;
-}
-
-._root .hl-token.function,
-._root .hl-token.class-name {
-  color: #6f42c1;
   font-weight: 600;
 }
 
+/* 函数 */
+._root .hl-token.function,
+._root .hl-token.class-name {
+  color: #6f42c1;
+}
+
+/* 正则表达式 */
 ._root .hl-token.regex,
 ._root .hl-token.important,
 ._root .hl-token.variable {
   color: #e36209;
-  font-weight: 600;
 }

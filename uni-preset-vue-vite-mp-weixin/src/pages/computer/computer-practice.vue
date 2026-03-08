@@ -3113,29 +3113,24 @@ onShareTimeline(() => {
       }
     }
     
-    /* pre 标签样式 - 使用view渲染时的样式 */
-    .question-title :deep(pre),
-    .question-title :deep(._pre) {
-      font-family: Consolas, Monaco, 'Courier New', monospace !important;
-      font-size: 28rpx !important;
-      line-height: 1.5 !important;
+    /* 代码块样式 - 使用highlight插件 */
+    .question-title :deep(.hl-pre),
+    .question-title :deep(pre) {
       background-color: #f5f5f5 !important;
-      color: #333 !important;
-      padding: 20rpx !important;
       border-radius: 8rpx !important;
-      border: 1rpx solid #ddd !important;
+      padding: 20rpx !important;
       margin: 16rpx 0 !important;
+      border: 1rpx solid #e0e0e0 !important;
       white-space: pre-wrap !important;
       word-wrap: break-word !important;
-      display: block !important;
+      line-height: 1.6 !important;
     }
     
-    /* code标签样式 */
-    .question-title :deep(code),
-    .question-title :deep(._code) {
+    .question-title :deep(.hl-code) {
       font-family: Consolas, Monaco, 'Courier New', monospace !important;
       font-size: 28rpx !important;
-      background-color: transparent !important;
+      line-height: 1.6 !important;
+      color: #333 !important;
     }
     
     /* 确保 rich-text 内容不会超出 */

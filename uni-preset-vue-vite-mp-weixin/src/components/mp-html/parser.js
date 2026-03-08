@@ -56,7 +56,7 @@ const config = {
     cite: 'font-style:italic',
     dd: 'margin-left:40px',
     mark: 'background-color:yellow',
-    pre: 'font-family:Consolas,Monaco,Courier New,monospace;white-space:pre-wrap;word-wrap:break-word;background-color:#f5f5f5;color:#333;padding:10px;border-radius:4px;border:1px solid #ddd;line-height:1.5;font-size:14px;',
+    pre: '',
     s: 'text-decoration:line-through',
     small: 'display:inline;font-size:0.8em',
     strike: 'text-decoration:line-through',

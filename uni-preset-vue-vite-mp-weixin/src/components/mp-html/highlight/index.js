@@ -41,7 +41,7 @@ Highlight.prototype.onParse = function (node, vm) {
     }
     const lang = className.substring(i, j)
     if (code.children.length) {
-      const text = this.vm.getText(code.children).replace(/&amp;/g, '&').replace(/\n+$/, '')
+      const text = this.vm.getText(code.children).replace(/&amp;/g, '&')
       if (!text) return
       if (node.c) {
         node.c = undefined
@@ -58,9 +58,9 @@ Highlight.prototype.onParse = function (node, vm) {
         }]
       }
       node.attrs.class = 'hl-pre'
-      node.attrs.style = 'background-color:#f0f9f8;padding:10px;border-radius:4px;white-space:pre-wrap;border:1px solid #5FBDB5;'
+      node.attrs.style = ''
       code.attrs.class = 'hl-code'
-      code.attrs.style = 'color:#000000;font-weight:500;'
+      code.attrs.style = ''
       if (config.showLanguageName) {
         node.children.push({
           name: 'div',

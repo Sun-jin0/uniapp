@@ -73,10 +73,6 @@
         </view>
       </view>
       
-      <!-- pre标签特殊处理：使用view包裹并递归渲染子节点，避免rich-text截断 -->
-      <view v-else-if="n.name==='pre'" :id="n.attrs.id" :class="'_block _'+n.name+' '+n.attrs.class" :style="n.f+';'+n.attrs.style">
-        <node v-for="(n2, j) in n.children" v-bind:key="j" :style="n2.f" :name="n2.name" :attrs="n2.attrs" :childs="n2.children" :opts="opts" />
-      </view>
       <!-- 富文本 -->
       <!-- #ifdef H5 || ((MP-WEIXIN || MP-QQ || APP-PLUS || MP-360) && VUE2) -->
       <rich-text v-else-if="!n.c&&(n.l||!handler.isInline(n.name, n.attrs.style))" :id="n.attrs.id" :style="n.f" :user-select="opts[4]" :nodes="[n]" />
