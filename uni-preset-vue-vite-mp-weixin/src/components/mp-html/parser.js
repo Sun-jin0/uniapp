@@ -343,6 +343,7 @@ Parser.prototype.parseStyle = function (node) {
  * @private
  */
 Parser.prototype.onTagName = function (name) {
+  if (!name) return
   this.tagName = this.xml ? name : name.toLowerCase()
   if (this.tagName === 'svg') {
     this.xml = (this.xml || 0) + 1 // svg 标签内大小写敏感
@@ -356,6 +357,7 @@ Parser.prototype.onTagName = function (name) {
  * @private
  */
 Parser.prototype.onAttrName = function (name) {
+  if (!name) return
   name = this.xml ? name : name.toLowerCase()
   // #ifdef (VUE3 && (H5 || APP-PLUS)) || APP-PLUS-NVUE
   if (name.includes('?') || name.includes(';')) {

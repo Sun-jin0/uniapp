@@ -1,5 +1,6 @@
 <script setup>
 import { ref, onMounted, computed, watch, nextTick } from 'vue';
+import { onShareAppMessage, onShareTimeline } from '@dcloudio/uni-app';
 import { onLoad } from '@dcloudio/uni-app';
 import { request, BASE_URL } from '../../api/request';
 import medicalApi from '../../api/medical';
