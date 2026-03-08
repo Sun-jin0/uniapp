@@ -100,6 +100,7 @@
             <el-upload
               :action="uploadUrl"
               :headers="uploadHeaders"
+              name="image"
               :show-file-list="false"
               :on-success="handleUploadSuccess"
               :before-upload="beforeUpload"
