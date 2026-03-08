@@ -411,15 +411,11 @@ const increaseQuestionCount = async (req, res) => {
     const { isCorrect, bookId, type } = req.body;
     const userId = req.userId;
 
-    // 更新用户总题数、正确数和等级
+    // 更新用户总题数和正确数（level 由数据库生成列自动计算）
     await pool.query(
       `UPDATE users SET
         total_questions = total_questions + 1,
-        total_correct = total_correct + ?,
-        level = CASE
-          WHEN total_questions + 1 < 200 THEN FLOOR((total_questions + 1) / 20) + 1
-          ELSE 10 + FLOOR((total_questions + 1 - 200) / 50)
-        END
+        total_correct = total_correct + ?
       WHERE id = ?`,
       [isCorrect ? 1 : 0, userId]
     );
