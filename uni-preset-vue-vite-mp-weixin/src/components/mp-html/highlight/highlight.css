@@ -20,7 +20,7 @@
   font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
   font-size: 28rpx;
   line-height: 1.0;
-  color: #24292e;
+  color: #000000 !important;
   background: transparent;
   font-weight: 500;
   display: block;
