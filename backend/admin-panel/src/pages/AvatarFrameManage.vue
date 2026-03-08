@@ -185,7 +185,7 @@ const rules = {
   image_url: [{ required: true, message: '请输入头像框图片URL', trigger: 'blur' }]
 }
 
-const uploadUrl = '/api/upload'
+const uploadUrl = '/api/upload/image'
 const uploadHeaders = computed(() => ({
   Authorization: `Bearer ${localStorage.getItem('admin_token') || ''}`
 }))
