@@ -541,14 +541,18 @@ exports.submitAnswer = async (req, res) => {
 
     // 更新用户总统计数据 (不更新 total_duration)
     await connection.query(
-      `UPDATE users SET 
+      `UPDATE users SET
         total_questions = total_questions + 1,
         total_correct = total_correct + ?,
         last_study_time = NOW(),
-        study_days = CASE 
-          WHEN last_study_time IS NULL OR DATE(last_study_time) != CURDATE() 
-          THEN study_days + 1 
-          ELSE study_days 
+        study_days = CASE
+          WHEN last_study_time IS NULL OR DATE(last_study_time) != CURDATE()
+          THEN study_days + 1
+          ELSE study_days
+        END,
+        level = CASE
+          WHEN total_questions + 1 < 200 THEN FLOOR((total_questions + 1) / 20) + 1
+          ELSE 10 + FLOOR((total_questions + 1 - 200) / 50)
         END
       WHERE id = ?`,
       [isCorrect ? 1 : 0, userId]
