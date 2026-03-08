@@ -3113,14 +3113,15 @@ onShareTimeline(() => {
       }
     }
     
-    /* pre 标签样式 - 保持不换行，允许横向滚动 */
+    /* pre 标签样式 - 允许自动换行 */
     .question-title :deep(pre),
     .question-title :deep(rich-text pre),
     .question-title :deep(.rich-text pre) {
       width: 100% !important;
       box-sizing: border-box !important;
-      white-space: pre !important;
-      overflow-x: auto !important;
+      white-space: pre-wrap !important;
+      word-wrap: break-word !important;
+      overflow-x: hidden !important;
       display: block !important;
     }
     
