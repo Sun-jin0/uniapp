@@ -2039,8 +2039,10 @@ onShareTimeline(() => {
                   <!-- 题目内容 -->
                   <view class="question-title-content">
                     <view class="question-title" :style="{ fontSize: dynamicFontSize.title }">
-                      <!-- 使用v-html渲染，避免rich-text截断代码块 -->
-                      <view class="title-rich-text" v-html="question.exercise_type === 3 ? (question.truncatedStem || question.stem) : (question.truncatedStem || question.originalStem)"></view>
+                      <!-- 如果是填空题，先尝试行内渲染 -->
+                      <mp-html v-if="question.exercise_type === 3" :content="question.truncatedStem || question.stem" class="title-rich-text" markdown></mp-html>
+                      <!-- 其他题型：如果有截断题干则显示截断的，否则显示完整的原始题干 -->
+                      <mp-html v-else :content="question.truncatedStem || question.originalStem" class="title-rich-text" markdown></mp-html>
                     </view>
                   </view>
                 </view>
@@ -3111,49 +3113,29 @@ onShareTimeline(() => {
       }
     }
     
-    /* pre 标签样式 - 允许自动换行 */
+    /* pre 标签样式 - 使用view渲染时的样式 */
     .question-title :deep(pre),
-    .question-title :deep(rich-text pre),
-    .question-title :deep(.rich-text pre) {
-      width: 100% !important;
-      box-sizing: border-box !important;
+    .question-title :deep(._pre) {
+      font-family: Consolas, Monaco, 'Courier New', monospace !important;
+      font-size: 28rpx !important;
+      line-height: 1.5 !important;
+      background-color: #f5f5f5 !important;
+      color: #333 !important;
+      padding: 20rpx !important;
+      border-radius: 8rpx !important;
+      border: 1rpx solid #ddd !important;
+      margin: 16rpx 0 !important;
       white-space: pre-wrap !important;
       word-wrap: break-word !important;
-      overflow-x: hidden !important;
       display: block !important;
     }
     
-    /* 确保 pre 标签外层的 div 也不会超出边界 */
-    .question-title :deep(div:has(> pre)),
-    .question-title :deep(div[style*="overflow-x"]) {
-      width: 100% !important;
-      max-width: 100% !important;
-      box-sizing: border-box !important;
-      overflow-x: auto !important;
-      margin: 2px 0 !important;
-    }
-    
-    /* pre 标签样式 */
-    .question-title :deep(pre) {
-      margin: 2px 0 !important;
-      padding: 8px 12px !important;
-      background-color: #f0f9f8 !important;
-      border-radius: 8rpx !important;
-      border: 1rpx solid #5FBDB5 !important;
-      line-height: 1.0 !important;
-    }
-    
-    /* code 标签样式 */
-    .question-title :deep(code) {
-      font-family: 'Consolas', 'Monaco', 'Courier New', monospace !important;
+    /* code标签样式 */
+    .question-title :deep(code),
+    .question-title :deep(._code) {
+      font-family: Consolas, Monaco, 'Courier New', monospace !important;
       font-size: 28rpx !important;
-      line-height: 1.0 !important;
-      background: transparent !important;
-    }
-    
-    /* br 标签间距 */
-    .question-title :deep(br) {
-      display: none !important;
+      background-color: transparent !important;
     }
     
     /* 确保 rich-text 内容不会超出 */
