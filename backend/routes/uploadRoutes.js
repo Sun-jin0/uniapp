@@ -4,8 +4,18 @@ const uploadController = require('../controllers/uploadController');
 const upload = require('../middleware/upload');
 const { adminAuth } = require('../middleware/auth');
 
-// 上传图片
-router.post('/upload/image', upload.single('image'), uploadController.uploadImage);
+// 上传图片 - 支持 'image' 和 'file' 两个字段名
+router.post('/upload/image', (req, res, next) => {
+  // 尝试使用 'image' 字段
+  upload.single('image')(req, res, (err) => {
+    if (err && err.message && err.message.includes('Unexpected field')) {
+      // 如果失败，尝试使用 'file' 字段
+      upload.single('file')(req, res, next);
+    } else {
+      next(err);
+    }
+  });
+}, uploadController.uploadImage);
 
 // 获取统计信息（管理员）- 必须放在 /:id 路由之前
 router.get('/admin/images/stats', adminAuth, uploadController.getStats);
