@@ -6,15 +6,20 @@
   overflow-x: auto;
   margin: 16rpx 0;
   border: 1rpx solid #5FBDB5;
-  white-space: pre;
+  white-space: pre-wrap;
   word-wrap: break-word;
-  line-height: 1.0;
+  line-height: 1.2;
+}
+
+._root .hl-pre br,
+._root pre.hl-pre br {
+  display: none;
 }
 
 ._root .hl-code {
   font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
   font-size: 28rpx;
-  line-height: 1.0;
+  line-height: 1.2;
   color: #24292e;
   background: transparent;
   font-weight: 500;
