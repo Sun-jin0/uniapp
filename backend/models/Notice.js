@@ -29,10 +29,15 @@ class Notice {
       params.push(`%${query.keyword}%`, `%${query.keyword}%`);
     }
     
+    // 始终按置顶优先，然后按用户选择的排序方式
     if (query.sort === 'hottest') {
-      sql += ' ORDER BY viewCount DESC, createdAt DESC';
+      sql += ' ORDER BY isTop DESC, viewCount DESC, createdAt DESC';
+    } else if (query.sort === 'newest') {
+      sql += ' ORDER BY isTop DESC, createdAt DESC';
+    } else if (query.sort === 'top') {
+      sql += ' ORDER BY isTop DESC, createdAt DESC';
     } else {
-      sql += ' ORDER BY createdAt DESC';
+      sql += ' ORDER BY isTop DESC, createdAt DESC';
     }
     
     if (query.skip !== undefined && query.limit !== undefined) {
@@ -84,7 +89,7 @@ class Notice {
 
   static async create(data) {
     const [result] = await pool.query(
-      'INSERT INTO notices (title, description, category, content, linkUrl, noticeType, imageUrl, type, status, isActive, subCategory, author) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      'INSERT INTO notices (title, description, category, content, linkUrl, noticeType, imageUrl, type, status, isActive, subCategory, author, isTop, sortOrder) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
       [
         data.title, 
         data.description || null,
@@ -97,7 +102,9 @@ class Notice {
         data.status !== undefined ? data.status : 1,
         data.isActive !== undefined ? data.isActive : 1,
         data.subCategory || null,
-        data.author || '研兔刷题'
+        data.author || '研兔刷题',
+        data.isTop !== undefined ? data.isTop : 0,
+        data.sortOrder !== undefined ? data.sortOrder : 0
       ]
     );
     return { id: result.insertId, _id: result.insertId, ...data };
@@ -111,7 +118,7 @@ class Notice {
     const allowedFields = [
       'title', 'description', 'category', 'content', 'linkUrl', 
       'noticeType', 'imageUrl', 'type', 'status', 'isActive', 
-      'subCategory', 'author', 'viewCount'
+      'subCategory', 'author', 'viewCount', 'isTop', 'sortOrder'
     ];
 
     for (const [key, value] of Object.entries(updateData)) {
@@ -139,6 +146,56 @@ class Notice {
   static async incrementViewCount(id) {
     await pool.query('UPDATE notices SET viewCount = viewCount + 1 WHERE id = ?', [id]);
     return true;
+  }
+
+  static async getCategories() {
+    // 从 pan_categories 表获取分类
+    const [rows] = await pool.query(`
+      SELECT CategoryName as name, CategoryID as id, SortOrder as sortOrder
+      FROM pan_categories
+      ORDER BY SortOrder, CategoryID
+    `);
+    return rows;
+  }
+
+  // pan_categories 表操作
+  static async createCategory(categoryName, sortOrder = 0) {
+    const [result] = await pool.query(
+      'INSERT INTO pan_categories (CategoryName, SortOrder) VALUES (?, ?)',
+      [categoryName, sortOrder]
+    );
+    return { id: result.insertId, name: categoryName, sortOrder };
+  }
+
+  static async updateCategory(id, categoryName, sortOrder) {
+    const fields = [];
+    const params = [];
+    
+    if (categoryName !== undefined) {
+      fields.push('CategoryName = ?');
+      params.push(categoryName);
+    }
+    if (sortOrder !== undefined) {
+      fields.push('SortOrder = ?');
+      params.push(sortOrder);
+    }
+    
+    if (fields.length === 0) return null;
+    
+    params.push(id);
+    await pool.query(`UPDATE pan_categories SET ${fields.join(', ')} WHERE CategoryID = ?`, params);
+    
+    const [rows] = await pool.query('SELECT * FROM pan_categories WHERE CategoryID = ?', [id]);
+    return rows[0];
+  }
+
+  static async deleteCategory(id) {
+    const [rows] = await pool.query('SELECT * FROM pan_categories WHERE CategoryID = ?', [id]);
+    if (rows.length > 0) {
+      await pool.query('DELETE FROM pan_categories WHERE CategoryID = ?', [id]);
+      return rows[0];
+    }
+    return null;
   }
 }
 

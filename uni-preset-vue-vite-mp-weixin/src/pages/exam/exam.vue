@@ -68,25 +68,25 @@
         @click="goToDetail(item)"
       >
         <view class="material-content">
-          <view class="material-info">
-            <view class="title-container">
-              <text v-if="item.linkUrl" class="wechat-tag">微信</text>
-              <text class="material-title">{{ item.title }}</text>
+            <view class="material-info">
+              <view class="title-container">
+                <text v-if="item.isTop == 1" class="top-tag">置顶</text>
+                <text v-if="item.linkUrl" class="wechat-tag">微信</text>
+                <text class="material-title">{{ item.title }}</text>
+              </view>
+              <text v-if="item.noticeType !== 'pan_resource' && item.description" class="material-desc">{{ item.description }}</text>
+              <view class="material-meta">
+                <text class="material-view-count">{{ item.viewCount || 0 }}阅读</text>
+                <text class="material-date">{{ formatDate(item.createdAt) }}</text>
+              </view>
             </view>
-            <text v-if="item.description" class="material-desc">{{ item.description }}</text>
-            <view class="material-meta">
-              <text class="material-author">{{ item.author || '研兔刷题' }}</text>
-              <text class="material-view-count">{{ item.viewCount || 0 }}阅读</text>
-              <text class="material-date">{{ formatDate(item.createdAt) }}</text>
-            </view>
+            <image 
+              v-if="item.imageUrl" 
+              :src="item.imageUrl" 
+              mode="aspectFill" 
+              class="material-cover"
+            ></image>
           </view>
-          <image 
-            v-if="item.imageUrl" 
-            :src="item.imageUrl" 
-            mode="aspectFill" 
-            class="material-cover"
-          ></image>
-        </view>
       </view>
 
       <!-- 加载状态 -->
@@ -122,7 +122,21 @@ const loading = ref(false);
 const hasMore = ref(true);
 const page = ref(1);
 
-const categories = ['全部', '资料', '备考经验', '政策动态', '考试技巧'];
+// 从API获取分类列表
+const categories = ref(['全部']);
+
+// 加载分类列表
+const fetchCategories = async () => {
+  try {
+    const res = await $api.publicApi.getPanCategories();
+    if (res && res.data) {
+      const categoryNames = res.data.map(c => c.CategoryName || c);
+      categories.value = ['全部', ...categoryNames];
+    }
+  } catch (error) {
+    console.error('获取分类失败:', error);
+  }
+};
 
 // 是否显示返回按钮
 const showBackButton = computed(() => {
@@ -134,6 +148,13 @@ const showBackButton = computed(() => {
 const getSystemInfo = () => {
   const info = uni.getSystemInfoSync();
   statusBarHeight.value = info.statusBarHeight || 0;
+};
+
+// 从描述中提取链接
+const extractLink = (text) => {
+  if (!text) return '';
+  const match = text.match(/https?:\/\/[^\s]+/);
+  return match ? match[0] : text;
 };
 
 // 格式化日期
@@ -168,7 +189,7 @@ const fetchMaterials = async (reset = false) => {
       sort: currentSort.value,
       keyword: searchKeyword.value,
       page: page.value,
-      size: 10
+      size: 50
     };
     // 只有当不是"全部"时才添加 category 参数
     if (currentCategory.value !== '全部') {
@@ -178,15 +199,30 @@ const fetchMaterials = async (reset = false) => {
     
     if (res.code === 0) {
       let list = res.data || [];
-      // 过滤掉系统通知类
-      list = list.filter(item => item.category !== '系统通知');
-      // 过滤掉纯跳转链接类型（只保留文章内容和微信链接）
-      list = list.filter(item => item.noticeType === 'article' || item.noticeType === 'wechat');
       
-      if (list.length < 10) {
+      list = list.filter(item => item.category !== '系统通知');
+      list = list.filter(item => item.noticeType === 'article' || item.noticeType === 'wechat' || item.noticeType === 'pan_resource');
+      
+      const topList = list.filter(item => Number(item.isTop) === 1);
+      const normalList = list.filter(item => Number(item.isTop) !== 1);
+      
+      if (currentSort.value === 'newest') {
+        topList.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        normalList.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      } else {
+        topList.sort((a, b) => (Number(b.viewCount) || 0) - (Number(a.viewCount) || 0));
+        normalList.sort((a, b) => (Number(b.viewCount) || 0) - (Number(a.viewCount) || 0));
+      }
+      
+      const sortedList = [...topList, ...normalList];
+      
+      if (sortedList.length < 20) {
         hasMore.value = false;
       }
-      materials.value = [...materials.value, ...list];
+      materials.value = [...materials.value, ...sortedList];
+      
+      console.log('materials.value总数:', materials.value.length);
+      
       page.value++;
     }
   } catch (error) {
@@ -257,8 +293,14 @@ const goToDetail = (item) => {
   });
 };
 
+// 页面显示时触发（包括从其他页面返回）
+const onPageShow = () => {
+  fetchCategories();
+  fetchMaterials(true); // 重置并重新加载
+};
+
 onMounted(() => {
-  fetchMaterials();
+  onPageShow();
   
   // 主题模式
   const currentTheme = uni.getStorageSync('themeMode') || 'light';
@@ -311,6 +353,8 @@ onUnmounted(() => {
   line-height: 76rpx;
   position: relative;
   font-weight: 500;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 .dark-mode .category-item { color: #888; }
 
@@ -452,7 +496,6 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  height: 120rpx; /* 与图片等高 */
 }
 
 .title-container {
@@ -469,6 +512,18 @@ onUnmounted(() => {
   margin-right: 10rpx;
   margin-top: 6rpx;
   flex-shrink: 0;
+}
+
+.top-tag {
+  font-size: 18rpx;
+  color: #fff;
+  background: linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%);
+  padding: 2rpx 8rpx;
+  border-radius: 4rpx;
+  margin-right: 10rpx;
+  margin-top: 6rpx;
+  flex-shrink: 0;
+  font-weight: bold;
 }
 
 .material-title {

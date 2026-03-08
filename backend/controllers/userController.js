@@ -1,7 +1,6 @@
 const User = require('../models/User');
 const AnswerRecord = require('../models/AnswerRecord');
 const ImageManagement = require('../models/ImageManagement');
-const UserInvite = require('../models/UserInvite');
 const { generateToken } = require('../utils/jwt');
 const { successResponse, errorResponse } = require('../utils/response');
 const pool = require('../config/mysql');
@@ -101,29 +100,7 @@ const wechatLogin = async (req, res) => {
         loginType: 'wechat' // 标记为微信登录
       });
       
-      // 处理邀请关系（仅新用户）
-      if (inviteCode) {
-        try {
-          const inviterId = await UserInvite.getInviterIdByCode(inviteCode);
-          if (inviterId && inviterId !== user.id) {
-            // 记录邀请关系
-            await UserInvite.recordInvite(inviterId, user.id, inviteCode);
-            
-            // 更新用户的邀请人信息
-            await User.updateById(user.id, { inviterId: inviterId });
-          }
-        } catch (inviteError) {
-          // 邀请失败不影响登录，记录日志即可
-          console.log('邀请关系建立失败:', inviteError.message);
-        }
-      }
-      
-      // 为新用户生成邀请码（根据 studentId 自动判断是否需要邀请）
-      try {
-        await UserInvite.generateUserInviteCode(user.id);
-      } catch (e) {
-        console.log('生成邀请码失败:', e.message);
-      }
+      // 邀请功能已删除
     }
 
     // 4. 更新最后登录时间
@@ -211,13 +188,7 @@ const register = async (req, res) => {
       loginType: 'password' // 标记为账号密码登录
     });
     
-    // 为新用户生成邀请码（根据 studentId 自动判断是否需要邀请）
-    try {
-      const UserInvite = require('../models/UserInvite');
-      await UserInvite.generateUserInviteCode(user.id);
-    } catch (e) {
-      console.log('生成邀请码失败:', e.message);
-    }
+    // 邀请功能已删除
     
     const token = generateToken(user.id);
     

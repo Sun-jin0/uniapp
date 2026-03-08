@@ -23,6 +23,13 @@ export default {
     })
   },
 
+  getPanCategories: () => {
+    return request({
+      url: '/pan-resources/categories',
+      method: 'GET'
+    })
+  },
+
   incrementNoticeViewCount: (id) => {
     return request({
       url: `/notices/${id}/view`,

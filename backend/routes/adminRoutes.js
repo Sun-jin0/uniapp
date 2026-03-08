@@ -38,6 +38,10 @@ router.post('/configs', auth, adminAuth, appConfigController.updateConfig);
 
 // 公告管理
 router.get('/notices', auth, adminAuth, paginationValidation, adminController.getNotices);
+router.get('/notices/categories', auth, adminAuth, adminController.getNoticeCategories);
+router.post('/notices/categories', auth, adminAuth, adminController.createCategory);
+router.put('/notices/categories/:id', auth, adminAuth, adminController.updateCategory);
+router.delete('/notices/categories/:id', auth, adminAuth, adminController.deleteCategory);
 router.get('/notices/:id', auth, adminAuth, adminController.getNoticeById);
 router.post('/notices', auth, adminAuth, adminController.createNotice);
 router.put('/notices/:id', auth, adminAuth, adminController.updateNotice);
@@ -76,6 +80,7 @@ router.delete('/pan-resources/:id', auth, adminAuth, panResourceController.delet
 router.post('/pan-resources/parse', auth, adminAuth, panResourceController.parsePanResources);
 router.post('/pan-resources/import', auth, adminAuth, panResourceController.importPanResources);
 router.post('/pan-resources/batch-delete', auth, adminAuth, panResourceController.batchDeletePanResources);
+router.post('/pan-resources/batch-update', auth, adminAuth, panResourceController.batchUpdatePanResources);
 router.post('/pan-resources/batch-update-category', auth, adminAuth, panResourceController.batchUpdatePanResourcesCategory);
 router.put('/pan-resources/:id/top', auth, adminAuth, panResourceController.updatePanResourceTop);
 router.put('/pan-resources/:id/sort', auth, adminAuth, panResourceController.updatePanResourceSort);

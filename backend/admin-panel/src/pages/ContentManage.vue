@@ -171,6 +171,12 @@
                       type="primary" 
                       class="type-tag"
                     >链接</el-tag>
+                    <el-tag 
+                      v-else-if="row.noticeType === 'pan_resource'" 
+                      size="small" 
+                      type="warning" 
+                      class="type-tag"
+                    >网盘</el-tag>
                     <span class="title-text">{{ row.title }}</span>
                   </div>
                 </template>
@@ -181,6 +187,29 @@
                 <template #default="{ row }">
                   <el-icon><View /></el-icon>
                   <span style="margin-left: 4px">{{ row.viewCount || 0 }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column label="置顶" width="100" align="center">
+                <template #default="{ row }">
+                  <el-switch
+                    v-model="row.isTop"
+                    :active-value="1"
+                    :inactive-value="0"
+                    @change="(val) => handleTopChange(row, val)"
+                    :loading="row._updatingTop"
+                  />
+                </template>
+              </el-table-column>
+              <el-table-column label="排序" width="120" align="center">
+                <template #default="{ row }">
+                  <el-input-number
+                    v-model="row.sortOrder"
+                    :min="0"
+                    :max="999"
+                    size="small"
+                    style="width: 80px"
+                    @change="(val) => handleSortChange(row, val)"
+                  />
                 </template>
               </el-table-column>
               <el-table-column label="状态" width="100" align="center">
@@ -254,7 +283,7 @@ const total = ref(0)
 const searchKeyword = ref('')
 const selectedCategory = ref('')
 const showDrafts = ref(false)
-const categories = ['资料', '备考经验', '政策动态', '考试技巧', '系统通知']
+const categories = ['全部资料', '考研资料', '计算机资料', '医学资料', '其他', '备考经验', '政策动态', '考试技巧', '系统通知']
 
 onMounted(() => {
   loadData()
@@ -300,20 +329,22 @@ const fetchArticles = async () => {
       page: page.value,
       size: pageSize.value,
       keyword: searchKeyword.value,
-      status: showDrafts.value ? 0 : 1,
-      noticeType: 'article'
+      status: showDrafts.value ? 0 : 1
+      // 不再限制 noticeType，显示所有类型的文章（包括网盘资源）
     }
-    if (selectedCategory.value) {
+    if (selectedCategory.value && selectedCategory.value !== '全部资料') {
       params.category = selectedCategory.value
     }
     
     const res = await adminApi.getNotices(params)
     if (res.code === 0) {
       const list = res.data.list || res.data || []
-      // 确保 isActive 是布尔值
+      // 确保字段类型正确
       articles.value = list.map(item => ({
         ...item,
-        isActive: item.isActive === 1 || item.isActive === true
+        isActive: item.isActive === 1 || item.isActive === true,
+        isTop: item.isTop === 1 || item.isTop === true ? 1 : 0,
+        sortOrder: item.sortOrder || 0
       }))
       total.value = res.data.total || articles.value.length
     }
@@ -393,6 +424,58 @@ const handleToggleStatus = async (row, val) => {
     }
   } catch (error) {
     console.error('Toggle status error:', error)
+    ElMessage.error('网络错误，请重试')
+  }
+}
+
+// 处理置顶状态变化
+const handleTopChange = async (row, val) => {
+  row._updatingTop = true
+  console.log('handleTopChange called, row:', row._id || row.id, 'val:', val)
+  try {
+    // 确保发送正确的值（0 或 1）
+    const isTopValue = val === 1 || val === true ? 1 : 0
+    console.log('Sending update isTop:', isTopValue)
+    const res = await adminApi.updateNotice(row._id || row.id, { isTop: isTopValue })
+    console.log('Update response:', res)
+    if (res.code === 0) {
+      ElMessage.success(isTopValue ? '置顶成功' : '取消置顶成功')
+      // 使用服务器返回的数据更新本地状态
+      if (res.data && res.data.notice) {
+        row.isTop = res.data.notice.isTop === 1 || res.data.notice.isTop === true ? 1 : 0
+        row.sortOrder = res.data.notice.sortOrder || 0
+      } else {
+        row.isTop = isTopValue
+      }
+    } else {
+      ElMessage.error(res.message || '操作失败')
+      // 恢复原状态
+      row.isTop = isTopValue ? 0 : 1
+    }
+  } catch (error) {
+    console.error('Toggle top error:', error)
+    ElMessage.error('网络错误，请重试')
+    // 恢复原状态
+    row.isTop = val === 1 ? 0 : 1
+  } finally {
+    row._updatingTop = false
+  }
+}
+
+// 处理排序值变化
+const handleSortChange = async (row, val) => {
+  console.log('handleSortChange called, row:', row._id || row.id, 'val:', val)
+  try {
+    const res = await adminApi.updateNotice(row._id || row.id, { sortOrder: val })
+    if (res.code === 0) {
+      ElMessage.success('排序更新成功')
+      // 更新本地状态
+      row.sortOrder = val
+    } else {
+      ElMessage.error(res.message || '排序更新失败')
+    }
+  } catch (error) {
+    console.error('Sort change error:', error)
     ElMessage.error('网络错误，请重试')
   }
 }

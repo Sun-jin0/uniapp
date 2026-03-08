@@ -33,23 +33,55 @@
         </view>
         
         
+        <!-- 网盘链接卡片 -->
+        <view v-if="panLinks.length > 0" class="pan-links-section">
+          <view class="pan-section-title">资源链接</view>
+          <view v-for="(link, index) in panLinks" :key="index" class="pan-card" :class="link.type">
+            <view class="pan-icon-wrapper" :class="link.type">
+              <text class="pan-icon-text">{{ link.name.charAt(0) }}</text>
+            </view>
+            <view class="pan-info">
+              <view class="pan-name">{{ link.name }}</view>
+            </view>
+            <button class="pan-btn copy-btn" @click="copyPanLink(link.url)">
+              <text>复制链接</text>
+            </button>
+          </view>
+        </view>
+
         <!-- 文章摘要 -->
-        <view v-if="article.description" class="article-description">
+        <view v-if="article.description && article.noticeType !== 'pan_resource'" class="article-description">
           <view class="description-tag">摘要</view>
           <text>{{ article.description }}</text>
         </view>
-        
+
         <!-- 文章正文 -->
         <view class="article-body">
           <rich-text :nodes="article.content"></rich-text>
         </view>
-        
+
         <!-- 文章链接 -->
         <view v-if="article.linkUrl" class="article-link-section">
           <navigator :url="article.linkUrl" class="article-link-btn">
             <text class="link-text">查看原文链接</text>
             <text class="link-arrow">→</text>
           </navigator>
+        </view>
+        
+        <!-- 互动功能区：点赞、分享、收藏 -->
+        <view class="interaction-bar">
+          <view class="interaction-btn" :class="{ 'active': isLiked }" @click="handleLike">
+            <text class="btn-icon like-icon"></text>
+            <text class="btn-text">{{ likeCount || '点赞' }}</text>
+          </view>
+          <view class="interaction-btn" :class="{ 'active': isCollected }" @click="handleCollect">
+            <text class="btn-icon collect-icon"></text>
+            <text class="btn-text">{{ isCollected ? '已收藏' : '收藏' }}</text>
+          </view>
+          <view class="interaction-btn" @click="handleShare">
+            <text class="btn-icon share-icon"></text>
+            <text class="btn-text">分享</text>
+          </view>
         </view>
       </view>
       
@@ -72,9 +104,164 @@ const isDarkMode = ref(false);
 // 文章数据
 const article = ref(null);
 
+// 网盘链接列表
+const panLinks = ref([]);
+
 // 登录状态
 const isLoggedIn = ref(false);
 const isCheckingLogin = ref(true);
+
+// 互动功能状态
+const isLiked = ref(false);
+const isCollected = ref(false);
+const likeCount = ref(0);
+
+// 网盘链接识别正则
+const PAN_REGEX = {
+  // 百度网盘：pan.baidu.com/s/xxx 或 带提取码的链接
+  baidu: /https?:\/\/pan\.baidu\.com\/s\/[a-zA-Z0-9_-]+(\?pwd=[a-zA-Z0-9]+)?/gi,
+  // 夸克网盘：pan.quark.cn/s/xxx
+  quark: /https?:\/\/pan\.quark\.cn\/s\/[a-zA-Z0-9_-]+/gi,
+  // 阿里云盘：www.aliyundrive.com/s/xxx 或 www.alipan.com/s/xxx
+  aliyun: /https?:\/\/(www\.)?(aliyundrive|alipan)\.com\/s\/[a-zA-Z0-9_-]+/gi,
+  // 迅雷网盘：pan.xunlei.com/s/xxx
+  xunlei: /https?:\/\/pan\.xunlei\.com\/s\/[a-zA-Z0-9_-]+/gi,
+  // 天翼云盘：cloud.189.cn/t/xxx 或 cloud.189.cn/web/share?code=xxx
+  tianyi: /https?:\/\/cloud\.189\.cn\/(t\/[a-zA-Z0-9_-]+|web\/share\?code=[a-zA-Z0-9_-]+)/gi,
+  // 移动云盘：caiyun.139.com/w/i/xxx
+  caiyun: /https?:\/\/caiyun\.139\.com\/w\/i\/[a-zA-Z0-9_-]+/gi
+};
+
+// 从文章内容中提取网盘链接
+const extractPanLinks = (content) => {
+  const links = [];
+  const foundUrls = new Set();
+  
+  // 提取百度网盘链接
+  const baiduMatches = content.match(PAN_REGEX.baidu) || [];
+  baiduMatches.forEach(url => {
+    if (!foundUrls.has(url)) {
+      foundUrls.add(url);
+      links.push({
+        type: 'baidu',
+        name: '百度网盘',
+        icon: '☁️',
+        desc: '百度网盘分享链接',
+        url: url
+      });
+    }
+  });
+  
+  // 提取夸克网盘链接
+  const quarkMatches = content.match(PAN_REGEX.quark) || [];
+  quarkMatches.forEach(url => {
+    if (!foundUrls.has(url)) {
+      foundUrls.add(url);
+      links.push({
+        type: 'quark',
+        name: '夸克网盘',
+        url: url
+      });
+    }
+  });
+
+  // 提取阿里云盘链接
+  const aliyunMatches = content.match(PAN_REGEX.aliyun) || [];
+  aliyunMatches.forEach(url => {
+    if (!foundUrls.has(url)) {
+      foundUrls.add(url);
+      links.push({
+        type: 'aliyun',
+        name: '阿里云盘',
+        url: url
+      });
+    }
+  });
+  
+  // 提取迅雷网盘链接
+  const xunleiMatches = content.match(PAN_REGEX.xunlei) || [];
+  xunleiMatches.forEach(url => {
+    if (!foundUrls.has(url)) {
+      foundUrls.add(url);
+      links.push({
+        type: 'xunlei',
+        name: '迅雷云盘',
+        url: url
+      });
+    }
+  });
+
+  // 提取天翼云盘链接
+  const tianyiMatches = content.match(PAN_REGEX.tianyi) || [];
+  tianyiMatches.forEach(url => {
+    if (!foundUrls.has(url)) {
+      foundUrls.add(url);
+      links.push({
+        type: 'tianyi',
+        name: '天翼云盘',
+        url: url
+      });
+    }
+  });
+
+  // 提取移动云盘链接
+  const caiyunMatches = content.match(PAN_REGEX.caiyun) || [];
+  caiyunMatches.forEach(url => {
+    if (!foundUrls.has(url)) {
+      foundUrls.add(url);
+      links.push({
+        type: 'caiyun',
+        name: '移动云盘',
+        url: url
+      });
+    }
+  });
+  
+  return links;
+};
+
+// 复制网盘链接
+const copyPanLink = (url) => {
+  uni.setClipboardData({
+    data: url,
+    success: () => {
+      uni.showToast({
+        title: '链接已复制',
+        icon: 'success'
+      });
+    },
+    fail: () => {
+      uni.showToast({
+        title: '复制失败',
+        icon: 'none'
+      });
+    }
+  });
+};
+
+// 打开网盘链接
+const openPanLink = (url) => {
+  // #ifdef MP-WEIXIN
+  // 微信小程序中复制到剪贴板并提示用户
+  copyPanLink(url);
+  uni.showModal({
+    title: '提示',
+    content: '链接已复制，请打开对应网盘APP粘贴访问',
+    showCancel: false,
+    confirmText: '知道了'
+  });
+  // #endif
+  
+  // #ifdef H5
+  // H5环境可以直接跳转
+  window.open(url, '_blank');
+  // #endif
+  
+  // #ifdef APP-PLUS
+  // APP环境使用系统浏览器打开
+  plus.runtime.openURL(url);
+  // #endif
+};
 
 // 检查登录状态
 const checkLoginStatus = () => {
@@ -143,6 +330,11 @@ const initArticle = async () => {
         proxy.$api.publicApi.incrementNoticeViewCount(articleId).catch(() => {
           // 递增阅读数失败
         });
+        
+        // 提取文章中的网盘链接
+        if (article.value.content) {
+          panLinks.value = extractPanLinks(article.value.content);
+        }
       } else {
         uni.showToast({
           title: '文章不存在',
@@ -167,6 +359,125 @@ const initArticle = async () => {
   }
 };
 
+// 获取文章ID
+const getArticleId = () => {
+  const params = getCurrentPageParams();
+  return params.id;
+};
+
+// 加载互动状态（点赞、收藏）
+const loadInteractionStatus = async () => {
+  const articleId = getArticleId();
+  if (!articleId) return;
+  
+  // 从本地存储获取点赞和收藏状态
+  const likedArticles = uni.getStorageSync('likedArticles') || [];
+  const collectedArticles = uni.getStorageSync('collectedArticles') || [];
+  
+  isLiked.value = likedArticles.includes(articleId);
+  isCollected.value = collectedArticles.some(item => item.id === articleId);
+  
+  // 从本地存储获取点赞数
+  const likeCountMap = uni.getStorageSync('likeCountMap') || {};
+  likeCount.value = likeCountMap[articleId] || 0;
+};
+
+// 处理点赞
+const handleLike = async () => {
+  if (!isLoggedIn.value) {
+    uni.showToast({ title: '请先登录', icon: 'none' });
+    return;
+  }
+  
+  const articleId = getArticleId();
+  if (!articleId) return;
+  
+  const likedArticles = uni.getStorageSync('likedArticles') || [];
+  const likeCountMap = uni.getStorageSync('likeCountMap') || {};
+  
+  if (isLiked.value) {
+    // 取消点赞
+    const index = likedArticles.indexOf(articleId);
+    if (index > -1) {
+      likedArticles.splice(index, 1);
+    }
+    likeCount.value = Math.max(0, likeCount.value - 1);
+    uni.showToast({ title: '已取消点赞', icon: 'none' });
+  } else {
+    // 点赞
+    likedArticles.push(articleId);
+    likeCount.value++;
+    uni.showToast({ title: '点赞成功', icon: 'success' });
+  }
+  
+  // 保存到本地存储
+  uni.setStorageSync('likedArticles', likedArticles);
+  likeCountMap[articleId] = likeCount.value;
+  uni.setStorageSync('likeCountMap', likeCountMap);
+  isLiked.value = !isLiked.value;
+};
+
+// 处理收藏
+const handleCollect = async () => {
+  if (!isLoggedIn.value) {
+    uni.showToast({ title: '请先登录', icon: 'none' });
+    return;
+  }
+  
+  const articleId = getArticleId();
+  if (!articleId) return;
+  
+  const collectedArticles = uni.getStorageSync('collectedArticles') || [];
+  const articleInfo = {
+    id: articleId,
+    title: article.value?.title || '',
+    category: article.value?.category || '',
+    author: article.value?.author || '',
+    createTime: article.value?.createdAt || article.value?.createTime || '',
+    coverImage: article.value?.coverImage || ''
+  };
+  
+  if (isCollected.value) {
+    // 取消收藏
+    const index = collectedArticles.findIndex(item => item.id === articleId);
+    if (index > -1) {
+      collectedArticles.splice(index, 1);
+    }
+    uni.showToast({ title: '已取消收藏', icon: 'none' });
+  } else {
+    // 收藏
+    collectedArticles.push(articleInfo);
+    uni.showToast({ title: '收藏成功', icon: 'success' });
+  }
+  
+  // 保存到本地存储
+  uni.setStorageSync('collectedArticles', collectedArticles);
+  isCollected.value = !isCollected.value;
+};
+
+// 处理分享
+const handleShare = () => {
+  // #ifdef MP-WEIXIN
+  uni.showShareMenu({
+    withShareTicket: true,
+    menus: ['shareAppMessage', 'shareTimeline']
+  });
+  uni.showToast({ title: '请点击右上角分享', icon: 'none' });
+  // #endif
+  
+  // #ifdef H5
+  // H5环境下复制链接
+  const articleId = getArticleId();
+  const shareUrl = window.location.origin + '/#/pages/article/article-detail?id=' + articleId;
+  uni.setClipboardData({
+    data: shareUrl,
+    success: () => {
+      uni.showToast({ title: '链接已复制', icon: 'success' });
+    }
+  });
+  // #endif
+};
+
 // 初始化主题状态
 onMounted(() => {
   // 检查登录状态
@@ -184,6 +495,7 @@ onMounted(() => {
   // 已登录才加载文章数据
   if (isLoggedIn.value) {
     initArticle();
+    loadInteractionStatus();
   }
   
   // #ifdef MP-WEIXIN
@@ -550,5 +862,228 @@ export default {
 
 .dark-mode .loading-text {
   color: #cccccc;
+}
+
+/* ============ 网盘链接卡片样式 ============ */
+.pan-links-section {
+  margin-top: 60rpx;
+  padding-top: 40rpx;
+  border-top: 1rpx solid #eee;
+}
+
+.pan-section-title {
+  font-size: 32rpx;
+  font-weight: bold;
+  color: #333;
+  margin-bottom: 30rpx;
+  padding-left: 20rpx;
+  border-left: 8rpx solid #6366f1;
+}
+
+.pan-card {
+  background: #fff;
+  border-radius: 12rpx;
+  padding: 16rpx 20rpx;
+  margin-bottom: 16rpx;
+  border: 1rpx solid #e5e7eb;
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+}
+
+.pan-icon-wrapper {
+  width: 40rpx;
+  height: 40rpx;
+  border-radius: 8rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background: #f3f4f6;
+}
+
+.pan-icon-wrapper.baidu { background: #2932e1; }
+.pan-icon-wrapper.quark { background: #00b4ff; }
+.pan-icon-wrapper.aliyun { background: #ff6a00; }
+.pan-icon-wrapper.xunlei { background: #0099ff; }
+.pan-icon-wrapper.tianyi { background: #ff3333; }
+.pan-icon-wrapper.caiyun { background: #00cc66; }
+
+.pan-icon-text {
+  font-size: 22rpx;
+  color: #fff;
+  font-weight: 600;
+}
+
+.pan-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.pan-name {
+  font-size: 28rpx;
+  font-weight: 500;
+  color: #111827;
+}
+
+.pan-btn {
+  height: 56rpx;
+  border-radius: 8rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24rpx;
+  font-weight: 500;
+  border: none;
+  padding: 0 24rpx;
+  flex-shrink: 0;
+}
+
+.pan-btn::after {
+  border: none;
+}
+
+.copy-btn {
+  background: #f3f4f6;
+  color: #374151;
+}
+
+.copy-btn:active {
+  background: #e5e7eb;
+}
+
+.open-btn {
+  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+  color: white;
+}
+
+.open-btn:active {
+  opacity: 0.9;
+}
+
+.quark-btn {
+  background: linear-gradient(135deg, #00b4ff 0%, #0088cc 100%);
+}
+
+.btn-icon {
+  font-size: 28rpx;
+}
+
+/* 夜间模式 - 网盘卡片 */
+.dark-mode .pan-links-section {
+  border-top-color: #333;
+}
+
+.dark-mode .pan-section-title {
+  color: #f9fafb;
+  border-left-color: #8b5cf6;
+}
+
+.dark-mode .pan-card {
+  background: #1f2937;
+  border-color: #374151;
+}
+
+.dark-mode .pan-name {
+  color: #f9fafb;
+}
+
+.dark-mode .pan-url {
+  color: #9ca3af;
+}
+
+.dark-mode .copy-btn {
+  background: #374151;
+  color: #f9fafb;
+}
+
+.dark-mode .copy-btn:active {
+  background: #4b5563;
+}
+
+/* ============ 互动功能区样式 ============ */
+.interaction-bar {
+  display: flex;
+  justify-content: center;
+  gap: 60rpx;
+  padding: 40rpx 0;
+  border-top: 1rpx solid #e5e7eb;
+  margin-top: 40rpx;
+}
+
+.interaction-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12rpx;
+  cursor: pointer;
+}
+
+.interaction-btn:active {
+  opacity: 0.7;
+}
+
+.btn-icon {
+  width: 80rpx;
+  height: 80rpx;
+  border-radius: 50%;
+  background-color: #f3f4f6;
+  background-size: 40rpx 40rpx;
+  background-repeat: no-repeat;
+  background-position: center;
+}
+
+.interaction-btn.active .btn-icon {
+  background-color: #fef3c7;
+}
+
+.btn-text {
+  font-size: 24rpx;
+  color: #6b7280;
+}
+
+.interaction-btn.active .btn-text {
+  color: #f59e0b;
+}
+
+.like-icon {
+  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="%236b7280" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>');
+}
+
+.interaction-btn.active .like-icon {
+  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%23ef4444" stroke="%23ef4444" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>');
+}
+
+.collect-icon {
+  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="%236b7280" stroke-width="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>');
+}
+
+.interaction-btn.active .collect-icon {
+  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%23f59e0b" stroke="%23f59e0b" stroke-width="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>');
+}
+
+.share-icon {
+  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="%236b7280" stroke-width="2"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>');
+}
+
+/* 夜间模式 - 互动区 */
+.dark-mode .interaction-bar {
+  border-top-color: #374151;
+}
+
+.dark-mode .btn-icon {
+  background-color: #374151;
+}
+
+.dark-mode .interaction-btn.active .btn-icon {
+  background-color: #78350f;
+}
+
+.dark-mode .btn-text {
+  color: #9ca3af;
+}
+
+.dark-mode .interaction-btn.active .btn-text {
+  color: #fbbf24;
 }
 </style>

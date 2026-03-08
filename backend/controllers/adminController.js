@@ -612,7 +612,7 @@ const getNotices = async (req, res) => {
     }
     
     if (status !== undefined && status !== '') {
-      query.status = parseInt(status);
+      query.isActive = parseInt(status);
     }
 
     if (noticeType) {
@@ -649,6 +649,63 @@ const getNoticeById = async (req, res) => {
     res.json(successResponse(notice));
   } catch (error) {
     console.error('getNoticeById error:', error);
+    res.status(500).json(errorResponse('服务器错误'));
+  }
+};
+
+// 获取文章分类列表
+const getNoticeCategories = async (req, res) => {
+  try {
+    const categories = await Notice.getCategories();
+    res.json(successResponse(categories));
+  } catch (error) {
+    console.error('getNoticeCategories error:', error);
+    res.status(500).json(errorResponse('服务器错误'));
+  }
+};
+
+// 创建分类
+const createCategory = async (req, res) => {
+  try {
+    const { name, sortOrder = 0 } = req.body;
+    if (!name) {
+      return res.status(400).json(errorResponse('分类名称不能为空'));
+    }
+    const category = await Notice.createCategory(name, sortOrder);
+    res.json(successResponse(category));
+  } catch (error) {
+    console.error('createCategory error:', error);
+    res.status(500).json(errorResponse('服务器错误'));
+  }
+};
+
+// 更新分类
+const updateCategory = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, sortOrder } = req.body;
+    const category = await Notice.updateCategory(id, name, sortOrder);
+    if (!category) {
+      return res.status(404).json(errorResponse('分类不存在'));
+    }
+    res.json(successResponse(category));
+  } catch (error) {
+    console.error('updateCategory error:', error);
+    res.status(500).json(errorResponse('服务器错误'));
+  }
+};
+
+// 删除分类
+const deleteCategory = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const category = await Notice.deleteCategory(id);
+    if (!category) {
+      return res.status(404).json(errorResponse('分类不存在'));
+    }
+    res.json(successResponse({ message: '删除成功' }));
+  } catch (error) {
+    console.error('deleteCategory error:', error);
     res.status(500).json(errorResponse('服务器错误'));
   }
 };
@@ -693,7 +750,8 @@ const updateNotice = async (req, res) => {
       return res.status(404).json(errorResponse('公告不存在'));
     }
     
-    res.json(successResponse({}));
+    console.log('updateNotice success, updated notice:', notice);
+    res.json(successResponse({ notice }));
   } catch (error) {
     console.error('updateNotice error:', error);
     res.status(500).json(errorResponse('服务器错误: ' + error.message));
@@ -1345,6 +1403,10 @@ module.exports = {
   deleteBanner,
   updateBannerStatus,
   getNotices,
+  getNoticeCategories,
+  createCategory,
+  updateCategory,
+  deleteCategory,
   getNoticeById,
   createNotice,
   updateNotice,

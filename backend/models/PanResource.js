@@ -85,23 +85,35 @@ class PanResource {
   }
 
   static async update(id, data) {
-    const {
-      Title,
-      Category = '全部资料',
-      QuarkUrl = null,
-      BaiduUrl = null,
-      Description = '',
-      IsNew = false,
-      UpdateStatus = '已完结',
-      IsTop = 0,
-      SortOrder = 0
-    } = data;
-    const sql = `
-      UPDATE pan_resources
-      SET Title = ?, Category = ?, QuarkUrl = ?, BaiduUrl = ?, Description = ?, IsNew = ?, UpdateStatus = ?, IsTop = ?, SortOrder = ?
-      WHERE ResourceID = ?
-    `;
-    const [result] = await pool.query(sql, [Title, Category, QuarkUrl, BaiduUrl, Description, IsNew, UpdateStatus, IsTop, SortOrder, id]);
+    const fields = [];
+    const values = [];
+    
+    const allowedFields = {
+      Title: 'Title',
+      Category: 'Category',
+      QuarkUrl: 'QuarkUrl',
+      BaiduUrl: 'BaiduUrl',
+      Description: 'Description',
+      IsNew: 'IsNew',
+      UpdateStatus: 'UpdateStatus',
+      IsTop: 'IsTop',
+      SortOrder: 'SortOrder',
+      IsPublished: 'IsPublished',
+      ArticleID: 'ArticleID'
+    };
+    
+    for (const [key, value] of Object.entries(data)) {
+      if (allowedFields[key]) {
+        fields.push(`${allowedFields[key]} = ?`);
+        values.push(value);
+      }
+    }
+    
+    if (fields.length === 0) return false;
+    
+    const sql = `UPDATE pan_resources SET ${fields.join(', ')} WHERE ResourceID = ?`;
+    values.push(id);
+    const [result] = await pool.query(sql, values);
     return result.affectedRows > 0;
   }
 
@@ -126,8 +138,19 @@ class PanResource {
   }
 
   static async batchUpdateCategory(ids, category) {
-    const sql = 'UPDATE pan_resources SET Category = ? WHERE ResourceID IN (?)';
+    // 网盘资源实际存储在 notices 表中
+    const sql = 'UPDATE notices SET category = ? WHERE id IN (?) AND noticeType = "pan_resource"';
     const [result] = await pool.query(sql, [category, ids]);
+    return result.affectedRows;
+  }
+
+  static async batchUpdateField(ids, field, value) {
+    const allowedFields = ['IsTop', 'IsNew', 'SortOrder', 'Category', 'IsPublished', 'ArticleID'];
+    if (!allowedFields.includes(field)) {
+      throw new Error('不允许更新的字段');
+    }
+    const sql = `UPDATE pan_resources SET ${field} = ? WHERE ResourceID IN (?)`;
+    const [result] = await pool.query(sql, [value, ids]);
     return result.affectedRows;
   }
 

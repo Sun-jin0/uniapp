@@ -365,6 +365,59 @@ exports.batchUpdatePanResourcesCategory = async (req, res) => {
   }
 };
 
+exports.batchUpdatePanResources = async (req, res) => {
+  try {
+    const { ids, type, category } = req.body;
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json(errorResponse('未提供有效的资源ID列表'));
+    }
+    
+    let affectedRows = 0;
+    let message = '';
+    
+    switch (type) {
+      case 'category':
+        if (!category) {
+          return res.status(400).json(errorResponse('请提供目标分类'));
+        }
+        affectedRows = await PanResource.batchUpdateCategory(ids, category);
+        message = `成功修改 ${affectedRows} 条资源的分类`;
+        break;
+      case 'top':
+        affectedRows = await PanResource.batchUpdateField(ids, 'IsTop', 1);
+        message = `成功置顶 ${affectedRows} 条资源`;
+        break;
+      case 'untop':
+        affectedRows = await PanResource.batchUpdateField(ids, 'IsTop', 0);
+        message = `成功取消置顶 ${affectedRows} 条资源`;
+        break;
+      case 'new':
+        affectedRows = await PanResource.batchUpdateField(ids, 'IsNew', 1);
+        message = `成功标记 ${affectedRows} 条资源为新资源`;
+        break;
+      case 'unnew':
+        affectedRows = await PanResource.batchUpdateField(ids, 'IsNew', 0);
+        message = `成功取消 ${affectedRows} 条资源的新标记`;
+        break;
+      case 'publish':
+        affectedRows = await PanResource.batchUpdateField(ids, 'IsPublished', 1);
+        message = `成功发布 ${affectedRows} 条资源`;
+        break;
+      case 'unpublish':
+        affectedRows = await PanResource.batchUpdateField(ids, 'IsPublished', 0);
+        message = `成功取消发布 ${affectedRows} 条资源`;
+        break;
+      default:
+        return res.status(400).json(errorResponse('未知的操作类型'));
+    }
+    
+    res.json(successResponse({ affectedRows }, message));
+  } catch (error) {
+    console.error('批量更新失败:', error);
+    res.status(500).json(errorResponse('服务器错误'));
+  }
+};
+
 // 更新置顶状态
 exports.updatePanResourceTop = async (req, res) => {
   try {

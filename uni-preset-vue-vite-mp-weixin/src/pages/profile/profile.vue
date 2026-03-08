@@ -19,8 +19,10 @@
         <view class="user-profile-header">
           <view class="user-card-glass">
             <view class="avatar-section">
-              <image class="main-avatar" :src="userAvatar || 'https://picsum.photos/id/1005/100/100'" mode="aspectFill"></image>
-              <view class="level-tag">Lv.{{ userLevel }}</view>
+              <view class="avatar-frame-container">
+                <image class="avatar-frame" src="../../static/images/珍品传说.png" mode="aspectFit"></image>
+                <image class="main-avatar" :src="userAvatar || 'https://picsum.photos/id/1005/100/100'" mode="aspectFill"></image>
+              </view>
             </view>
             <view class="info-section">
               <view class="name-row">
@@ -32,6 +34,7 @@
                 <button class="copy-btn" @click="copyUserId">复制</button>
               </view>
               <view class="rank-row" v-if="questionRank > 0">
+                <view class="level-tag">Lv.{{ userLevel }}</view>
                 <text class="rank-label">刷题排名: </text>
                 <text class="rank-value">{{ questionRank }}名</text>
               </view>
@@ -71,6 +74,14 @@
                 <view class="inner-icon ranking"></view>
               </view>
               <text class="item-label">排行榜</text>
+              <view class="item-arrow"></view>
+            </view>
+            <view class="menu-divider"></view>
+            <view class="menu-item-row" @click="goToMyCollections">
+              <view class="icon-box collection-bg">
+                <view class="inner-icon collection"></view>
+              </view>
+              <text class="item-label">我的收藏</text>
               <view class="item-arrow"></view>
             </view>
           </view>
@@ -214,6 +225,13 @@ const copyUserId = () => {
   }
 };
 
+// 跳转到我的收藏
+const goToMyCollections = () => {
+  uni.navigateTo({
+    url: '/pages/article/my-collections'
+  });
+};
+
 
 
 
@@ -246,6 +264,83 @@ const loadPageData = () => {
   }
 };
 
+// 头像框动画定时器
+let frameAnimationTimer = null;
+let glowColor = { r: 59, g: 130, b: 246 }; // 默认蓝色
+
+// 提取图片主色调
+const extractImageColor = (imageSrc) => {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      canvas.width = 50;
+      canvas.height = 50;
+      ctx.drawImage(img, 0, 0, 50, 50);
+      
+      const imageData = ctx.getImageData(0, 0, 50, 50);
+      const data = imageData.data;
+      let r = 0, g = 0, b = 0, count = 0;
+      
+      // 采样像素计算平均颜色
+      for (let i = 0; i < data.length; i += 4) {
+        const alpha = data[i + 3];
+        if (alpha > 128) { // 只计算不透明像素
+          r += data[i];
+          g += data[i + 1];
+          b += data[i + 2];
+          count++;
+        }
+      }
+      
+      if (count > 0) {
+        resolve({
+          r: Math.round(r / count),
+          g: Math.round(g / count),
+          b: Math.round(b / count)
+        });
+      } else {
+        resolve({ r: 59, g: 130, b: 246 });
+      }
+    };
+    img.onerror = () => resolve({ r: 59, g: 130, b: 246 });
+    img.src = imageSrc;
+  });
+};
+
+// 更新光晕颜色
+const updateGlowColor = async () => {
+  const frameEl = document.querySelector('.avatar-frame');
+  if (frameEl) {
+    const src = frameEl.getAttribute('src');
+    if (src) {
+      glowColor = await extractImageColor(src);
+      // 应用颜色到CSS变量
+      document.documentElement.style.setProperty('--glow-r', glowColor.r);
+      document.documentElement.style.setProperty('--glow-g', glowColor.g);
+      document.documentElement.style.setProperty('--glow-b', glowColor.b);
+    }
+  }
+};
+
+// 启动头像框循环动画
+const startFrameAnimation = () => {
+  // 先提取颜色
+  updateGlowColor();
+  
+  // 每4秒重新触发动画
+  frameAnimationTimer = setInterval(() => {
+    const frameEl = document.querySelector('.avatar-frame');
+    if (frameEl) {
+      frameEl.classList.remove('repeat-animation');
+      void frameEl.offsetWidth;
+      frameEl.classList.add('repeat-animation');
+    }
+  }, 4000);
+};
+
 // 初始化主题状态
 onMounted(() => {
   const systemInfo = uni.getSystemInfoSync();
@@ -269,6 +364,9 @@ onMounted(() => {
       loadUserInfo();
     }
   });
+  
+  // 启动头像框循环动画
+  startFrameAnimation();
 });
 
 // 每次显示页面时检查登录状态（解决缓存问题）
@@ -279,6 +377,11 @@ onShow(() => {
 onUnmounted(() => {
   uni.$off('themeChange');
   uni.$off('avatarUpdated');
+  // 清除头像框动画定时器
+  if (frameAnimationTimer) {
+    clearInterval(frameAnimationTimer);
+    frameAnimationTimer = null;
+  }
 });
 
 // 跳转到设置
@@ -356,6 +459,12 @@ const logout = () => {
   margin-right: 30rpx;
 }
 
+.avatar-frame-container {
+  position: relative;
+  width: 140rpx;
+  height: 140rpx;
+}
+
 .main-avatar {
   width: 140rpx;
   height: 140rpx;
@@ -364,20 +473,79 @@ const logout = () => {
   box-shadow: 0 4rpx 15rpx rgba(0, 0, 0, 0.1);
 }
 
-.level-tag {
+.avatar-frame {
   position: absolute;
-  bottom: 10rpx;
-  right: 10rpx;
+  bottom: -10rpx;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 170rpx;
+  height: 60rpx;
+  z-index: 100;
+  pointer-events: none;
+  display: block;
+  animation: frameEntrance 0.8s ease-out;
+}
+
+.avatar-frame.repeat-animation {
+  animation: frameEntrance 0.8s ease-out;
+}
+
+@keyframes frameEntrance {
+  0% {
+    opacity: 0;
+    transform: translateX(-50%) scale(0.5) rotate(-10deg);
+  }
+  50% {
+    transform: translateX(-50%) scale(1.1) rotate(5deg);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(-50%) scale(1) rotate(0deg);
+  }
+}
+
+:root {
+  --glow-r: 59;
+  --glow-g: 130;
+  --glow-b: 246;
+}
+
+@keyframes frameGlow {
+  0%, 100% {
+    filter: drop-shadow(0 0 5rpx rgba(var(--glow-r), var(--glow-g), var(--glow-b), 0.6));
+  }
+  50% {
+    filter: drop-shadow(0 0 20rpx rgba(var(--glow-r), var(--glow-g), var(--glow-b), 0.9)) 
+            drop-shadow(0 0 40rpx rgba(var(--glow-r), var(--glow-g), var(--glow-b), 0.7));
+  }
+}
+
+.level-tag {
   background: linear-gradient(135deg, #f59e0b 0%, #fbbf24 100%);
   color: white;
   font-size: 18rpx;
   font-weight: 600;
-  padding: 6rpx 16rpx;
-  border-radius: 24rpx;
-  border: 3rpx solid rgba(255, 255, 255, 0.9);
-  box-shadow: 0 2rpx 8rpx rgba(245, 158, 11, 0.3);
-  min-width: 80rpx;
-  text-align: center;
+  padding: 4rpx 12rpx;
+  border-radius: 12rpx;
+  margin-right: 10rpx;
+}
+
+.rank-row {
+  display: flex;
+  align-items: center;
+  gap: 6rpx;
+  margin-top: 4rpx;
+}
+
+.rank-label {
+  font-size: 22rpx;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.rank-value {
+  font-size: 24rpx;
+  font-weight: 600;
+  color: #fbbf24;
 }
 
 .info-section {
@@ -412,23 +580,7 @@ const logout = () => {
   color: rgba(255, 255, 255, 0.8);
 }
 
-.rank-row {
-  display: flex;
-  align-items: center;
-  gap: 6rpx;
-  margin-top: 4rpx;
-}
 
-.rank-label {
-  font-size: 22rpx;
-  color: rgba(255, 255, 255, 0.8);
-}
-
-.rank-value {
-  font-size: 24rpx;
-  font-weight: 600;
-  color: #fbbf24;
-}
 
 .edit-btn {
   width: 60rpx;
@@ -546,6 +698,9 @@ const logout = () => {
 
 .ranking-bg { background: #dcfce7; }
 .ranking { background-color: #10b981; mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M7.5 21H2V9h5.5v12zm7.25 0h-5.5V3h5.5v18zm7.25 0h-5.5v-9H22v9z"/></svg>'); }
+
+.collection-bg { background: #fef3c7; }
+.collection { background-color: #f59e0b; mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>'); }
 
 .privacy-bg { background: #e0e7ff; }
 .privacy { background-color: #6366f1; mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/></svg>'); }

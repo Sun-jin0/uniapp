@@ -57,6 +57,10 @@ export const adminApi = {
   
   // 文章管理
   getNotices: (params) => service.get('/admin/notices', { params }),
+  getNoticeCategories: () => service.get('/admin/notices/categories'),
+  createCategory: (data) => service.post('/admin/notices/categories', data),
+  updateCategory: (id, data) => service.put(`/admin/notices/categories/${id}`, data),
+  deleteCategory: (id) => service.delete(`/admin/notices/categories/${id}`),
   getNoticeDetail: (id) => service.get(`/admin/notices/${id}`),
   updateNotice: (id, data) => service.put(`/admin/notices/${id}`, data),
   updateNoticeStatus: (id, status) => service.put(`/admin/notices/${id}/status`, { status }),
@@ -475,10 +479,15 @@ Object.assign(adminApi, {
 
   // Pan Resources
   getPanResources: (params) => service.get('/admin/pan-resources', { params }),
-  getPanCategories: () => service.get('/admin/pan-categories'),
+  getPanCategories: (full) => service.get('/admin/pan-categories', { params: full ? { full: true } : {} }),
+  createPanCategory: (data) => service.post('/admin/pan-categories', data),
+  updatePanCategory: (id, data) => service.put(`/admin/pan-categories/${id}`, data),
+  deletePanCategory: (id) => service.delete(`/admin/pan-categories/${id}`),
   createPanResource: (data) => service.post('/admin/pan-resources', data),
   updatePanResource: (id, data) => service.put(`/admin/pan-resources/${id}`, data),
   deletePanResource: (id) => service.delete(`/admin/pan-resources/${id}`),
+  batchDeletePanResources: (data) => service.post('/admin/pan-resources/batch-delete', data),
+  batchUpdatePanResources: (data) => service.post('/admin/pan-resources/batch-update', data),
   parsePanResources: (data) => service.post('/admin/pan-resources/parse', data),
   importPanResources: (data) => service.post('/admin/pan-resources/import', data),
   batchDeletePanResources: (data) => service.post('/admin/pan-resources/batch-delete', data),

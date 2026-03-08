@@ -62,6 +62,28 @@
           </el-tag>
         </template>
       </el-table-column>
+      <el-table-column label="置顶" width="100" align="center">
+        <template #default="{ row }">
+          <el-switch 
+            v-model="row.isTop" 
+            :active-value="1" 
+            :inactive-value="0"
+            @change="handleTopChange(row)"
+          />
+        </template>
+      </el-table-column>
+      <el-table-column label="排序" width="120" align="center">
+        <template #default="{ row }">
+          <el-input-number 
+            v-model="row.sortOrder" 
+            :min="0" 
+            :max="999" 
+            size="small" 
+            style="width: 80px;"
+            @change="handleSortChange(row)"
+          />
+        </template>
+      </el-table-column>
       <el-table-column prop="createdAt" label="创建时间" width="180" align="center">
         <template #default="{ row }">
           {{ formatDate(row.createdAt) }}
@@ -174,6 +196,33 @@ const deleteArticle = async (item) => {
     if (error !== 'cancel') {
       console.error('删除失败:', error)
     }
+  }
+}
+
+// 处理置顶状态变化
+const handleTopChange = async (row) => {
+  try {
+    const res = await adminApi.updateNotice(row._id, { isTop: row.isTop })
+    if (res.code === 0) {
+      ElMessage.success(row.isTop ? '置顶成功' : '取消置顶成功')
+      loadArticles()
+    }
+  } catch (error) {
+    ElMessage.error('操作失败')
+    row.isTop = row.isTop ? 0 : 1 // 恢复原状态
+  }
+}
+
+// 处理排序值变化
+const handleSortChange = async (row) => {
+  try {
+    const res = await adminApi.updateNotice(row._id, { sortOrder: row.sortOrder })
+    if (res.code === 0) {
+      ElMessage.success('排序更新成功')
+      loadArticles()
+    }
+  } catch (error) {
+    ElMessage.error('排序更新失败')
   }
 }
 

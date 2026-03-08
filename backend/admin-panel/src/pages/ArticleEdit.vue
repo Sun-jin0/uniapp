@@ -72,7 +72,7 @@
               <el-input v-model="form.author" placeholder="请输入作者" />
             </el-form-item>
 
-            <el-form-item label="摘要/描述" prop="description" v-if="form.type !== 'ad'">
+            <el-form-item label="摘要/描述" prop="description" v-if="form.type !== 'ad' && form.noticeType !== 'pan_resource'">
               <el-input 
                 v-model="form.description" 
                 type="textarea" 
@@ -149,7 +149,20 @@ const formRef = ref(null)
 const saving = ref(false)
 const parsing = ref(false)
 const wechatUrl = ref('')
-const categories = ['资料', '备考经验', '政策动态', '考试技巧', '系统通知']
+// 从数据库获取分类列表
+const categories = ref([])
+
+// 加载分类列表
+const fetchCategories = async () => {
+  try {
+    const res = await adminApi.getNoticeCategories()
+    if (res.code === 0 && res.data) {
+      categories.value = res.data.map(c => c.name)
+    }
+  } catch (error) {
+    console.error('获取分类失败:', error)
+  }
+}
 
 const form = ref({
   id: null,
@@ -193,6 +206,7 @@ const pageTitle = computed(() => {
 })
 
 onMounted(() => {
+  fetchCategories()
   const { id, type } = route.query
   if (id) {
     form.value.id = id
