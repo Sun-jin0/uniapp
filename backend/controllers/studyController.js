@@ -96,22 +96,22 @@ const getLeaderboard = async (req, res) => {
     if (period === 'all') {
       // 全部时间：直接从 users 表获取，只查询参与排行榜的用户
       sql = `
-        SELECT u.id, u.username, u.nickname, u.avatar, u.avatar_frame_id, ` + valueField + ` as value 
-        FROM users u 
+        SELECT u.id, u.username, u.nickname, u.avatar, u.avatar_frame_id, u.level, ` + valueField + ` as value
+        FROM users u
         WHERE u.status = 1 AND u.participate_ranking = 1
-        ORDER BY ` + valueField + ` DESC 
+        ORDER BY ` + valueField + ` DESC
         LIMIT 50
       `;
     } else {
       // 按时间段：从 answer_records 表统计，只查询参与排行榜的用户
       const days = period === 'week' ? 7 : (period === 'day' ? 1 : 30);
       sql = `
-        SELECT u.id, u.username, u.nickname, u.avatar, u.avatar_frame_id, COALESCE(SUM(a.` + valueField + `), 0) as value 
-        FROM users u 
+        SELECT u.id, u.username, u.nickname, u.avatar, u.avatar_frame_id, u.level, COALESCE(SUM(a.` + valueField + `), 0) as value
+        FROM users u
         LEFT JOIN answer_records a ON u.id = a.userId AND a.createdAt >= DATE_SUB(CURDATE(), INTERVAL ` + days + ` DAY)
         WHERE u.status = 1 AND u.participate_ranking = 1
-        GROUP BY u.id, u.username, u.nickname, u.avatar, u.avatar_frame_id
-        ORDER BY value DESC 
+        GROUP BY u.id, u.username, u.nickname, u.avatar, u.avatar_frame_id, u.level
+        ORDER BY value DESC
         LIMIT 50
       `;
     }

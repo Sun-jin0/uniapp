@@ -294,7 +294,7 @@
             <image class="user-avatar" :src="user.avatar || 'https://picsum.photos/id/1005/40/40'"></image>
             <view class="user-info">
               <view class="user-name">{{ user.username }}</view>
-              <view class="user-level-tag">Lv.{{ Math.floor(user.value / 100) + 1 }}</view>
+              <view class="user-level-tag">Lv.{{ user.level || 1 }}</view>
             </view>
             <view class="user-score">
               <view class="score-val">{{ user.value }}</view>
