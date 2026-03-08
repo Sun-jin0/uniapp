@@ -2,13 +2,14 @@
 ._root pre.hl-pre {
   background-color: #f0f9f8 !important;
   border-radius: 8rpx;
-  padding: 10rpx;
+  padding: 10rpx !important;
   overflow-x: auto;
   margin: 16rpx 0;
   border: 1rpx solid #5FBDB5;
-  white-space: pre;
+  white-space: pre !important;
   word-wrap: break-word;
-  line-height: 1.0;
+  line-height: 1.0 !important;
+  color: #000000 !important;
 }
 
 ._root .hl-pre::after,
