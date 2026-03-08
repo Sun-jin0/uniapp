@@ -9,17 +9,20 @@
         @click="selectFrame(frame)"
       >
         <view class="frame-preview">
-          <image 
-            class="frame-image" 
+          <image
+            class="frame-image"
             :class="{ 'frame-locked-image': !frame.is_available }"
-            :src="frame.image_url || defaultFrame" 
+            :src="getFrameImageUrl(frame)"
             mode="aspectFit"
+            @error="onImageError(frame)"
           ></image>
           <view v-if="selectedFrameId === frame.id" class="selected-badge">
-            <text class="check-icon">[已选]</text>
+            <text class="check-icon">✓</text>
           </view>
           <view v-if="!frame.is_available" class="lock-overlay">
-            <text class="lock-icon">[锁定]</text>
+            <view class="lock-badge">
+              <text class="lock-icon">🔒</text>
+            </view>
             <text class="lock-text">{{ frame.unavailable_reason }}</text>
           </view>
         </view>
@@ -30,25 +33,6 @@
         </view>
       </view>
 
-      <view 
-        class="frame-item"
-        :class="{ 'frame-selected': selectedFrameId === 0 }"
-        @click="selectFrame({ id: 0 })"
-      >
-        <view class="frame-preview">
-          <image 
-            class="frame-image" 
-            :src="defaultFrame" 
-            mode="aspectFit"
-          ></image>
-          <view v-if="selectedFrameId === 0" class="selected-badge">
-            <text class="check-icon">[已选]</text>
-          </view>
-        </view>
-        <view class="frame-info">
-          <text class="frame-name">不使用头像框</text>
-        </view>
-      </view>
     </view>
 
     <view v-if="loading" class="loading-container">
@@ -60,8 +44,17 @@
     </view>
 
     <view class="bottom-action">
-      <button 
-        class="confirm-btn" 
+      <button
+        class="cancel-frame-btn"
+        :class="{ 'btn-selected': selectedFrameId === 0 }"
+        :disabled="submitting"
+        @click="selectFrame({ id: 0 })"
+      >
+        <text v-if="selectedFrameId === 0" class="btn-check">✓</text>
+        <text>不使用头像框</text>
+      </button>
+      <button
+        class="confirm-btn"
         :disabled="submitting"
         @click="confirmSelection"
       >
@@ -85,6 +78,13 @@ const selectedFrameId = ref(0);
 const currentAvatarFrameId = ref(null);
 
 const defaultFrame = 'https://cube.elemecdn.com/3/7c/3ea6beec64369c2642b92c6726f1epng.png';
+
+// 头像框图片加载失败时的备用图片
+const getFrameImageUrl = (frame) => {
+  if (!frame) return defaultFrame;
+  // 优先使用 image_url，如果没有则使用默认图片
+  return frame.image_url || defaultFrame;
+};
 
 onMounted(() => {
   const currentTheme = uni.getStorageSync('themeMode') || 'light';
@@ -111,7 +111,12 @@ const loadAvatarFrames = async () => {
   try {
     const res = await instance.appContext.config.globalProperties.$api.userApi.getUserAvatarFrames();
     if (res.code === 0) {
-      avatarFrames.value = res.data || [];
+      // 处理头像框数据，确保每个都有图片URL
+      avatarFrames.value = (res.data || []).map(frame => ({
+        ...frame,
+        image_url: frame.image_url || defaultFrame
+      }));
+      console.log('头像框列表:', avatarFrames.value);
     }
   } catch (error) {
     console.error('获取头像框列表失败:', error);
@@ -135,6 +140,13 @@ const selectFrame = (frame) => {
     return;
   }
   selectedFrameId.value = frame.id;
+};
+
+const onImageError = (frame) => {
+  console.error('图片加载失败:', frame?.image_url);
+  if (frame) {
+    frame.image_url = defaultFrame;
+  }
 };
 
 const confirmSelection = async () => {
@@ -229,17 +241,24 @@ const confirmSelection = async () => {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  background-color: rgba(0, 0, 0, 0.3);
+  background-color: rgba(0, 0, 0, 0.5);
   border-radius: 16rpx;
 }
 
+.lock-badge {
+  width: 60rpx;
+  height: 60rpx;
+  background-color: rgba(0, 0, 0, 0.7);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 12rpx;
+}
+
 .lock-icon {
-  font-size: 24rpx;
+  font-size: 32rpx;
   color: #ffffff;
-  background-color: rgba(0, 0, 0, 0.6);
-  padding: 4rpx 12rpx;
-  border-radius: 8rpx;
-  margin-bottom: 8rpx;
 }
 
 .lock-text {
@@ -265,13 +284,14 @@ const confirmSelection = async () => {
 }
 
 .frame-preview {
-  width: 100%;
-  height: 180rpx;
+  width: 100% !important;
+  height: 200rpx !important;
   display: flex;
   align-items: center;
   justify-content: center;
-  background-color: #f8f8f8;
+  background-color: #f0f0f0;
   position: relative;
+  overflow: hidden;
 }
 
 .dark-mode .frame-preview {
@@ -279,27 +299,29 @@ const confirmSelection = async () => {
 }
 
 .frame-image {
-  max-width: 90%;
-  max-height: 90%;
+  width: 280rpx !important;
+  height: 160rpx !important;
 }
 
 .selected-badge {
   position: absolute;
   top: 10rpx;
   right: 10rpx;
-  width: 40rpx;
-  height: 40rpx;
+  width: 48rpx;
+  height: 48rpx;
   background-color: #667eea;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
+  box-shadow: 0 2rpx 8rpx rgba(102, 126, 234, 0.5);
 }
 
 .check-icon {
   color: #ffffff;
-  font-size: 24rpx;
+  font-size: 28rpx;
   font-weight: bold;
+  line-height: 1;
 }
 
 .frame-info {
@@ -345,14 +367,54 @@ const confirmSelection = async () => {
   padding-bottom: calc(20rpx + env(safe-area-inset-bottom));
   background-color: #ffffff;
   box-shadow: 0 -4rpx 12rpx rgba(0, 0, 0, 0.08);
+  display: flex;
+  gap: 20rpx;
 }
 
 .dark-mode .bottom-action {
   background-color: #2d2d2d;
 }
 
+.cancel-frame-btn {
+  flex: 1;
+  height: 88rpx;
+  background-color: #f5f5f5;
+  color: #666666;
+  font-size: 28rpx;
+  font-weight: 500;
+  border: 2rpx solid #e0e0e0;
+  border-radius: 44rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8rpx;
+}
+
+.dark-mode .cancel-frame-btn {
+  background-color: #3d3d3d;
+  color: #aaaaaa;
+  border-color: #555555;
+}
+
+.cancel-frame-btn.btn-selected {
+  background-color: #667eea;
+  color: #ffffff;
+  border-color: #667eea;
+}
+
+.dark-mode .cancel-frame-btn.btn-selected {
+  background-color: #667eea;
+  color: #ffffff;
+  border-color: #667eea;
+}
+
+.btn-check {
+  font-size: 24rpx;
+  font-weight: bold;
+}
+
 .confirm-btn {
-  width: 100%;
+  flex: 1;
   height: 88rpx;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: #ffffff;

@@ -18,7 +18,7 @@
 
     <!-- 公告栏 -->
       <view class="text-carousel-section" v-if="articleList.length > 0">
-        <swiper class="text-carousel" vertical="true" autoplay="true" circular="true" interval="3000" indicator-dots="false" :disable-touch="false">
+        <swiper class="text-carousel" vertical="true" autoplay="true" circular="true" interval="3000" indicator-dots="true" :indicator-color="'rgba(255, 255, 255, 0.5)'" :indicator-active-color="'#ffffff'" :disable-touch="false">
           <swiper-item v-for="article in articleList" :key="article.id">
               <view @click="handleArticleClick(article)" class="text-carousel-item">
                 <view class="carousel-content">
@@ -2058,11 +2058,20 @@ page {
 
 /* 微信小程序特殊处理 */
 .text-carousel ::v-deep .uni-swiper-dots {
-  display: none !important;
+  display: flex !important;
+  right: 10rpx !important;
 }
 
-.text-carousel .uni-swiper-dots {
-  display: none !important;
+.text-carousel ::v-deep .uni-swiper-dot {
+  width: 12rpx !important;
+  height: 12rpx !important;
+  background: rgba(255, 255, 255, 0.5) !important;
+  border-radius: 50% !important;
+  margin: 0 6rpx !important;
+}
+
+.text-carousel ::v-deep .uni-swiper-dot-active {
+  background: #ffffff !important;
 }
 
 .carousel-icons {
