@@ -59,22 +59,21 @@ const getUsers = async (req, res) => {
 
 const createUser = async (req, res) => {
   try {
-    const { username, studentId, phone, password, role, status } = req.body;
+    const { username, studentId, password, role, status } = req.body;
     
-    if (!username || !phone) {
-      return res.status(400).json(errorResponse('用户名和手机号不能为空'));
+    if (!username) {
+      return res.status(400).json(errorResponse('用户名不能为空'));
     }
     
-    // 检查用户是否已存在
-    const existingUser = await User.findOne({ $or: [{ username }, { phone }] });
+    // 检查用户名是否已存在
+    const existingUser = await User.findOne({ username });
     if (existingUser) {
-      return res.status(400).json(errorResponse('用户名或手机号已存在'));
+      return res.status(400).json(errorResponse('用户名已存在'));
     }
     
     const user = await User.create({
       username,
       studentId: studentId || `U${Date.now()}`,
-      phone,
       password: password || Math.random().toString(36).substring(2, 10),
       role: role || 'user',
       status: status || 'active',
@@ -90,7 +89,7 @@ const createUser = async (req, res) => {
 const updateUser = async (req, res) => {
   try {
     const { id } = req.params;
-    const { username, studentId, phone, password, role, status } = req.body;
+    const { username, studentId, password, role, status } = req.body;
     
     const user = await User.findById(id);
     if (!user) {
@@ -100,7 +99,6 @@ const updateUser = async (req, res) => {
     const updateData = {};
     if (username) updateData.username = username;
     if (studentId) updateData.studentId = studentId;
-    if (phone) updateData.phone = phone;
     if (password) updateData.password = password;
     if (role) updateData.role = role;
     if (status) updateData.status = status;
