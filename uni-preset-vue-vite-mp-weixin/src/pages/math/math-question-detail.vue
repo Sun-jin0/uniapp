@@ -1,5 +1,5 @@
  <template>
-  <view class="app-container" :class="{ 'single-question-mode': isSingleQuestionMode }">
+  <view class="app-container" :class="{ 'single-question-mode': isSingleQuestionMode, 'night-mode': isDarkMode }">
     <!-- 进度条与统计 - 单题模式下隐藏 -->
     <view v-if="!isSingleQuestionMode" class="progress-section">
       <view class="progress-info">
@@ -70,7 +70,9 @@
             <div class="card-preview" v-html="getQuestionPreview(sid)"></div>
             <!-- #endif -->
             <!-- #ifdef MP-WEIXIN -->
-            <mp-html class="card-preview" :content="getQuestionPreview(sid)" markdown></mp-html>
+            <view class="card-preview" :style="{ fontSize: (fontSize - 3) + 'px' }">
+              <mp-html :content="getQuestionPreview(sid)" markdown></mp-html>
+            </view>
             <!-- #endif -->
           </div>
         </div>
@@ -95,7 +97,9 @@
             <view class="question-text" v-if="currentQuestionData.first_request[0].QuestionText" v-html="transformContextString(displayQuestionText)" :style="{ fontSize: fontSize + 'px' }"></view>
             <!-- #endif -->
             <!-- #ifdef MP-WEIXIN -->
-            <mp-html class="question-text" v-if="currentQuestionData.first_request[0].QuestionText" :content="displayQuestionText" markdown></mp-html>
+            <view class="question-text" :style="{ fontSize: fontSize + 'px' }">
+              <mp-html v-if="currentQuestionData.first_request[0].QuestionText" :content="displayQuestionText" markdown></mp-html>
+            </view>
             <!-- #endif -->
             
             <!-- 题目报错按钮 -->
@@ -123,7 +127,9 @@
                 <view class="option-content" v-html="transformContextString(option.content)"></view>
                 <!-- #endif -->
                 <!-- #ifdef MP-WEIXIN -->
-                <mp-html class="option-content" :content="option.content || ''" markdown></mp-html>
+                <view class="option-content" :style="{ fontSize: fontSize + 'px' }">
+                  <mp-html :content="option.content || ''" markdown></mp-html>
+                </view>
                 <!-- #endif -->
               </view>
             </view>
@@ -160,14 +166,18 @@
                     <view class="analysis-card-title" v-html="getDetailHeader(item)"></view>
                     <!-- #endif -->
                     <!-- #ifdef MP-WEIXIN -->
-                    <mp-html class="analysis-card-title" :content="getDetailHeader(item)" markdown></mp-html>
+                    <view class="analysis-card-title" :style="{ fontSize: fontSize + 'px' }">
+                      <mp-html :content="getDetailHeader(item)" markdown></mp-html>
+                    </view>
                     <!-- #endif -->
                   </view>
                   <!-- #ifdef H5 -->
                   <view class="analysis-card-body" v-if="item.Context" v-html="transformContextString(item.Context)" :style="{ fontSize: (fontSize - 2) + 'px' }"></view>
                   <!-- #endif -->
                   <!-- #ifdef MP-WEIXIN -->
-                  <mp-html class="analysis-card-body" v-if="item.Context" :content="item.Context" markdown></mp-html>
+                  <view class="analysis-card-body" :style="{ fontSize: (fontSize - 2) + 'px', lineHeight: 1.6 }">
+                    <mp-html v-if="item.Context" :content="item.Context" markdown></mp-html>
+                  </view>
                   <!-- #endif -->
                 </view>
               </view>
@@ -187,7 +197,9 @@
                     <view class="kaodian-content" v-if="item._question_code?.KPContent || item._question_code?.Content || item.Context" v-html="transformContextString(item._question_code?.KPContent || item._question_code?.Content || item.Context)" :style="{ fontSize: (fontSize - 2) + 'px' }"></view>
                     <!-- #endif -->
                     <!-- #ifdef MP-WEIXIN -->
-                    <mp-html v-if="item._question_code?.KPContent || item._question_code?.Content || item.Context" class="kaodian-content" :content="(item._question_code?.KPContent || item._question_code?.Content || item.Context)" markdown></mp-html>
+                    <view class="kaodian-content" :style="{ fontSize: (fontSize - 2) + 'px' }">
+                      <mp-html v-if="item._question_code?.KPContent || item._question_code?.Content || item.Context" :content="(item._question_code?.KPContent || item._question_code?.Content || item.Context)" markdown></mp-html>
+                    </view>
                     <!-- #endif -->
                   </view>
                 </view>
@@ -208,7 +220,9 @@
                     <view class="kaodian-content" v-if="item._question_code?.KPContent || item._question_code?.Content || item.Context" v-html="transformContextString(item._question_code?.KPContent || item._question_code?.Content || item.Context)" :style="{ fontSize: (fontSize - 2) + 'px' }"></view>
                     <!-- #endif -->
                     <!-- #ifdef MP-WEIXIN -->
-                    <mp-html v-if="item._question_code?.KPContent || item._question_code?.Content || item.Context" class="kaodian-content" :content="(item._question_code?.KPContent || item._question_code?.Content || item.Context)" markdown></mp-html>
+                    <view class="kaodian-content" :style="{ fontSize: (fontSize - 2) + 'px' }">
+                      <mp-html v-if="item._question_code?.KPContent || item._question_code?.Content || item.Context" :content="(item._question_code?.KPContent || item._question_code?.Content || item.Context)" markdown></mp-html>
+                    </view>
                     <!-- #endif -->
                   </view>
                 </view>
@@ -236,7 +250,9 @@
                   <!-- #endif -->
                   <!-- #ifdef MP-WEIXIN -->
                   <image v-if="rel.QuestionImg" :src="rel.QuestionImg.replace('http://', 'https://')" class="related-tab-img" mode="widthFix" @error="handleImageError($event)"></image>
-                  <mp-html class="related-tab-preview" v-else-if="rel.QuestionText" :content="rel.QuestionText.substring(0, 150) + '...'" markdown></mp-html>
+                  <view class="related-tab-preview" v-else-if="rel.QuestionText" :style="{ fontSize: (fontSize - 3) + 'px' }">
+                    <mp-html :content="rel.QuestionText.substring(0, 150) + '...'" markdown></mp-html>
+                  </view>
                   <!-- #endif -->
                 </view>
               </view>
@@ -264,7 +280,9 @@
                 <!-- #endif -->
                 <!-- #ifdef MP-WEIXIN -->
                 <image v-if="rel.QuestionImg" :src="rel.QuestionImg.replace('http://', 'https://')" class="related-question-img" mode="widthFix" @error="handleImageError($event)"></image>
-                <mp-html class="related-content" v-else-if="rel.RelatedQuestionText || rel.QuestionText" :content="rel.RelatedQuestionText || rel.QuestionText" markdown></mp-html>
+                <view class="related-content" v-else-if="rel.RelatedQuestionText || rel.QuestionText" :style="{ fontSize: (fontSize - 3) + 'px' }">
+                  <mp-html :content="rel.RelatedQuestionText || rel.QuestionText" markdown></mp-html>
+                </view>
                 <!-- #endif -->
               </view>
             </view>
@@ -284,6 +302,9 @@
         </view>
         <view class="action-item" @click="toggleFavorite">
           <SvgIcon name="star" size="44" :fill="isFavorite ? '#ffb74d' : '#666'" />
+        </view>
+        <view class="action-item" @click="openSettingsModal">
+          <SvgIcon name="settings" size="44" fill="#666" />
         </view>
         <view class="action-item" @click="answerSheetOpen = !answerSheetOpen" v-if="studyMode === 'test' && !isSingleQuestionMode">
           <SvgIcon name="answer-sheet" size="44" fill="#666" />
@@ -556,30 +577,6 @@
               </view>
             </view>
           </view>
-          
-          <!-- 相关题目显示 -->
-          <view class="setting-item" style="margin-top: 30rpx;">
-            <view class="setting-label">相关题目显示</view>
-            <view class="setting-control">
-              <switch 
-                :checked="showRelatedQuestions" 
-                @change="showRelatedQuestions = $event.target.checked"
-                color="var(--primary-color)"
-              />
-            </view>
-          </view>
-          
-          <!-- 考点显示 -->
-          <view class="setting-item" style="margin-top: 30rpx;">
-            <view class="setting-label">考点显示</view>
-            <view class="setting-control">
-              <switch 
-                :checked="showKnowledgePoints" 
-                @change="showKnowledgePoints = $event.target.checked"
-                color="var(--primary-color)"
-              />
-            </view>
-          </view>
         </view>
         <view class="popup-footer">
           <view class="btn-confirm" @tap="closeSettingsModal">完成</view>
@@ -658,7 +655,7 @@ const relatedExpanded = ref(false);
 const analysisExpanded = ref(false);
 const activeTab = ref('analysis'); // 默认显示解析
 const isDarkMode = ref(false);
-const fontSize = ref(17);
+const fontSize = ref(16);
 const isFavorite = ref(false);
 const relatedQuestions = ref([]);
 
@@ -829,10 +826,9 @@ const videoAnalysisEnabled = ref(true);
 const showRelatedQuestions = ref(false); // 控制是否显示相关题目
 const showKnowledgePoints = ref(true); // 控制是否显示考点和疑难点
 const fontSizeOptions = ref([
-  { label: 'A较小', value: 14 },
-  { label: 'A标准', value: 17 },
-  { label: 'A较大', value: 20 },
-  { label: 'A超大', value: 24 }
+  { label: '较小', value: 14 },
+  { label: '标准', value: 15 },
+  { label: '较大', value: 16 }
 ]);
 
 // 状态栏高度
@@ -3054,14 +3050,14 @@ watch(relatedExpanded, (newVal) => {
 
 /* 解析内容样式 */
 .analysis-card-body {
-  font-size: 16px;
-  line-height: 1.8;
+  font-size: 14px;
+  line-height: 1.6;
   color: #333333;
   text-align: left;
 }
 
 .analysis-card-body p {
-  margin: 16px 0;
+  margin: 8px 0;
 }
 
 .analysis-card-body strong {
@@ -5316,22 +5312,7 @@ watch(relatedExpanded, (newVal) => {
 }
 
 .setting-control switch {
-  transform: scale(1.1);
-}
-
-.setting-control switch::after {
-  border-radius: 50%;
-  background-color: white;
-  box-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.2);
-}
-
-.setting-control switch[checked] {
-  background-color: var(--primary-color);
-}
-
-.setting-control switch[checked]::after {
-  background-color: white;
-  transform: translateX(100%);
+  transform: scale(0.9);
 }
 
 /* 字体大小选项样式 */
@@ -5416,7 +5397,7 @@ watch(relatedExpanded, (newVal) => {
   left: 0;
   right: 0;
   z-index: 100;
-  height: 70rpx;
+  height: 82rpx;
   
   .action-items {
     display: flex;
@@ -5443,7 +5424,7 @@ watch(relatedExpanded, (newVal) => {
       gap: 8rpx;
       
       .nav-btn {
-        padding: 8rpx 16rpx;
+        padding: 14rpx 16rpx;
         background-color: #f5f5f5;
         color: #333;
         border-radius: 50px;

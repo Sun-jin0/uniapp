@@ -23,32 +23,12 @@ const getFileBaseUrl = () => {
 };
 const FILE_BASE_URL = getFileBaseUrl();
 const currentIndex = ref(0);
+const scrollTop = ref(0);
 const loading = ref(true);
 const pageOptions = ref({});
 
 // 分页加载配置 - 每次只加载3题
 const PAGE_SIZE = 3;
-
-// 虚拟滚动配置 - 只渲染当前题目和前后各1题
-const VIRTUAL_SCROLL_BUFFER = 1;
-
-// 判断题目是否应该渲染（在当前可视范围内）
-const shouldRenderQuestion = (index) => {
-  // 如果题目未加载（null），不渲染
-  if (!questions.value[index]) return false;
-  if (questions.value.length <= 5) return true; // 题目少时全部渲染
-  const diff = Math.abs(index - currentIndex.value);
-  return diff <= VIRTUAL_SCROLL_BUFFER;
-};
-
-// 判断题目是否在预加载范围内（前后各2题）
-const shouldPreloadQuestion = (index) => {
-  // 如果题目未加载（null），显示占位符
-  if (!questions.value[index]) return false;
-  if (questions.value.length <= 5) return true;
-  const diff = Math.abs(index - currentIndex.value);
-  return diff <= VIRTUAL_SCROLL_BUFFER + 1;
-};
 
 // 加载指定范围的题目
 const loadQuestionsRange = async (startIndex, endIndex) => {
@@ -120,8 +100,9 @@ const loadQuestionsRange = async (startIndex, endIndex) => {
 
 // 根据当前索引加载附近题目
 const loadNearbyQuestions = async (centerIndex) => {
-  const start = Math.max(0, centerIndex - VIRTUAL_SCROLL_BUFFER);
-  const end = Math.min(allQuestionIds.value.length, centerIndex + VIRTUAL_SCROLL_BUFFER + 1);
+  const buffer = 1;
+  const start = Math.max(0, centerIndex - buffer);
+  const end = Math.min(allQuestionIds.value.length, centerIndex + buffer + 1);
   await loadQuestionsRange(start, end);
 };
 
@@ -827,8 +808,13 @@ const fetchQuestions = async () => {
         questionStates.value = new Array(questions.value.length).fill(null);
       }
       
-      loadedQuestions.forEach((q, idx) => {
-        if (!questionStates.value[idx]) {
+      loadedQuestions.forEach((q) => {
+        // 找到题目在 questions 数组中的正确索引
+        const qIndex = allQuestionIds.value.length > 0 
+          ? allQuestionIds.value.findIndex(id => String(id) === String(q.question_id))
+          : questions.value.findIndex(item => item && String(item.question_id) === String(q.question_id));
+        
+        if (qIndex !== -1 && !questionStates.value[qIndex]) {
           const stemText = q.originalStem || q.stem || '';
           const totalBlanks = countBlanks(stemText);
           const subAnswers = {};
@@ -843,7 +829,7 @@ const fetchQuestions = async () => {
             subAnswers['main'] = '';
           }
 
-          questionStates.value[idx] = {
+          questionStates.value[qIndex] = {
             userAnswer: '',
             shortAnswer: '', 
             multiChoice: [],
@@ -1210,27 +1196,28 @@ const checkStatus = async (index) => {
   } catch (e) {}
 };
 
-const onSwiperChange = async (e) => {
-  const index = e.detail.current;
-  currentIndex.value = index;
-
-  // 加载附近题目（分页加载模式）
-  if (allQuestionIds.value.length > 0) {
-    await loadNearbyQuestions(index);
-  }
-  
-  loadQuestionDetails(index);
-};
-
 const handleSelect = (qIndex, oIndex) => {
   const state = questionStates.value[qIndex];
-  if (!state || state.showAnswer || settings.value.recitationMode) return;
-  
   const question = questions.value[qIndex];
+  
+  if (!state) {
+    console.log('handleSelect: state not found for index', qIndex);
+    return;
+  }
+  
+  if (state.showAnswer || settings.value.recitationMode) {
+    console.log('handleSelect: showAnswer or recitationMode', state.showAnswer, settings.value.recitationMode);
+    return;
+  }
+  
+  if (!question) {
+    console.log('handleSelect: question not found for index', qIndex);
+    return;
+  }
+  
   const optionKey = String.fromCharCode(65 + oIndex);
   
   if (question.exercise_type === 2) {
-    // 多选逻辑
     let selected = state.userAnswer ? state.userAnswer.split('') : [];
     const idx = selected.indexOf(optionKey);
     if (idx > -1) {
@@ -1238,13 +1225,9 @@ const handleSelect = (qIndex, oIndex) => {
     } else {
       selected.push(optionKey);
     }
-    // 排序保证答案对比正确
     state.userAnswer = selected.sort().join('');
   } else {
-    // 单选逻辑
     state.userAnswer = optionKey;
-    // 单选题选择后如果设置了自动提交（类似西医逻辑），可以在这里调用 confirmAnswer
-    // 但通常计算机题还是手动确认比较稳妥，或者如果是单选则直接显示答案
     confirmAnswer(qIndex);
   }
 };
@@ -1415,9 +1398,12 @@ const confirmAnswer = async (index) => {
   }
 };
 
-const jumpToQuestion = (index) => {
+const jumpToQuestion = async (index) => {
   currentIndex.value = index;
+  scrollTop.value = 0;
   showAnswerSheet.value = false;
+  await loadNearbyQuestions(index);
+  loadQuestionDetails(index);
 };
 
 const updateProgress = (index) => {
@@ -1546,6 +1532,32 @@ const formatDate = (dateStr) => {
 
 const goBack = () => uni.navigateBack();
 const goHome = () => uni.reLaunch({ url: '/pages/index/index' });
+
+const onScroll = (e) => {
+  // 可以在这里处理滚动事件
+};
+
+const goToPrevQuestion = async () => {
+  if (currentIndex.value > 0) {
+    currentIndex.value--;
+    scrollTop.value = 0;
+    await loadNearbyQuestions(currentIndex.value);
+    loadQuestionDetails(currentIndex.value);
+  }
+};
+
+const goToNextQuestion = async () => {
+  if (currentIndex.value < totalCount.value - 1) {
+    currentIndex.value++;
+    scrollTop.value = 0;
+    await loadNearbyQuestions(currentIndex.value);
+    loadQuestionDetails(currentIndex.value);
+  }
+};
+
+const scrollToTop = () => {
+  scrollTop.value = 0;
+};
 
 const previewImage = (url) => {
   if (!url) return;
@@ -1998,442 +2010,424 @@ onShareTimeline(() => {
     </view>
 
     <!-- 练习内容区域 -->
-    <swiper 
-      v-if="questions.length > 0"
-      :key="questions.length"
+    <scroll-view 
+      v-if="questions.length > 0 && currentQuestion"
       class="content-area" 
-      :current="currentIndex" 
-      @change="onSwiperChange"
-      :duration="250"
-      easing-function="linear"
+      scroll-y 
+      :enable-back-to-top="true" 
+      :show-scrollbar="false"
+      :enhanced="true"
+      :scroll-top="scrollTop"
+      @scroll="onScroll"
     >
-      <swiper-item v-for="(question, qIndex) in questions" :key="(question && question.question_id) ? question.question_id : ('placeholder-' + qIndex)">
-        <!-- 占位符：不在渲染范围内时显示简单占位 -->
-        <view v-if="!shouldPreloadQuestion(qIndex)" class="question-placeholder">
-          <view class="placeholder-content">
-            <text class="placeholder-text">题目 {{ qIndex + 1 }}</text>
-            <text class="placeholder-hint">滑动查看</text>
-          </view>
-        </view>
-        <scroll-view 
-          v-else
-          class="swiper-scroll" 
-          :class="{ 'swiper-scroll-hidden': !shouldRenderQuestion(qIndex) }"
-          scroll-y 
-          :enable-back-to-top="true" 
-          :show-scrollbar="false"
-          :enhanced="true"
-        >
-          <view class="practice-container">
-            <!-- 题目卡片 -->
-            <view class="question-card">
-              <view class="question-header">
-                <view class="question-title-wrap">
-                  <!-- 题号和来源信息在同一行 -->
-                  <view class="question-header-row">
-                    <text class="question-index">{{ qIndex + 1 }}.</text>
-                    <text v-if="getQuestionSource(question)" class="question-source">{{ getQuestionSource(question) }}</text>
-                    <text v-if="question.score" class="question-score-tag">{{ question.score }}分</text>
-                  </view>
-                  
-                  <!-- 题目内容 -->
-                  <view class="question-title-content">
-                    <view class="question-title" :style="{ fontSize: dynamicFontSize.title }">
-                      <!-- 如果是填空题，先尝试行内渲染 -->
-                      <mp-html v-if="question.exercise_type === 3" :content="question.truncatedStem || question.stem" class="title-rich-text" markdown></mp-html>
-                      <!-- 其他题型：如果有截断题干则显示截断的，否则显示完整的原始题干 -->
-                      <mp-html v-else :content="question.truncatedStem || question.originalStem" class="title-rich-text" markdown></mp-html>
-                    </view>
-                  </view>
-                </view>
+      <view class="practice-container">
+        <!-- 题目卡片 -->
+        <view class="question-card">
+          <view class="question-header">
+            <view class="question-title-wrap">
+              <!-- 题号和来源信息在同一行 -->
+              <view class="question-header-row">
+                <text class="question-index">{{ currentIndex + 1 }}.</text>
+                <text v-if="getQuestionSource(currentQuestion)" class="question-source">{{ getQuestionSource(currentQuestion) }}</text>
+                <text v-if="currentQuestion.score" class="question-score-tag">{{ currentQuestion.score }}分</text>
               </view>
               
-              <!-- 题目图片 (如果有的话) -->
-              <view v-if="question.topic_image" class="question-image-box">
-                <image :src="question.topic_image" mode="widthFix" @tap="previewImage(question.topic_image)"></image>
-              </view>
-              
-              <!-- 选项列表 (选择题) -->
-              <view v-if="[1, 2, 5].includes(question.exercise_type) && question.content && question.content.options" class="options-list">
-                <view 
-                  v-for="(option, index) in question.content.options" 
-                  :key="index"
-                  class="option-item"
-                  :class="getOptionClass(qIndex, index)"
-                  @tap="handleSelect(qIndex, index)"
-                >
-                  <view class="option-label">{{ String.fromCharCode(65 + index) }}</view>
-                  <view class="option-content" :style="{ fontSize: dynamicFontSize.option }">
-                    <mp-html :content="option.text || option"></mp-html>
-                  </view>
-                  <view v-if="shouldShowAnswer(qIndex)" class="result-icon">
-                    <SvgIcon v-if="isCorrectOption(question, index)" name="correct" size="32" fill="#4caf50" />
-                    <SvgIcon v-else-if="isSelectedOption(qIndex, index)" name="error" size="32" fill="#f44336" />
-                  </view>
+              <!-- 题目内容 -->
+              <view class="question-title-content">
+                <view class="question-title" :style="{ fontSize: dynamicFontSize.title }">
+                  <!-- 如果是填空题，先尝试行内渲染 -->
+                  <mp-html v-if="currentQuestion.exercise_type === 3" :content="currentQuestion.truncatedStem || currentQuestion.stem" class="title-rich-text" markdown></mp-html>
+                  <!-- 其他题型：如果有截断题干则显示截断的，否则显示完整的原始题干 -->
+                  <mp-html v-else :content="currentQuestion.truncatedStem || currentQuestion.originalStem" class="title-rich-text" markdown></mp-html>
                 </view>
               </view>
-
-              <!-- 填空题 输入区域 -->
-              <view v-if="question.exercise_type === 3" class="blank-input-section">
-                <view class="blank-input-card">
-                  <view v-for="(ans, bIdx) in (questionStates[qIndex]?.blankAnswers || [])" :key="bIdx" class="blank-input-item">
-                    <textarea 
-                      v-model="questionStates[qIndex].blankAnswers[bIdx]" 
-                      class="blank-textarea"
-                      :placeholder="'请输入填空 (' + (bIdx + 1) + ') 的答案'"
-                      placeholder-style="color: #bbb;"
-                      :disabled="shouldShowAnswer(qIndex)"
-                      auto-height
-                      @blur="updateProgress(qIndex)"
-                    />
-                  </view>
-                </view>
-              </view>
-
-              <!-- 解答题 输入区域 -->
-              <view v-if="question.exercise_type === 4 || question.exercise_type_name?.includes('解答') || question.exercise_type_name?.includes('综合')" class="short-answer-section">
-                <!-- 有小题的情况 -->
-                <view v-if="question.subs && question.subs.length > 0" class="sub-questions">
-                    <view v-for="(sub, sIdx) in question.subs" :key="sub.sub_id || sub.id || sIdx" class="sub-item">
-                      <view class="sub-header" v-if="sub.score">
-                        <text class="sub-score">[{{ sub.score }}分]</text>
-                      </view>
-                    <view class="sub-stem">
-                      <view class="sub-index">{{ sIdx + 1 }}.</view>
-                      <mp-html :content="sub.stem"></mp-html>
-                    </view>
-                    <textarea 
-                      v-if="questionStates[qIndex]?.subAnswers"
-                      v-model="questionStates[qIndex].subAnswers[sub.sub_id || sub.id || sIdx]" 
-                      class="short-answer-textarea"
-                      placeholder="请输入你的解答内容..."
-                      placeholder-style="color: #bbb;"
-                      :disabled="shouldShowAnswer(qIndex)"
-                      auto-height
-                      @blur="updateProgress(qIndex)"
-                    ></textarea>
-                    
-                    <!-- 小题答案解析 -->
-                    <view v-if="shouldShowAnswer(qIndex)" class="sub-answer-section animated fadeIn">
-                      <view class="sub-answer-item">
-                        <text class="label">【答案】</text>
-                        <view class="value"><mp-html :content="sub.answer || sub.originalAnswer || sub.standard_answer || sub.correct_answer"></mp-html></view>
-                      </view>
-                      <view class="sub-answer-item" v-if="sub.analysis || sub.commentary || sub.method || sub.explanation || sub.solution">
-                        <text class="label">【解析】</text>
-                        <view class="value"><mp-html :content="sub.analysis || sub.commentary || sub.method || sub.explanation || sub.solution"></mp-html></view>
-                      </view>
-                    </view>
-                  </view>
-                </view>
-                <!-- 无小题的情况 -->
-                <view v-else>
-                  <textarea 
-                    v-if="questionStates[qIndex]"
-                    v-model="questionStates[qIndex].shortAnswer" 
-                    class="short-answer-textarea"
-                    placeholder="请输入你的解答内容..."
-                    placeholder-style="color: #bbb;"
-                    :disabled="shouldShowAnswer(qIndex)"
-                    auto-height
-                    @blur="updateProgress(qIndex)"
-                  ></textarea>
-                </view>
-              </view>
-
-              <!-- 题目报错按钮 -->
-              <view class="question-report-wrap">
-                <view class="report-btn" @tap="openCorrection(question)">
-                  <SvgIcon name="warning" size="28" fill="#999" />
-                  <text>题目报错</text>
-                </view>
-              </view>
-            </view>
-            
-            <!-- 答案解析区域 -->
-            <view v-if="shouldShowAnswer(qIndex)" class="answer-section animated fadeInUp">
-              <!-- 相关学习资料通知栏 -->
-              <view class="related-articles-section" v-if="articleGroups.length > 0">
-                <swiper 
-                  class="article-carousel" 
-                  :vertical="true"
-                  :autoplay="true"
-                  :circular="true"
-                  interval="3000"
-                  :indicator-dots="false"
-                  :disable-touch="false"
-                >
-                  <swiper-item v-for="article in articleGroups" :key="article.id">
-                    <view class="article-carousel-item" @tap="goToArticle(article.id)">
-                      <view class="carousel-content">
-                        <text class="article-tag" :class="{ 'hot': relatedArticles.popular.some(p => p.id === article.id) }">
-                          {{ article.category || (relatedArticles.popular.some(p => p.id === article.id) ? '热门' : '最新') }}
-                        </text>
-                        <text class="article-title">{{ article.title }}</text>
-                      </view>
-                    </view>
-                  </swiper-item>
-                </swiper>
-              </view>
-
-              <!-- 答题统计卡片 - 仅选择题显示 -->
-              <view v-if="[1, 2, 5].includes(question.exercise_type)" class="answer-combined-card card-style compact-card">
-                <view class="answer-grid">
-                  <view v-if="!settings.recitationMode" class="grid-item no-border">
-                    <text class="label">我的</text>
-                    <text class="value" :class="questionStates[qIndex]?.userAnswer ? (questionStates[qIndex]?.isCorrect ? 'correct' : 'error') : ''">
-                      {{ questionStates[qIndex]?.userAnswer || '无' }}
-                    </text>
-                  </view>
-                  <view class="grid-item no-border">
-                    <text class="label">答案</text>
-                    <text class="value correct">{{ question.answer }}</text>
-                  </view>
-                  <view v-if="!settings.recitationMode" class="grid-item no-border">
-                    <text class="label">结果</text>
-                    <text class="value" :class="questionStates[qIndex]?.isCorrect ? 'correct' : 'error'">
-                      {{ questionStates[qIndex]?.isCorrect ? '对' : '错' }}
-                    </text>
-                  </view>
-                  <view class="grid-item no-border">
-                    <text class="label">正确率</text>
-                    <text class="value score">{{ sessionAccuracy }}</text>
-                  </view>
-                </view>
-              </view>
-
-              <!-- 填空题 答案展示 -->
-              <view v-if="question.exercise_type === 3" class="explanation-card card-style">
-                <view class="section-header">
-                  <view class="section-title">
-                    <view class="title-line"></view>
-                    <text>正确答案</text>
-                  </view>
-                </view>
-                <view class="explanation-content" :style="{ fontSize: dynamicFontSize.explanation }">
-                  <mp-html :content="question.displayAnswer || question.answer"></mp-html>
-                </view>
-              </view>
-
-              <!-- 解答题 答案展示 (无小题时) -->
-              <view v-if="(question.exercise_type === 4 || question.exercise_type_name?.includes('解答') || question.exercise_type_name?.includes('综合')) && (!question.subs || question.subs.length === 0) && question.answer" class="explanation-card card-style">
-                <view class="section-header">
-                  <view class="section-title">
-                    <view class="title-line"></view>
-                    <text>参考答案</text>
-                  </view>
-                </view>
-                <view class="explanation-content" :style="{ fontSize: dynamicFontSize.explanation }">
-                  <mp-html :content="question.answer"></mp-html>
-                </view>
-              </view>
-
-              <!-- 题目解析 -->
-              <view v-if="question.analysis" class="explanation-card card-style">
-                <view class="section-header">
-                  <view class="section-title">
-                    <view class="title-line"></view>
-                    <text>题目解析</text>
-                  </view>
-                </view>
-                <view class="explanation-content" :style="{ fontSize: dynamicFontSize.explanation }">
-                  <mp-html :content="question.analysis"></mp-html>
-                </view>
-              </view>
-
-              <!-- 考点展示 -->
-              <view v-if="question.tags && question.tags.length > 0" class="explanation-card card-style">
-                <view class="section-header">
-                  <view class="section-title">
-                    <view class="title-line"></view>
-                    <text>考点</text>
-                  </view>
-                </view>
-                <view class="tags-container">
-                  <template v-for="tag in question.tags" :key="tag.tag_id">
-                    <view v-if="tag.tag_name && tag.tag_name.trim() && !/^\d+$/.test(tag.tag_name.trim())" class="tag-item">
-                      {{ tag.tag_name.trim().replace(/^专业基础\((.*)\)$/, '$1').replace(/^专业基础/, '') }}
-                    </view>
-                  </template>
-                </view>
-              </view>
-
-              <!-- 视频解析 (有视频且设置开启才显示) -->
-              <view v-if="settings.showVideoAnalysis && question.video_url" class="explanation-card card-style">
-                <view class="section-header">
-                  <view class="section-title">
-                    <view class="title-line"></view>
-                    <text>视频解析</text>
-                  </view>
-                </view>
-                <view class="video-container">
-                  <video 
-                    class="analysis-video" 
-                    :src="question.video_url" 
-                    controls
-                    object-fit="contain"
-                    :poster="question.topic_image || ''"
-                  ></video>
-                </view>
-              </view>
-
-              <!-- 笔记区域 -->
-              <view class="notes-section card-style">
-                <view class="notes-header">
-                  <view class="section-title">
-                    <view class="title-line"></view>
-                    <text>笔记</text>
-                  </view>
-                  <view class="add-note-btn" @tap="openAddNote">
-                    <SvgIcon name="edit" size="30" fill="#fff" />
-                    <text>添加笔记</text>
-                  </view>
-                </view>
-
-                <view class="notes-sub-header">
-                  <view class="notes-tabs">
-                    <view 
-                      class="tab-item" 
-                      :class="{ active: noteTab === 'public' }"
-                      @tap="noteTab = 'public'"
-                    >公开笔记</view>
-                    <view 
-                      class="tab-item" 
-                      :class="{ active: noteTab === 'private' }"
-                      @tap="noteTab = 'private'"
-                    >个人笔记</view>
-                  </view>
-                  <view class="note-sort-v2" @tap="showSortOptions">
-                    <text>{{ noteSortBy === 'time' ? '最新发布' : '最多点赞' }}</text>
-                    <view class="sort-icon">
-                      <SvgIcon name="sort" size="24" fill="#999" />
-                    </view>
-                  </view>
-                </view>
-
-                <view class="notes-list">
-                  <view 
-                    v-for="note in (questionStates[currentIndex]?.isNotesExpanded ? filteredNotes : filteredNotes.slice(0, 3))" 
-                    :key="note.id" 
-                    class="note-item"
-                  >
-                    <view class="note-left">
-                      <image class="user-avatar" :src="note.avatar || '/static/logo.png'"></image>
-                    </view>
-                    <view class="note-right">
-                      <view class="note-user-row">
-                        <text class="username">{{ note.username }}</text>
-                        <view class="note-meta">
-                          <view class="more-btn" @tap="showNoteActions(note)">
-                            <SvgIcon name="more" size="32" fill="#999" />
-                          </view>
-                        </view>
-                      </view>
-                      <view class="note-content">
-                        <mp-html :content="note.content"></mp-html>
-                      </view>
-                      
-                      <!-- 笔记回复列表 -->
-                      <view class="note-replies-container" v-if="note.replies && note.replies.length > 0">
-                        <view class="reply-toggle" @tap="note.isRepliesExpanded = !note.isRepliesExpanded">
-                          <text>{{ note.isRepliesExpanded ? '收起回复' : '展开 ' + note.replies.length + ' 条回复' }}</text>
-                          <view class="toggle-icon" :class="{ rotated: note.isRepliesExpanded }">
-                            <svg width="10" height="10" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-                              <path d="M37 18L24 31L11 18" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
-                            </svg>
-                          </view>
-                        </view>
-                        <view class="note-replies" v-if="note.isRepliesExpanded">
-                          <view v-for="reply in note.replies" :key="reply.id" class="reply-item" @longpress="showReplyActions(reply, note)">
-                            <view class="reply-content-row">
-                              <text class="reply-user">{{ reply.username }}:</text>
-                              <mp-html class="reply-content" :content="reply.content"></mp-html>
-                              <text 
-                                v-if="String(reply.user_id || reply.userId) === String(currentUserId)" 
-                                class="delete-reply-btn" 
-                                @tap.stop="deleteReply(reply, note)"
-                              >删除</text>
-                            </view>
-                          </view>
-                        </view>
-                      </view>
-
-                      <!-- 回复输入框 -->
-                      <view class="reply-input-box" v-if="replyTo && replyTo.id === note.id">
-                        <textarea 
-                          v-model="replyContent" 
-                          placeholder="请输入回复内容..." 
-                          class="reply-textarea"
-                          fixed
-                          auto-height
-                        ></textarea>
-                        <view class="reply-btns">
-                          <text class="cancel" @tap="replyTo = null">取消</text>
-                          <text class="submit" @tap="submitReply">发送</text>
-                        </view>
-                      </view>
-
-                      <view class="note-footer">
-                        <view class="note-info-left">
-                          <text class="note-date">{{ formatDate(note.create_time || note.createdAt) }}</text>
-                          <text class="reply-link" @tap="openReply(note)">回复</text>
-                        </view>
-                        <view class="note-info-right">
-                          <view class="footer-action" @tap="toggleNoteLike(note)">
-                            <SvgIcon :name="note.isLiked ? 'like-fill' : 'like'" size="28" :fill="note.isLiked ? 'var(--primary-color)' : '#999'" />
-                            <text :class="{ 'active-like': note.isLiked }">{{ note.likeCount || 0 }}</text>
-                          </view>
-                        </view>
-                      </view>
-                    </view>
-                  </view>
-                  
-                  <!-- 展开更多笔记按钮 -->
-                  <view 
-                    v-if="filteredNotes.length > 3" 
-                    class="expand-notes-btn" 
-                    @tap="questionStates[currentIndex].isNotesExpanded = !questionStates[currentIndex].isNotesExpanded"
-                  >
-                    <text>{{ questionStates[currentIndex]?.isNotesExpanded ? '收起部分笔记' : '展开全部 ' + filteredNotes.length + ' 条笔记' }}</text>
-                    <view class="toggle-icon" :class="{ rotated: questionStates[currentIndex]?.isNotesExpanded }">
-                      <svg width="12" height="12" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M37 18L24 31L11 18" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
-                      </svg>
-                    </view>
-                  </view>
-
-                  <view v-if="filteredNotes.length === 0" class="empty-notes" @tap="openAddNote">
-                    暂无笔记，快来抢沙发吧~
-                  </view>
-                </view>
-              </view>
-            </view>
-
-            <!-- 操作按钮区域 -->
-            <view class="confirm-btn-wrap">
-              <!-- 多选题/填空题/解答题未提交时显示确认按钮 -->
-              <button 
-                v-if="([2, 3, 4].includes(question.exercise_type) || question.exercise_type_name?.includes('解答') || question.exercise_type_name?.includes('综合')) && !shouldShowAnswer(qIndex) && !settings.recitationMode" 
-                class="main-action-btn" 
-                @tap="confirmAnswer(qIndex)"
-              >
-                {{ ([3, 4].includes(question.exercise_type) || question.exercise_type_name?.includes('解答') || question.exercise_type_name?.includes('综合')) ? '查看参考答案' : '确定答案' }}
-              </button>
-              
-              <!-- 已显示答案且不是最后一题时显示下一题按钮 -->
-              <button 
-                v-if="shouldShowAnswer(qIndex) && qIndex < totalCount - 1" 
-                class="main-action-btn next-btn" 
-                @tap="currentIndex++"
-              >下一题</button>
             </view>
           </view>
           
-          <!-- 底部占位 -->
-          <view style="height: 140rpx;"></view>
-        </scroll-view>
-      </swiper-item>
-    </swiper>
+          <!-- 题目图片 (如果有的话) -->
+          <view v-if="currentQuestion.topic_image" class="question-image-box">
+            <image :src="currentQuestion.topic_image" mode="widthFix" @tap="previewImage(currentQuestion.topic_image)"></image>
+          </view>
+          
+          <!-- 选项列表 (选择题) -->
+          <view v-if="[1, 2, 5].includes(currentQuestion.exercise_type) && currentQuestion.content && currentQuestion.content.options" class="options-list">
+            <view 
+              v-for="(option, index) in currentQuestion.content.options" 
+              :key="index"
+              class="option-item"
+              :class="getOptionClass(currentIndex, index)"
+              @tap="handleSelect(currentIndex, index)"
+            >
+              <view class="option-label">{{ String.fromCharCode(65 + index) }}</view>
+              <view class="option-content" :style="{ fontSize: dynamicFontSize.option }">
+                <mp-html :content="option.text || option"></mp-html>
+              </view>
+              <view v-if="shouldShowAnswer(currentIndex)" class="result-icon">
+                <SvgIcon v-if="isCorrectOption(currentQuestion, index)" name="correct" size="32" fill="#4caf50" />
+                <SvgIcon v-else-if="isSelectedOption(currentIndex, index)" name="error" size="32" fill="#f44336" />
+              </view>
+            </view>
+          </view>
+
+          <!-- 填空题 输入区域 -->
+          <view v-if="currentQuestion.exercise_type === 3" class="blank-input-section">
+            <view class="blank-input-card">
+              <view v-for="(ans, bIdx) in (questionStates[currentIndex]?.blankAnswers || [])" :key="bIdx" class="blank-input-item">
+                <textarea 
+                  v-model="questionStates[currentIndex].blankAnswers[bIdx]" 
+                  class="blank-textarea"
+                  :placeholder="'请输入填空 (' + (bIdx + 1) + ') 的答案'"
+                  placeholder-style="color: #bbb;"
+                  :disabled="shouldShowAnswer(currentIndex)"
+                  auto-height
+                  @blur="updateProgress(currentIndex)"
+                />
+              </view>
+            </view>
+          </view>
+
+          <!-- 解答题 输入区域 -->
+          <view v-if="currentQuestion.exercise_type === 4 || currentQuestion.exercise_type_name?.includes('解答') || currentQuestion.exercise_type_name?.includes('综合')" class="short-answer-section">
+            <!-- 有小题的情况 -->
+            <view v-if="currentQuestion.subs && currentQuestion.subs.length > 0" class="sub-questions">
+              <view v-for="(sub, sIdx) in currentQuestion.subs" :key="sub.sub_id || sub.id || sIdx" class="sub-item">
+                <view class="sub-header" v-if="sub.score">
+                  <text class="sub-score">[{{ sub.score }}分]</text>
+                </view>
+                <view class="sub-stem">
+                  <view class="sub-index">{{ sIdx + 1 }}.</view>
+                  <mp-html :content="sub.stem"></mp-html>
+                </view>
+                <textarea 
+                  v-if="questionStates[currentIndex]?.subAnswers"
+                  v-model="questionStates[currentIndex].subAnswers[sub.sub_id || sub.id || sIdx]" 
+                  class="short-answer-textarea"
+                  placeholder="请输入你的解答内容..."
+                  placeholder-style="color: #bbb;"
+                  :disabled="shouldShowAnswer(currentIndex)"
+                  auto-height
+                  @blur="updateProgress(currentIndex)"
+                ></textarea>
+                
+                <!-- 小题答案解析 -->
+                <view v-if="shouldShowAnswer(currentIndex)" class="sub-answer-section animated fadeIn">
+                  <view class="sub-answer-item">
+                    <text class="label">【答案】</text>
+                    <view class="value"><mp-html :content="sub.answer || sub.originalAnswer || sub.standard_answer || sub.correct_answer"></mp-html></view>
+                  </view>
+                  <view class="sub-answer-item" v-if="sub.analysis || sub.commentary || sub.method || sub.explanation || sub.solution">
+                    <text class="label">【解析】</text>
+                    <view class="value"><mp-html :content="sub.analysis || sub.commentary || sub.method || sub.explanation || sub.solution"></mp-html></view>
+                  </view>
+                </view>
+              </view>
+            </view>
+            <!-- 无小题的情况 -->
+            <view v-else>
+              <textarea 
+                v-if="questionStates[currentIndex]"
+                v-model="questionStates[currentIndex].shortAnswer" 
+                class="short-answer-textarea"
+                placeholder="请输入你的解答内容..."
+                placeholder-style="color: #bbb;"
+                :disabled="shouldShowAnswer(currentIndex)"
+                auto-height
+                @blur="updateProgress(currentIndex)"
+              ></textarea>
+            </view>
+          </view>
+
+          <!-- 题目报错按钮 -->
+          <view class="question-report-wrap">
+            <view class="report-btn" @tap="openCorrection(currentQuestion)">
+              <SvgIcon name="warning" size="28" fill="#999" />
+              <text>题目报错</text>
+            </view>
+          </view>
+        </view>
+        
+        <!-- 答案解析区域 -->
+        <view v-if="shouldShowAnswer(currentIndex)" class="answer-section animated fadeInUp">
+          <!-- 相关学习资料通知栏 -->
+          <view class="related-articles-section" v-if="articleGroups.length > 0">
+            <swiper 
+              class="article-carousel" 
+              :vertical="true"
+              :autoplay="true"
+              :circular="true"
+              interval="3000"
+              :indicator-dots="false"
+              :disable-touch="false"
+            >
+              <swiper-item v-for="article in articleGroups" :key="article.id">
+                <view class="article-carousel-item" @tap="goToArticle(article.id)">
+                  <view class="carousel-content">
+                    <text class="article-tag" :class="{ 'hot': relatedArticles.popular.some(p => p.id === article.id) }">
+                      {{ article.category || (relatedArticles.popular.some(p => p.id === article.id) ? '热门' : '最新') }}
+                    </text>
+                    <text class="article-title">{{ article.title }}</text>
+                  </view>
+                </view>
+              </swiper-item>
+            </swiper>
+          </view>
+
+          <!-- 答题统计卡片 - 仅选择题显示 -->
+          <view v-if="[1, 2, 5].includes(currentQuestion.exercise_type)" class="answer-combined-card card-style compact-card">
+            <view class="answer-grid">
+              <view v-if="!settings.recitationMode" class="grid-item no-border">
+                <text class="label">我的</text>
+                <text class="value" :class="questionStates[currentIndex]?.userAnswer ? (questionStates[currentIndex]?.isCorrect ? 'correct' : 'error') : ''">
+                  {{ questionStates[currentIndex]?.userAnswer || '无' }}
+                </text>
+              </view>
+              <view class="grid-item no-border">
+                <text class="label">答案</text>
+                <text class="value correct">{{ currentQuestion.answer }}</text>
+              </view>
+              <view v-if="!settings.recitationMode" class="grid-item no-border">
+                <text class="label">结果</text>
+                <text class="value" :class="questionStates[currentIndex]?.isCorrect ? 'correct' : 'error'">
+                  {{ questionStates[currentIndex]?.isCorrect ? '对' : '错' }}
+                </text>
+              </view>
+              <view class="grid-item no-border">
+                <text class="label">正确率</text>
+                <text class="value score">{{ sessionAccuracy }}</text>
+              </view>
+            </view>
+          </view>
+
+          <!-- 填空题 答案展示 -->
+          <view v-if="currentQuestion.exercise_type === 3" class="explanation-card card-style">
+            <view class="section-header">
+              <view class="section-title">
+                <view class="title-line"></view>
+                <text>正确答案</text>
+              </view>
+            </view>
+            <view class="explanation-content" :style="{ fontSize: dynamicFontSize.explanation }">
+              <mp-html :content="currentQuestion.displayAnswer || currentQuestion.answer"></mp-html>
+            </view>
+          </view>
+
+          <!-- 解答题 答案展示 (无小题时) -->
+          <view v-if="(currentQuestion.exercise_type === 4 || currentQuestion.exercise_type_name?.includes('解答') || currentQuestion.exercise_type_name?.includes('综合')) && (!currentQuestion.subs || currentQuestion.subs.length === 0) && currentQuestion.answer" class="explanation-card card-style">
+            <view class="section-header">
+              <view class="section-title">
+                <view class="title-line"></view>
+                <text>参考答案</text>
+              </view>
+            </view>
+            <view class="explanation-content" :style="{ fontSize: dynamicFontSize.explanation }">
+              <mp-html :content="currentQuestion.answer"></mp-html>
+            </view>
+          </view>
+
+          <!-- 题目解析 -->
+          <view v-if="currentQuestion.analysis" class="explanation-card card-style">
+            <view class="section-header">
+              <view class="section-title">
+                <view class="title-line"></view>
+                <text>题目解析</text>
+              </view>
+            </view>
+            <view class="explanation-content" :style="{ fontSize: dynamicFontSize.explanation }">
+              <mp-html :content="currentQuestion.analysis"></mp-html>
+            </view>
+          </view>
+
+          <!-- 考点展示 -->
+          <view v-if="currentQuestion.tags && currentQuestion.tags.length > 0" class="explanation-card card-style">
+            <view class="section-header">
+              <view class="section-title">
+                <view class="title-line"></view>
+                <text>考点</text>
+              </view>
+            </view>
+            <view class="tags-container">
+              <template v-for="tag in currentQuestion.tags" :key="tag.tag_id">
+                <view v-if="tag.tag_name && tag.tag_name.trim() && !/^\d+$/.test(tag.tag_name.trim())" class="tag-item">
+                  {{ tag.tag_name.trim().replace(/^专业基础\((.*)\)$/, '$1').replace(/^专业基础/, '') }}
+                </view>
+              </template>
+            </view>
+          </view>
+
+          <!-- 视频解析 (有视频且设置开启才显示) -->
+          <view v-if="settings.showVideoAnalysis && currentQuestion.video_url" class="explanation-card card-style">
+            <view class="section-header">
+              <view class="section-title">
+                <view class="title-line"></view>
+                <text>视频解析</text>
+              </view>
+            </view>
+            <view class="video-container">
+              <video 
+                class="analysis-video" 
+                :src="currentQuestion.video_url" 
+                controls
+                object-fit="contain"
+                :poster="currentQuestion.topic_image || ''"
+              ></video>
+            </view>
+          </view>
+
+          <!-- 笔记区域 -->
+          <view class="notes-section card-style">
+            <view class="notes-header">
+              <view class="section-title">
+                <view class="title-line"></view>
+                <text>笔记</text>
+              </view>
+              <view class="add-note-btn" @tap="openAddNote">
+                <SvgIcon name="edit" size="30" fill="#fff" />
+                <text>添加笔记</text>
+              </view>
+            </view>
+
+            <view class="notes-sub-header">
+              <view class="notes-tabs">
+                <view 
+                  class="tab-item" 
+                  :class="{ active: noteTab === 'public' }"
+                  @tap="noteTab = 'public'"
+                >公开笔记</view>
+                <view 
+                  class="tab-item" 
+                  :class="{ active: noteTab === 'private' }"
+                  @tap="noteTab = 'private'"
+                >个人笔记</view>
+              </view>
+              <view class="note-sort-v2" @tap="showSortOptions">
+                <text>{{ noteSortBy === 'time' ? '最新发布' : '最多点赞' }}</text>
+                <view class="sort-icon">
+                  <SvgIcon name="sort" size="24" fill="#999" />
+                </view>
+              </view>
+            </view>
+
+            <view class="notes-list">
+              <view 
+                v-for="note in (questionStates[currentIndex]?.isNotesExpanded ? filteredNotes : filteredNotes.slice(0, 3))" 
+                :key="note.id" 
+                class="note-item"
+              >
+                <view class="note-left">
+                  <image class="user-avatar" :src="note.avatar || '/static/logo.png'"></image>
+                </view>
+                <view class="note-right">
+                  <view class="note-user-row">
+                    <text class="username">{{ note.username }}</text>
+                    <view class="note-meta">
+                      <view class="more-btn" @tap="showNoteActions(note)">
+                        <SvgIcon name="more" size="32" fill="#999" />
+                      </view>
+                    </view>
+                  </view>
+                  <view class="note-content">
+                    <mp-html :content="note.content"></mp-html>
+                  </view>
+                  
+                  <!-- 笔记回复列表 -->
+                  <view class="note-replies-container" v-if="note.replies && note.replies.length > 0">
+                    <view class="reply-toggle" @tap="note.isRepliesExpanded = !note.isRepliesExpanded">
+                      <text>{{ note.isRepliesExpanded ? '收起回复' : '展开 ' + note.replies.length + ' 条回复' }}</text>
+                      <view class="toggle-icon" :class="{ rotated: note.isRepliesExpanded }">
+                        <svg width="10" height="10" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                          <path d="M37 18L24 31L11 18" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                      </view>
+                    </view>
+                    <view class="note-replies" v-if="note.isRepliesExpanded">
+                      <view v-for="reply in note.replies" :key="reply.id" class="reply-item" @longpress="showReplyActions(reply, note)">
+                        <view class="reply-content-row">
+                          <text class="reply-user">{{ reply.username }}:</text>
+                          <mp-html class="reply-content" :content="reply.content"></mp-html>
+                          <text 
+                            v-if="String(reply.user_id || reply.userId) === String(currentUserId)" 
+                            class="delete-reply-btn" 
+                            @tap.stop="deleteReply(reply, note)"
+                          >删除</text>
+                        </view>
+                      </view>
+                    </view>
+                  </view>
+
+                  <!-- 回复输入框 -->
+                  <view class="reply-input-box" v-if="replyTo && replyTo.id === note.id">
+                    <textarea 
+                      v-model="replyContent" 
+                      placeholder="请输入回复内容..." 
+                      class="reply-textarea"
+                      fixed
+                      auto-height
+                    ></textarea>
+                    <view class="reply-btns">
+                      <text class="cancel" @tap="replyTo = null">取消</text>
+                      <text class="submit" @tap="submitReply">发送</text>
+                    </view>
+                  </view>
+
+                  <view class="note-footer">
+                    <view class="note-info-left">
+                      <text class="note-date">{{ formatDate(note.create_time || note.createdAt) }}</text>
+                      <text class="reply-link" @tap="openReply(note)">回复</text>
+                    </view>
+                    <view class="note-info-right">
+                      <view class="footer-action" @tap="toggleNoteLike(note)">
+                        <SvgIcon :name="note.isLiked ? 'like-fill' : 'like'" size="28" :fill="note.isLiked ? 'var(--primary-color)' : '#999'" />
+                        <text :class="{ 'active-like': note.isLiked }">{{ note.likeCount || 0 }}</text>
+                      </view>
+                    </view>
+                  </view>
+                </view>
+              </view>
+              
+              <!-- 展开更多笔记按钮 -->
+              <view 
+                v-if="filteredNotes.length > 3" 
+                class="expand-notes-btn" 
+                @tap="questionStates[currentIndex].isNotesExpanded = !questionStates[currentIndex].isNotesExpanded"
+              >
+                <text>{{ questionStates[currentIndex]?.isNotesExpanded ? '收起部分笔记' : '展开全部 ' + filteredNotes.length + ' 条笔记' }}</text>
+                <view class="toggle-icon" :class="{ rotated: questionStates[currentIndex]?.isNotesExpanded }">
+                  <svg width="12" height="12" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M37 18L24 31L11 18" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                </view>
+              </view>
+
+              <view v-if="filteredNotes.length === 0" class="empty-notes" @tap="openAddNote">
+                暂无笔记，快来抢沙发吧~
+              </view>
+            </view>
+          </view>
+        </view>
+
+        <!-- 操作按钮区域 -->
+        <view class="confirm-btn-wrap">
+          <!-- 多选题/填空题/解答题未提交时显示确认按钮 -->
+          <button 
+            v-if="([2, 3, 4].includes(currentQuestion.exercise_type) || currentQuestion.exercise_type_name?.includes('解答') || currentQuestion.exercise_type_name?.includes('综合')) && !shouldShowAnswer(currentIndex) && !settings.recitationMode" 
+            class="main-action-btn" 
+            @tap="confirmAnswer(currentIndex)"
+          >
+            {{ ([3, 4].includes(currentQuestion.exercise_type) || currentQuestion.exercise_type_name?.includes('解答') || currentQuestion.exercise_type_name?.includes('综合')) ? '查看参考答案' : '确定答案' }}
+          </button>
+          
+          <!-- 已显示答案且不是最后一题时显示下一题按钮 -->
+          <button 
+            v-if="shouldShowAnswer(currentIndex) && currentIndex < totalCount - 1" 
+            class="main-action-btn next-btn" 
+            @tap="goToNextQuestion"
+          >下一题</button>
+        </view>
+      </view>
+      
+      <!-- 底部占位 -->
+      <view style="height: 140rpx;"></view>
+    </scroll-view>
 
     <!-- 底部操作栏 -->
     <view class="bottom-action-bar" v-if="questions.length > 0">
@@ -2453,8 +2447,8 @@ onShareTimeline(() => {
       </view>
       
       <view class="nav-btns">
-        <view class="nav-btn" :class="{ disabled: currentIndex === 0 }" @tap="currentIndex > 0 && (currentIndex--)">上一题</view>
-        <view class="nav-btn next" :class="{ disabled: currentIndex === totalCount - 1 }" @tap="currentIndex < totalCount - 1 && (currentIndex++)">下一题</view>
+        <view class="nav-btn" :class="{ disabled: currentIndex === 0 }" @tap="goToPrevQuestion">上一题</view>
+        <view class="nav-btn next" :class="{ disabled: currentIndex === totalCount - 1 }" @tap="goToNextQuestion">下一题</view>
       </view>
     </view>
 
@@ -2650,11 +2644,6 @@ onShareTimeline(() => {
       color: #bbb;
     }
   }
-}
-
-.swiper-scroll-hidden {
-  opacity: 0;
-  pointer-events: none;
 }
 
 .container {
@@ -3012,10 +3001,6 @@ onShareTimeline(() => {
 .content-area {
   flex: 1;
   height: 0;
-}
-
-.swiper-scroll {
-  height: 100%;
 }
 
 .practice-container {

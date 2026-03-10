@@ -218,6 +218,14 @@ Markdown.prototype.onUpdate = function (content) {
     // 处理 --- 包裹的代码块（转换为标准代码块）
     processed = processed.replace(/---\s*\n([\s\S]*?)\n---/g, '\n\n```\n$1\n```\n\n')
     
+    // 保护代码块，防止换行符被转换为 <br>
+    const codeBlocks = [];
+    processed = processed.replace(/```[\s\S]*?```|`[^`]*`/g, (match) => {
+      const placeholder = `__CODE_BLOCK_${codeBlocks.length}__`;
+      codeBlocks.push(match);
+      return placeholder;
+    });
+    
     // 配置 marked 选项
     marked.setOptions({
       breaks: true,  // 启用换行符转换为 <br>
@@ -227,9 +235,25 @@ Markdown.prototype.onUpdate = function (content) {
     })
     
     // 手动将换行符转换为 <br> 标签（marked 的 breaks 选项可能不总是生效）
+    // 但代码块内的换行符不转换
     processed = processed.replace(/\n/g, '<br>\n')
     
+    // 恢复代码块
+    codeBlocks.forEach((block, index) => {
+      processed = processed.replace(`__CODE_BLOCK_${index}__`, block);
+    });
+    
     let html = marked(processed);
+    
+    // 移除代码块内的 <br> 标签（代码块应该使用原始换行符）
+    html = html.replace(/(<pre[^>]*>)([\s\S]*?)(<\/pre>)/gi, (match, open, content, close) => {
+      const cleanedContent = content.replace(/<br\s*\/?>/gi, '');
+      return open + cleanedContent + close;
+    });
+    html = html.replace(/(<code[^>]*>)([\s\S]*?)(<\/code>)/gi, (match, open, content, close) => {
+      const cleanedContent = content.replace(/<br\s*\/?>/gi, '');
+      return open + cleanedContent + close;
+    });
     
     // 还原公式占位符
     html = html.replace(/<!--BLOCK_FORMULA_(\d+)-->/g, (match, index) => {

@@ -60,23 +60,20 @@
                 <text class="meta-date">{{ formatDate(item.createTime) }}</text>
               </view>
             </view>
-            <image
-              v-if="item.imageUrl"
-              :src="item.imageUrl"
-              mode="aspectFill"
-              class="card-cover"
-            ></image>
-          </view>
-
-          <!-- 操作按钮 -->
-          <view class="card-actions-bar">
-            <view class="action-btn" @click.stop="shareArticle(item)">
-              <text class="action-icon">↗</text>
-              <text>分享</text>
-            </view>
-            <view class="action-btn delete" @click.stop="removeCollection(item)">
-              <text class="action-icon">×</text>
-              <text>删除</text>
+            <view class="card-right">
+              <image
+                v-if="item.imageUrl"
+                :src="item.imageUrl"
+                mode="aspectFill"
+                class="card-cover"
+              ></image>
+              <!-- 操作按钮 -->
+              <view class="card-actions-bar">
+                <view class="action-btn delete" @click.stop="removeCollection(item)">
+                  <text class="action-icon">×</text>
+                  <text>删除</text>
+                </view>
+              </view>
             </view>
           </view>
         </view>
@@ -355,6 +352,7 @@ onMounted(() => {
   justify-content: space-between;
   align-items: flex-start;
   gap: 20rpx;
+  position: relative;
 }
 
 .card-info {
@@ -363,6 +361,18 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   justify-content: space-between;
+}
+
+.card-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 12rpx;
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
 }
 
 .title-container {
@@ -463,11 +473,12 @@ onMounted(() => {
   background-color: #222;
 }
 
-/* 操作按钮栏 - 简化样式 */
+/* 操作按钮栏 - 放在右侧 */
 .card-actions-bar {
   display: flex;
-  padding-top: 16rpx;
-  gap: 24rpx;
+  align-items: center;
+  justify-content: center;
+  gap: 16rpx;
 }
 
 .action-btn {

@@ -7,49 +7,49 @@
       </view>
 
       <!-- Top 3 领奖台 -->
-      <view class="podium-section fade-in" v-if="rankingData.length > 0">
+      <view class="podium-section fade-in" v-if="filteredRankingData.length > 0">
         <!-- 第二名 -->
-        <view class="podium-item rank-2" v-if="rankingData.length >= 2" @click="showUserDetail(rankingData[1])">
+        <view class="podium-item rank-2" v-if="filteredRankingData.length >= 2" @click="showUserDetail(filteredRankingData[1])">
           <view class="avatar-wrapper">
-            <image :src="rankingData[1].avatar || DEFAULT_AVATAR" alt="avatar" class="avatar" mode="aspectFill"></image>
-            <image v-if="rankingData[1].avatarFrameUrl" :src="rankingData[1].avatarFrameUrl" class="avatar-frame" mode="aspectFit"></image>
+            <image :src="filteredRankingData[1].avatar || DEFAULT_AVATAR" alt="avatar" class="avatar" mode="aspectFill"></image>
+            <image v-if="filteredRankingData[1].avatarFrameUrl" :src="filteredRankingData[1].avatarFrameUrl" class="avatar-frame" mode="aspectFit"></image>
             <view class="rank-badge-2">2</view>
           </view>
           <view class="podium-base">
             <view class="user-name">
-              {{ rankingData[1].name }}
+              {{ filteredRankingData[1].name }}
             </view>
-            <view class="score">{{ rankingData[1].score }}<text class="unit">题</text></view>
+            <view class="score">{{ filteredRankingData[1].score }}<text class="unit">题</text></view>
           </view>
         </view>
 
         <!-- 第一名 -->
-        <view class="podium-item rank-1" v-if="rankingData.length >= 1" @click="showUserDetail(rankingData[0])">
+        <view class="podium-item rank-1" v-if="filteredRankingData.length >= 1" @click="showUserDetail(filteredRankingData[0])">
           <view class="avatar-wrapper">
-            <image :src="rankingData[0].avatar || DEFAULT_AVATAR" alt="avatar" class="avatar" mode="aspectFill"></image>
-            <image v-if="rankingData[0].avatarFrameUrl" :src="rankingData[0].avatarFrameUrl" class="avatar-frame" mode="aspectFit"></image>
+            <image :src="filteredRankingData[0].avatar || DEFAULT_AVATAR" alt="avatar" class="avatar" mode="aspectFill"></image>
+            <image v-if="filteredRankingData[0].avatarFrameUrl" :src="filteredRankingData[0].avatarFrameUrl" class="avatar-frame" mode="aspectFit"></image>
             <view class="rank-badge-1">1</view>
           </view>
           <view class="podium-base">
             <view class="user-name">
-              {{ rankingData[0].name }}
+              {{ filteredRankingData[0].name }}
             </view>
-            <view class="score">{{ rankingData[0].score }}</view>
+            <view class="score">{{ filteredRankingData[0].score }}</view>
           </view>
         </view>
 
         <!-- 第三名 -->
-        <view class="podium-item rank-3" v-if="rankingData.length >= 3" @click="showUserDetail(rankingData[2])">
+        <view class="podium-item rank-3" v-if="filteredRankingData.length >= 3" @click="showUserDetail(filteredRankingData[2])">
           <view class="avatar-wrapper">
-            <image :src="rankingData[2].avatar || DEFAULT_AVATAR" alt="avatar" class="avatar" mode="aspectFill"></image>
-            <image v-if="rankingData[2].avatarFrameUrl" :src="rankingData[2].avatarFrameUrl" class="avatar-frame" mode="aspectFit"></image>
+            <image :src="filteredRankingData[2].avatar || DEFAULT_AVATAR" alt="avatar" class="avatar" mode="aspectFill"></image>
+            <image v-if="filteredRankingData[2].avatarFrameUrl" :src="filteredRankingData[2].avatarFrameUrl" class="avatar-frame" mode="aspectFit"></image>
             <view class="rank-badge-3">3</view>
           </view>
           <view class="podium-base">
             <view class="user-name">
-              {{ rankingData[2].name }}
+              {{ filteredRankingData[2].name }}
             </view>
-            <view class="score">{{ rankingData[2].score }}</view>
+            <view class="score">{{ filteredRankingData[2].score }}</view>
           </view>
         </view>
       </view>
@@ -66,7 +66,7 @@
       </view>
 
       <!-- 4名及以后列表 -->
-      <view class="list-section fade-in" v-if="rankingData.length > 3">
+      <view class="list-section fade-in" v-if="filteredRankingData.length > 3">
         <view class="list-item" 
               v-for="(item, index) in displayData" 
               :key="item.id"
@@ -87,15 +87,15 @@
           </view>
         </view>
 
-        <!-- 展开/收起按钮 -->
-        <view class="expand-wrapper" v-if="rankingData.length > 20">
+        <!-- 展开/收起按钮 (仅管理员可见) -->
+        <view class="expand-wrapper" v-if="isAdmin && filteredRankingData.length > 20">
           <view class="expand-btn" @click="toggleExpand">
             {{ isExpanded ? '收起' : '展开显示更多 (前50名)' }}
           </view>
         </view>
       </view>
       
-      <view class="empty-state" v-if="rankingData.length === 0">
+      <view class="empty-state" v-if="filteredRankingData.length === 0">
         <text class="empty-text">暂无数据，快来占领榜单吧~</text>
       </view>
     </view>
@@ -180,10 +180,30 @@ const myRankData = ref(null);
 // 展开状态
 const isExpanded = ref(false);
 
-// 显示的数据 (前 20 或 前 50)
+// 当前用户是否是管理员 (role为1时是管理员)
+const isAdmin = computed(() => {
+  const role = uni.getStorageSync('role');
+  return role === 1 || role === '1';
+});
+
+// 过滤后的排行榜数据（普通用户不显示做题数为0的用户）
+const filteredRankingData = computed(() => {
+  if (isAdmin.value) {
+    return rankingData.value;
+  }
+  // 普通用户只显示做题数大于0的用户
+  return rankingData.value.filter(item => item.score > 0);
+});
+
+// 显示的数据 (管理员：前 20 或 前 50；非管理员：前15名，前3名在领奖台，这里显示后12名)
 const displayData = computed(() => {
-  if (rankingData.value.length <= 3) return [];
-  const afterTop3 = rankingData.value.slice(3);
+  if (filteredRankingData.value.length <= 3) return [];
+  const afterTop3 = filteredRankingData.value.slice(3);
+  // 非管理员只显示前15名（前3名在领奖台，这里显示12名）
+  if (!isAdmin.value) {
+    return afterTop3.slice(0, 12); // 3 + 12 = 15
+  }
+  // 管理员显示前 20 或前 50
   const limit = isExpanded.value ? 47 : 17; // 3 + 17 = 20, 3 + 47 = 50
   return afterTop3.slice(0, limit);
 });

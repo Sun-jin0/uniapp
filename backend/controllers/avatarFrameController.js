@@ -182,7 +182,7 @@ const getUserAvatarFrames = async (req, res) => {
 
     const userLevel = user.level || 1;
     const userPoints = user.points || 0;
-    const userQuestionCount = user.question_count || 0;
+    const userQuestionCount = user.total_questions || 0;
     const userStudentId = user.student_id || '';
     const userRole = user.role || 0;
 
@@ -290,7 +290,7 @@ const setUserAvatarFrame = async (req, res) => {
     const frame = frames[0];
     const userRole = user.role || 0;
     const isAdminUser = userRole !== 0;
-    const userQuestionCount = user.question_count || 0;
+    const userQuestionCount = user.total_questions || 0;
     const userStudentId = user.student_id || '';
     const isWeChatUser = userStudentId.startsWith('WX');
 

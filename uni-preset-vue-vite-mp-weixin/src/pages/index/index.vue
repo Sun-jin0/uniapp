@@ -448,14 +448,12 @@ const filteredSelectionList = computed(() => {
 
 const publicSelectionList = computed(() => {
   return selectionList.value.filter(item => {
-    if (item.is_tab || item.isTab) return true;
     return item.category === 'public';
   });
 });
 
 const professionalSelectionList = computed(() => {
   return selectionList.value.filter(item => {
-    if (item.is_tab || item.isTab) return true;
     return item.category === 'professional';
   });
 });

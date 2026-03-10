@@ -661,8 +661,21 @@ export function transformContextString(rawContextString) {
   // 5. 将 LaTeX 公式转换为 Unicode 字符
   currentText = convertLatexToUnicode(currentText);
   
-  // 6. 将换行符转换为 <br>
+  // 6. 保护代码块内的换行符，将代码块占位
+  const codeBlocks = [];
+  currentText = currentText.replace(/<pre[\s\S]*?<\/pre>|<code[\s\S]*?<\/code>/gi, (match) => {
+    const placeholder = `__CODE_BLOCK_${codeBlocks.length}__`;
+    codeBlocks.push(match);
+    return placeholder;
+  });
+  
+  // 7. 将换行符转换为 <br>（代码块外）
   currentText = currentText.replace(/\n/g, '<br>');
+  
+  // 8. 恢复代码块
+  codeBlocks.forEach((block, index) => {
+    currentText = currentText.replace(`__CODE_BLOCK_${index}__`, block);
+  });
   
   return currentText;
 }
