@@ -1,22 +1,25 @@
 <template>
   <view class="app-container">
     <view class="category-filter">
+      <text class="category-label">分类：</text>
       <scroll-view scroll-x class="category-scroll">
-        <view 
-          class="category-tab" 
-          :class="{ active: currentCategoryId === null }"
-          @click="selectCategory(null)"
-        >全部</view>
-        <view 
-          class="category-tab" 
-          v-for="cat in categories" 
-          :key="cat.CategoryID"
-          :class="{ active: currentCategoryId === cat.CategoryID }"
-          @click="selectCategory(cat.CategoryID)"
-          @longpress="handleLongPressCategory(cat)"
-        >{{ cat.Title }}</view>
-        <view class="add-category-tab" @click="showAddCategoryModal = true">
-          <SvgIcon name="plus" size="24" fill="#007aff" />
+        <view class="category-list">
+          <view 
+            class="category-tab" 
+            :class="{ active: currentCategoryId === null }"
+            @click="selectCategory(null)"
+          >全部</view>
+          <view 
+            class="category-tab" 
+            v-for="cat in categories" 
+            :key="cat.CategoryID"
+            :class="{ active: currentCategoryId === cat.CategoryID }"
+            @click="selectCategory(cat.CategoryID)"
+          >
+            <text>{{ cat.Title }}</text>
+            <view class="remove-tag" @click.stop="confirmDeleteCategory(cat)">✕</view>
+          </view>
+          <view class="add-category-tab" @click="showAddCategoryModal = true">＋</view>
         </view>
       </scroll-view>
     </view>
@@ -242,19 +245,22 @@ const startPractice = () => {
   if (favorites.value.length === 0) return;
 
   // 保存为最近练习科目，以便在首页显示
+  // 收藏夹刷题逻辑：跳转到详情页并传入题目ID列表
+  const ids = favorites.value.map(f => f.QuestionID).join(',');
+  const url = `/pages/math/math-question-detail?ids=${ids}&mode=practice`;
+  
   const practiceItem = {
+    type: 'math',
+    subject: '数学',
     id: 'math-favorites',
-    title: '数学 - 我的收藏',
-    url: '/pages/math/math-my-favorites',
+    title: '我的收藏',
+    mode: 'favorites',
+    url: url,
     icon: 'math'
   };
   uni.setStorageSync('lastPracticeSubject', practiceItem);
 
-  // 收藏夹刷题逻辑：跳转到详情页并传入题目ID列表
-  const ids = favorites.value.map(f => f.QuestionID).join(',');
-  uni.navigateTo({
-    url: `/pages/math/math-question-detail?ids=${ids}&mode=practice`
-  });
+  uni.navigateTo({ url });
 };
 
 const printFavorites = () => {
@@ -355,54 +361,93 @@ onMounted(() => {
 }
 
 .category-filter {
-  background: #fff;
-  padding: 16rpx 0;
-  border-bottom: 1rpx solid #eee;
-  white-space: nowrap;
+  padding: 12rpx 30rpx;
+  display: flex;
+  align-items: center;
+  background: linear-gradient(135deg, #4db6ac 0%, #26a69a 100%);
   position: sticky;
   top: 0;
   z-index: 100;
 }
 
+.category-label {
+  font-size: 24rpx;
+  color: #fff;
+  opacity: 0.9;
+  margin-right: 16rpx;
+  white-space: nowrap;
+}
+
 .category-scroll {
-  width: 100%;
-  padding: 0 8rpx;
+  flex: 1;
+  white-space: nowrap;
+  width: 0;
+}
+
+.category-list {
+  display: inline-flex;
+  align-items: center;
+  gap: 16rpx;
+  padding: 4rpx 0;
 }
 
 .category-tab {
-  display: inline-block;
-  padding: 14rpx 28rpx;
-  margin: 0 8rpx;
-  font-size: 26rpx;
-  color: #666;
-  background: #f0f2f5;
-  border-radius: 32rpx;
+  display: inline-flex;
+  align-items: center;
+  gap: 8rpx;
+  padding: 8rpx 20rpx;
+  background-color: rgba(255, 255, 255, 0.2);
+  color: #fff;
+  border-radius: 30rpx;
+  font-size: 24rpx;
   transition: all 0.25s ease;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .category-tab.active {
-  color: #fff;
-  background: linear-gradient(135deg, #4db6ac 0%, #26a69a 100%);
+  background-color: #fff;
+  color: #4db6ac;
   font-weight: 600;
-  box-shadow: 0 4rpx 12rpx rgba(77, 182, 172, 0.3);
+  box-shadow: 0 2rpx 8rpx rgba(0,0,0,0.1);
 }
 
 .add-category-tab {
-  display: inline-flex;
+  width: 50rpx;
+  height: 50rpx;
+  flex-shrink: 0;
+  display: flex;
   align-items: center;
   justify-content: center;
-  width: 56rpx;
-  height: 56rpx;
-  margin: 0 8rpx;
-  background: rgba(77, 182, 172, 0.1);
+  color: #fff;
+  background: rgba(255,255,255,0.2);
+  border: 2rpx dashed rgba(255,255,255,0.4);
   border-radius: 50%;
-  vertical-align: middle;
-  transition: all 0.25s ease;
+  font-size: 32rpx;
+  margin-left: 8rpx;
 }
 
 .add-category-tab:active {
   background: rgba(77, 182, 172, 0.2);
   transform: scale(0.95);
+}
+
+.remove-tag {
+  width: 32rpx;
+  height: 32rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgba(0,0,0,0.1);
+  color: #fff;
+  font-size: 20rpx;
+  margin-left: 8rpx;
+}
+
+.category-tab.active .remove-tag {
+  background: #f5f5f5;
+  color: #999;
 }
 
 /* 弹窗样式 */

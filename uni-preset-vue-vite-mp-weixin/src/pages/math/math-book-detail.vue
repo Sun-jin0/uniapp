@@ -172,18 +172,22 @@ const handleImageError = (event) => {
 };
 
 const navigateToQuestion = (sourceId) => {
+  const url = `/pages/math/math-question-detail?questionId=${sourceId}&bookId=${bookId.value}&bookTitle=${encodeURIComponent(bookTitle.value)}`;
+  
   // 保存为最近练习科目，以便在首页显示
   const practiceItem = {
+    type: 'math',
+    subject: '数学',
     id: bookId.value,
-    title: `数学 - ${bookTitle.value}`,
-    url: '/pages/math/math-bookshelf',
+    title: bookTitle.value,
+    bookTitle: bookTitle.value,
+    bookId: bookId.value,
+    url: url,
     icon: 'math'
   };
   uni.setStorageSync('lastPracticeSubject', practiceItem);
 
-  uni.navigateTo({
-    url: `/pages/math/math-question-detail?questionId=${sourceId}&bookId=${bookId.value}`
-  });
+  uni.navigateTo({ url });
 };
 
 const scrollToTop = () => {

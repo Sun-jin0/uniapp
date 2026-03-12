@@ -230,18 +230,22 @@ const handleBookClick = (book) => {
       selectedBookIds.value.push(book.BookID);
     }
   } else {
+    const url = `/pages/math/math-question-detail?bookId=${book.BookID}&bookTitle=${encodeURIComponent(book.BookTitle)}`;
+    
     // 保存为最近练习科目，以便在首页显示
     const practiceItem = {
+      type: 'math',
+      subject: '数学',
       id: book.BookID,
-      title: `数学 - ${book.BookTitle}`,
-      url: '/pages/math/math-bookshelf',
+      title: book.BookTitle,
+      bookTitle: book.BookTitle,
+      bookId: book.BookID,
+      url: url,
       icon: 'math'
     };
     uni.setStorageSync('lastPracticeSubject', practiceItem);
 
-    uni.navigateTo({
-      url: `/pages/math/math-book-detail?bookId=${book.BookID}&bookTitle=${encodeURIComponent(book.BookTitle)}`
-    });
+    uni.navigateTo({ url });
   }
 };
 

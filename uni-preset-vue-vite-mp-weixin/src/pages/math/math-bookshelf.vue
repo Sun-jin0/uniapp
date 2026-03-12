@@ -63,10 +63,10 @@
       <section class="bookshelf-section">
         <div class="section-header">
           <h2>我的书架</h2>
-          <navigator :url="`/pages/math/math-all-books?subjectId=${selectedSubjectId}`" class="action-link">全部 ({{ allBooksCount }}) ❯</navigator>
+          <navigator :url="`/pages/math/math-all-books?subjectId=${selectedSubjectId}`" class="action-link">更多 ❯</navigator>
         </div>
-        <div class="bookshelf-grid" v-if="categorizedBooks.books.length > 0">
-          <div v-for="book in categorizedBooks.books" :key="book.BookID" class="book-card" :class="`style-${book.StyleType || 'default'}`" @click="goToBook(book)">
+        <div class="bookshelf-grid" v-if="userBookshelfBooks.length > 0">
+          <div v-for="book in userBookshelfBooks" :key="book.BookID" class="book-card" :class="`style-${book.StyleType || 'default'}`" @click="goToBook(book)">
             <div class="remove-btn" @click.stop="removeFromBookshelf(book.BookID)">×</div>
             <div v-if="book.progress" class="percentage-badge">{{ book.progress.toFixed(1) }}%</div>
             <div v-if="book.IsNew" class="new-banner">NEW</div>
@@ -87,56 +87,70 @@
         </div>
       </section>
 
-      <!-- 模考卷 -->
-      <section class="bookshelf-section">
-        <div class="section-header">
-          <h2>模考卷</h2>
-          <navigator :url="`/pages/math/math-practice?subjectId=${selectedSubjectId}&tab=mock`" class="action-link">更多 ❯</navigator>
-        </div>
-        <div class="bookshelf-grid" v-if="categorizedBooks.mocks.length > 0">
-          <div v-for="book in categorizedBooks.mocks" :key="book.BookID" class="book-card style-blue" @click="goToBook(book)">
-            <div class="remove-btn" @click.stop="removeFromBookshelf(book.BookID)">×</div>
-            <div v-if="book.IsNew" class="new-banner">NEW</div>
-            <div class="book-link">
-              <div class="book-thumbnail">
-                <span class="thumbnail-text">{{ book.ThumbnailText || book.BookTitle }}</span>
-                <p class="book-version">{{ book.VersionInfo || '模拟' }}</p>
-              </div>
-              <div class="book-info">
-                <p class="book-title">{{ book.BookTitle }}</p>
-              </div>
+      <!-- 试卷Tab区域 -->
+      <section class="bookshelf-section paper-tabs-section">
+        <!-- Tab头部 -->
+        <div class="paper-tabs-header">
+          <div class="tabs-left">
+            <div class="tab-item" :class="{ active: activePaperTab === 'real' }" @click="activePaperTab = 'real'">
+              <view class="tab-text">真题卷</view>
+              <view class="tab-line" v-if="activePaperTab === 'real'"></view>
+            </div>
+            <div class="tab-item" :class="{ active: activePaperTab === 'mock' }" @click="activePaperTab = 'mock'">
+              <view class="tab-text">模考卷</view>
+              <view class="tab-line" v-if="activePaperTab === 'mock'"></view>
             </div>
           </div>
+          <navigator :url="`/pages/math/math-practice?subjectId=${selectedSubjectId}&tab=${activePaperTab}`" class="action-link">更多 ❯</navigator>
         </div>
-        <div v-else class="empty-section">
-          <p>暂无模考卷</p>
-        </div>
-      </section>
-
-      <!-- 真题卷 -->
-      <section class="bookshelf-section">
-        <div class="section-header">
-          <h2>真题圈</h2>
-          <navigator :url="`/pages/math/math-practice?subjectId=${selectedSubjectId}&tab=real`" class="action-link">历年真题 ❯</navigator>
-        </div>
-        <div class="bookshelf-grid" v-if="categorizedBooks.reals.length > 0">
-          <div v-for="book in categorizedBooks.reals" :key="book.BookID" class="book-card style-yellow" @click="goToBook(book)">
-            <div class="remove-btn" @click.stop="removeFromBookshelf(book.BookID)">×</div>
-            <div v-if="book.IsNew" class="new-banner">NEW</div>
-            <div class="book-link">
-              <div class="book-thumbnail">
-                <span class="thumbnail-text">{{ book.ThumbnailText || book.BookTitle }}</span>
-                <p class="book-version">{{ book.VersionInfo || '历年' }}</p>
-              </div>
-              <div class="book-info">
-                <p class="book-title">{{ book.BookTitle }}</p>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div v-else class="empty-section">
-          <p>暂无真题卷</p>
-        </div>
+        
+        <!-- 试卷列表 - 使用swiper实现滑动切换 -->
+        <swiper class="paper-swiper" :current="activePaperTab === 'real' ? 0 : 1" @change="onPaperTabChange">
+          <swiper-item>
+            <scroll-view scroll-y class="paper-list-scroll">
+              <view class="paper-list">
+                <view v-for="book in categorizedBooks.reals" :key="book.BookID" class="paper-item style-yellow" @click="goToBook(book)">
+                  <view v-if="book.IsNew" class="new-banner">NEW</view>
+                  <view class="paper-content">
+                    <view class="paper-icon">📜</view>
+                    <view class="paper-info">
+                      <view class="paper-title">{{ book.BookTitle }}</view>
+                      <view class="paper-meta">
+                        <!-- 移除版本信息标签 -->
+                      </view>
+                    </view>
+                    <view class="paper-arrow">❯</view>
+                  </view>
+                </view>
+                <view v-if="categorizedBooks.reals.length === 0" class="empty-section">
+                  <text>暂无真题卷</text>
+                </view>
+              </view>
+            </scroll-view>
+          </swiper-item>
+          <swiper-item>
+            <scroll-view scroll-y class="paper-list-scroll">
+              <view class="paper-list">
+                <view v-for="book in categorizedBooks.mocks" :key="book.BookID" class="paper-item style-blue" @click="goToBook(book)">
+                  <view v-if="book.IsNew" class="new-banner">NEW</view>
+                  <view class="paper-content">
+                    <view class="paper-icon">📝</view>
+                    <view class="paper-info">
+                      <view class="paper-title">{{ book.BookTitle }}</view>
+                      <view class="paper-meta">
+                        <!-- 移除版本信息标签 -->
+                      </view>
+                    </view>
+                    <view class="paper-arrow">❯</view>
+                  </view>
+                </view>
+                <view v-if="categorizedBooks.mocks.length === 0" class="empty-section">
+                  <text>暂无模考卷</text>
+                </view>
+              </view>
+            </scroll-view>
+          </swiper-item>
+        </swiper>
       </section>
 
       <!-- 加载状态 -->
@@ -195,6 +209,18 @@ const userProgress = ref(null);
 const loading = ref(false);
 const isLoading = ref(false);
 
+// 请求取消令牌
+let abortController = null;
+
+// 试卷Tab相关 - 默认真题卷
+const activePaperTab = ref('real');
+
+// 处理swiper切换事件
+const onPaperTabChange = (e) => {
+  const current = e.detail.current;
+  activePaperTab.value = current === 0 ? 'real' : 'mock';
+};
+
 // 搜题弹窗相关
 const showSearchModal = ref(false);
 const searchQuestionId = ref('');
@@ -246,7 +272,19 @@ const allBooksCount = computed(() => {
   return userBookshelf.value.length;
 });
 
-// 分类书籍 (基于用户书架)
+// 按年份排序函数
+const sortByYear = (a, b) => {
+  const yearA = parseInt(a.BookTitle.match(/(\d{4})/)?.[1] || '0');
+  const yearB = parseInt(b.BookTitle.match(/(\d{4})/)?.[1] || '0');
+  return yearB - yearA; // 逆序，最新的在前
+};
+
+// 用户书架书籍（只显示用户选择的书籍）
+const userBookshelfBooks = computed(() => {
+  return [...userBookshelf.value].sort(sortByYear);
+});
+
+// 分类试卷（基于所有试卷，像 math-practice 页面一样）
 const categorizedBooks = computed(() => {
   const result = {
     books: [],
@@ -254,7 +292,8 @@ const categorizedBooks = computed(() => {
     reals: []
   };
 
-  userBookshelf.value.forEach(book => {
+  // 使用 books（所有试卷）
+  books.value.forEach(book => {
     // 根据书籍类型分类
     if (book.ContentType === 'mock_paper') {
       result.mocks.push(book);
@@ -267,10 +306,9 @@ const categorizedBooks = computed(() => {
   });
 
   // 按年份排序
-  const sortByVersion = (a, b) => (b.VersionInfo || '').localeCompare(a.VersionInfo || '');
-  result.books.sort(sortByVersion);
-  result.mocks.sort(sortByVersion);
-  result.reals.sort(sortByVersion);
+  result.books.sort(sortByYear);
+  result.mocks.sort(sortByYear);
+  result.reals.sort(sortByYear);
 
   return result;
 });
@@ -329,12 +367,20 @@ const fetchUserProgress = async () => {
 const fetchUserBookshelf = async (subjectId) => {
   try {
     const response = await request({
-      url: `/math/bookshelf?subjectId=${subjectId}`,
+      url: '/math/bookshelf',
       method: 'GET'
     });
-    userBookshelf.value = response.data;
+    // 根据当前选中的科目筛选书架
+    const allBooks = response.data || [];
+    if (subjectId) {
+      userBookshelf.value = allBooks.filter(book => book.SubjectID === subjectId);
+    } else {
+      userBookshelf.value = allBooks;
+    }
+    console.log('User bookshelf loaded:', userBookshelf.value.length, 'books for subject:', subjectId);
   } catch (error) {
     console.error('Failed to fetch user bookshelf:', error);
+    userBookshelf.value = [];
   }
 };
 
@@ -375,15 +421,34 @@ const fetchBooksBySubject = async (subjectId) => {
 };
 
 const loadPageData = async (subjectId) => {
-  if (!subjectId || isLoading.value) return;
+  if (!subjectId) return;
+  
+  // 如果正在加载，先取消之前的请求
+  if (isLoading.value) {
+    console.log('Loading in progress, skipping...');
+    return;
+  }
+  
   isLoading.value = true;
   loading.value = true;
+  
   try {
-    await Promise.all([
+    // 使用 Promise.allSettled 确保即使一个请求失败，其他请求也能完成
+    const results = await Promise.allSettled([
       fetchUserProgress(),
       fetchBooksBySubject(subjectId),
       fetchUserBookshelf(subjectId)
     ]);
+    
+    // 检查是否有失败的请求
+    results.forEach((result, index) => {
+      if (result.status === 'rejected') {
+        console.error(`Request ${index} failed:`, result.reason);
+      }
+    });
+    
+    // 标记数据已加载过一次
+    hasLoadedOnce = true;
   } catch (error) {
     console.error('Error loading page data:', error);
   } finally {
@@ -393,20 +458,25 @@ const loadPageData = async (subjectId) => {
 };
 
 const goToBook = (book) => {
-  // 保存为最近练习科目，以便在首页显示
-  const practiceItem = {
-    id: book.BookID,
-    title: `数学 - ${book.BookTitle}`,
-    url: '/pages/math/math-bookshelf',
-    icon: 'math'
-  };
-  uni.setStorageSync('lastPracticeSubject', practiceItem);
-
   const lastQuestionId = uni.getStorageSync(`last_question_${book.BookID}`);
   let url = `/pages/math/math-question-detail?bookId=${book.BookID}&bookTitle=${encodeURIComponent(book.BookTitle)}`;
   if (lastQuestionId) {
     url += `&questionId=${lastQuestionId}`;
   }
+  
+  // 保存为最近练习科目，以便在首页显示
+  const practiceItem = {
+    type: 'math',
+    subject: '数学',
+    id: book.BookID,
+    title: book.BookTitle,
+    bookTitle: book.BookTitle,
+    bookId: book.BookID,
+    url: url,
+    icon: 'math'
+  };
+  uni.setStorageSync('lastPracticeSubject', practiceItem);
+
   uni.navigateTo({ url });
 };
 
@@ -425,48 +495,25 @@ const fetchSubjects = async () => {
   }
 };
 
-const isInitialLoad = ref(true);
+// 标记是否已经在 onMounted 中加载过数据
+let hasMountedLoaded = false;
+let hasLoadedOnce = false;
 
 onShow(async () => {
+  // 如果 onMounted 还未执行或正在执行，跳过
+  if (!hasMountedLoaded) {
+    return;
+  }
+
   // 从缓存同步最新的科目数据
   const cachedSubjects = uni.getStorageSync('math_subjects');
   if (cachedSubjects && JSON.stringify(cachedSubjects) !== JSON.stringify(subjects.value)) {
     subjects.value = cachedSubjects;
   }
 
-  // 如果是首次进入页面，已经在 onMounted 中处理了
-  if (isInitialLoad.value) {
-    isInitialLoad.value = false;
-    return;
-  }
-
-  // 每次页面显示时都重新加载书架数据，确保显示最新的书籍列表
-  if (selectedSubjectId.value) {
+  // 每次页面显示时刷新书架数据（以便显示新添加的书籍）
+  if (selectedSubjectId.value && !isLoading.value) {
     await loadPageData(selectedSubjectId.value);
-  }
-
-  // 获取用户信息并同步后端选中的科目
-  try {
-    const userRes = await request({ url: '/user/info' });
-    if (userRes.data && userRes.data.selectedSubjectId) {
-      const backendSubjectId = userRes.data.selectedSubjectId;
-      if (backendSubjectId && backendSubjectId != selectedSubjectId.value) {
-        selectedSubjectId.value = backendSubjectId;
-        uni.setStorageSync('math_selected_subject_id', backendSubjectId);
-        await loadPageData(backendSubjectId);
-      }
-    }
-  } catch (error) {
-    console.error('Failed to fetch user info for subject sync:', error);
-  }
-
-  // 从缓存同步最新的科目 ID (作为兜底)
-  const storedSubjectId = uni.getStorageSync('math_selected_subject_id');
-  if (storedSubjectId && storedSubjectId != selectedSubjectId.value) {
-    selectedSubjectId.value = storedSubjectId;
-    if (selectedSubjectId.value) {
-      await loadPageData(selectedSubjectId.value);
-    }
   }
 });
 
@@ -487,24 +534,16 @@ onMounted(async () => {
     }
   }
 
-  // 3. (用户信息同步已在 onShow 中处理)
-  
-  // 4. 如果已有选中科目，立即加载页面数据（不再等待科目列表加载）
-  if (selectedSubjectId.value) {
-    loadPageData(selectedSubjectId.value);
-  }
-
-  // 5. 并行加载科目列表
+  // 3. 并行加载科目列表
   const subjectsData = await fetchSubjects();
   
-  // 6. 如果之前没有选中任何科目，则根据加载回来的列表设置默认值
+  // 4. 如果之前没有选中任何科目，则根据加载回来的列表设置默认值
   if (!selectedSubjectId.value && subjectsData.length > 0) {
     const mathOne = subjectsData.find(s => s && s.name && s.name.includes("数一"));
     const defaultSubject = mathOne || subjectsData[0];
     selectedSubjectId.value = defaultSubject.id;
     uni.setStorageSync('math_selected_subject_id', defaultSubject.id);
     uni.setStorageSync('math_selected_subject_name', defaultSubject.name);
-    loadPageData(defaultSubject.id);
     
     // 同步到后端
     try {
@@ -517,6 +556,14 @@ onMounted(async () => {
       console.error('Failed to sync default subject to backend:', error);
     }
   }
+  
+  // 5. 如果已有选中科目，加载页面数据（只加载一次）
+  if (selectedSubjectId.value && !isLoading.value) {
+    await loadPageData(selectedSubjectId.value);
+  }
+  
+  // 标记 onMounted 已完成
+  hasMountedLoaded = true;
 });
 </script>
 
@@ -1167,5 +1214,213 @@ uni-navigator.tool-btn:active {
 .search-btn.confirm:disabled {
   background: #ccc;
   cursor: not-allowed;
+}
+
+/* 试卷Tab样式 */
+.paper-tabs-section {
+  margin-top: 10px;
+}
+
+.paper-tabs-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+  padding: 0 4px;
+}
+
+.paper-tabs-header .tabs-left {
+  display: flex;
+  align-items: flex-end;
+  gap: 20px;
+}
+
+.paper-tabs-header .tab-item {
+  position: relative;
+  padding: 10px 0;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.paper-tabs-header .tab-text {
+  font-size: 15px;
+  font-weight: 500;
+  color: #999;
+  transition: all 0.3s ease;
+}
+
+.paper-tabs-header .tab-item.active .tab-text {
+  font-size: 18px;
+  font-weight: 600;
+  color: #ff3b30;
+}
+
+.paper-tabs-header .tab-line {
+  position: absolute;
+  bottom: 0;
+  width: 24px;
+  height: 3px;
+  background: #ff3b30;
+  border-radius: 2px;
+}
+
+.paper-swiper {
+  height: 400px;
+}
+
+.paper-swiper ::v-deep .uni-swiper-wrapper {
+  overflow: hidden;
+}
+
+.paper-swiper ::v-deep .uni-swiper-dots {
+  display: none;
+}
+
+.paper-list-scroll {
+  height: 100%;
+}
+
+.paper-list-scroll ::v-deep ::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+.paper-tabs-content {
+  min-height: 150px;
+}
+
+.paper-tabs-content .tab-panel {
+  animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* 试卷列表样式 */
+.paper-list {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.paper-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  background: #fff;
+  border-radius: 12px;
+  padding: 8px 12px;
+  transition: all 0.3s ease;
+  border: 1px solid rgba(0, 0, 0, 0.03);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  overflow: hidden;
+}
+
+.paper-item:active {
+  transform: translateY(1px);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+}
+
+.paper-item .new-banner {
+  position: absolute;
+  top: 0;
+  left: 0;
+  background-color: #ff3b30;
+  color: white;
+  padding: 3px 0;
+  width: 36px;
+  text-align: center;
+  font-size: 8px;
+  font-weight: 800;
+  clip-path: polygon(0 0, 100% 0, 85% 100%, 0% 100%);
+  z-index: 2;
+  letter-spacing: 0.5px;
+}
+
+.paper-item .remove-btn {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 18px;
+  height: 18px;
+  background: rgba(255, 59, 48, 0.9);
+  color: #fff;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  z-index: 10;
+  cursor: pointer;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.paper-content {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.paper-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  margin-right: 12px;
+  flex-shrink: 0;
+}
+
+.style-blue .paper-icon {
+  background: linear-gradient(135deg, #e0e7ff 0%, #c7d2fe 100%);
+}
+
+.style-yellow .paper-icon {
+  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+}
+
+.paper-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.paper-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: #333;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: 4px;
+}
+
+.paper-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.paper-version {
+  font-size: 12px;
+  color: #007aff;
+  font-weight: 500;
+}
+
+.paper-arrow {
+  color: #ccc;
+  font-size: 14px;
+  margin-left: 8px;
 }
 </style>

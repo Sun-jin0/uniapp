@@ -98,7 +98,7 @@
             <!-- #endif -->
             <!-- #ifdef MP-WEIXIN -->
             <view class="question-text" :style="{ fontSize: fontSize + 'px' }">
-              <mp-html v-if="currentQuestionData.first_request[0].QuestionText" :content="displayQuestionText" markdown></mp-html>
+              <mp-html v-if="currentQuestionData.first_request[0].QuestionText" :content="displayQuestionText" copy-link="false"></mp-html>
             </view>
             <!-- #endif -->
             
@@ -110,7 +110,7 @@
               </view>
             </view>
             
-            <view v-if="studyMode === 'test' && questionType === '选择题' && extractedOptions.length > 0" class="options-container">
+            <view v-if="false" class="options-container">
               <view 
                 v-for="option in extractedOptions" 
                 :key="option.label" 
@@ -127,9 +127,7 @@
                 <view class="option-content" v-html="transformContextString(option.content)"></view>
                 <!-- #endif -->
                 <!-- #ifdef MP-WEIXIN -->
-                <view class="option-content" :style="{ fontSize: fontSize + 'px' }">
-                  <mp-html :content="option.content || ''" markdown></mp-html>
-                </view>
+                <view class="option-content" :style="{ fontSize: fontSize + 'px' }" v-html="transformContextString(option.content)"></view>
                 <!-- #endif -->
               </view>
             </view>
@@ -167,7 +165,7 @@
                     <!-- #endif -->
                     <!-- #ifdef MP-WEIXIN -->
                     <view class="analysis-card-title" :style="{ fontSize: fontSize + 'px' }">
-                      <mp-html :content="getDetailHeader(item)" markdown></mp-html>
+                      <mp-html :content="getDetailHeader(item)" markdown :tag-style="tagStyles"></mp-html>
                     </view>
                     <!-- #endif -->
                   </view>
@@ -176,7 +174,7 @@
                   <!-- #endif -->
                   <!-- #ifdef MP-WEIXIN -->
                   <view class="analysis-card-body" :style="{ fontSize: (fontSize - 2) + 'px', lineHeight: 1.6 }">
-                    <mp-html v-if="item.Context" :content="item.Context" markdown></mp-html>
+                    <mp-html v-if="item.Context" :content="preprocessContent(item.Context)" markdown copy-link="false"></mp-html>
                   </view>
                   <!-- #endif -->
                 </view>
@@ -190,7 +188,14 @@
                 <view v-for="(item, index) in groupedKnowledgePoints.考点" :key="'kao' + index" class="kaodian-item">
                   <view class="kaodian-header">
                     <view class="kaodian-dot"></view>
-                    <view class="kaodian-title">考点{{ index + 1 }}: {{ item._question_code?.KPTitle || item._question_code?.Title || item.Title || '考点内容' }}</view>
+                    <!-- #ifdef H5 -->
+                    <view class="kaodian-title" v-html="transformContextString('考点' + (index + 1) + ': ' + (item._question_code?.KPTitle || item._question_code?.Title || item.Title || '考点内容'))"></view>
+                    <!-- #endif -->
+                    <!-- #ifdef MP-WEIXIN -->
+                    <view class="kaodian-title">
+                      <mp-html :content="preprocessContent('考点' + (index + 1) + ': ' + (item._question_code?.KPTitle || item._question_code?.Title || item.Title || '考点内容'))" markdown copy-link="false"></mp-html>
+                    </view>
+                    <!-- #endif -->
                   </view>
                   <view class="kaodian-body">
                     <!-- #ifdef H5 -->
@@ -198,7 +203,7 @@
                     <!-- #endif -->
                     <!-- #ifdef MP-WEIXIN -->
                     <view class="kaodian-content" :style="{ fontSize: (fontSize - 2) + 'px' }">
-                      <mp-html v-if="item._question_code?.KPContent || item._question_code?.Content || item.Context" :content="(item._question_code?.KPContent || item._question_code?.Content || item.Context)" markdown></mp-html>
+                      <mp-html v-if="item._question_code?.KPContent || item._question_code?.Content || item.Context" :content="preprocessContent(item._question_code?.KPContent || item._question_code?.Content || item.Context)" markdown copy-link="false"></mp-html>
                     </view>
                     <!-- #endif -->
                   </view>
@@ -213,7 +218,14 @@
                 <view v-for="(item, index) in otherCategoryDetails" :key="'other' + index" class="kaodian-item">
                   <view class="kaodian-header">
                     <view class="kaodian-dot"></view>
-                    <view class="kaodian-title">{{ item.BusType || '其他' }}{{ index + 1 }}: {{ item._question_code?.KPTitle || item._question_code?.Title || item.Title || '' }}</view>
+                    <!-- #ifdef H5 -->
+                    <view class="kaodian-title" v-html="transformContextString((item.BusType || '其他') + (index + 1) + ': ' + (item._question_code?.KPTitle || item._question_code?.Title || item.Title || ''))"></view>
+                    <!-- #endif -->
+                    <!-- #ifdef MP-WEIXIN -->
+                    <view class="kaodian-title">
+                      <mp-html :content="preprocessContent((item.BusType || '其他') + (index + 1) + ': ' + (item._question_code?.KPTitle || item._question_code?.Title || item.Title || ''))" markdown copy-link="false"></mp-html>
+                    </view>
+                    <!-- #endif -->
                   </view>
                   <view class="kaodian-body">
                     <!-- #ifdef H5 -->
@@ -566,12 +578,12 @@
           <view class="setting-item" style="margin-top: 30rpx;">
             <view class="setting-label">字体大小</view>
             <view class="font-size-options">
-              <view 
-                v-for="size in fontSizeOptions" 
+              <view
+                v-for="size in fontSizeOptions"
                 :key="size.value"
                 class="font-size-btn"
                 :class="{ active: fontSize === size.value }"
-                @tap="fontSize = size.value"
+                @tap="setFontSize(size.value)"
               >
                 {{ size.label }}
               </view>
@@ -634,6 +646,17 @@ const currentQuestionIndex = ref(-1);
 const currentVisibleSourceId = ref(null);
 const currentBookId = ref(null);
 const currentQuestionData = ref(null);
+
+// mp-html 标签样式配置
+const tagStyles = {
+  'span.answer-label': 'display:inline-block;background:#4db6ac;color:#ffffff;padding:3px 8px;border-radius:6px;font-size:13px;font-weight:600;margin-right:10px;',
+  'span.tag-label-jiexi': 'display:inline-block;background:#2196f3;color:#ffffff;padding:3px 8px;border-radius:6px;font-size:13px;font-weight:600;margin-right:10px;',
+  'span.tag-label-zhengming': 'display:inline-block;background:#9c27b0;color:#ffffff;padding:3px 8px;border-radius:6px;font-size:13px;font-weight:600;margin-right:10px;',
+  'span.tag-label-steps': 'display:inline-block;background:#ff9800;color:#ffffff;padding:3px 8px;border-radius:6px;font-size:13px;font-weight:600;margin-right:10px;',
+  'span.tag-label-analysis': 'display:inline-block;background:#607d8b;color:#ffffff;padding:3px 8px;border-radius:6px;font-size:13px;font-weight:600;margin-right:10px;',
+  'span.bus-type-label': 'display:inline-block;background:#795548;color:#ffffff;padding:3px 8px;border-radius:6px;font-size:13px;font-weight:600;margin-right:10px;'
+};
+
 const sidebarChapters = ref([]);
 const expandedChapters = ref([]);
 const sidebarOpen = ref(false);
@@ -655,7 +678,7 @@ const relatedExpanded = ref(false);
 const analysisExpanded = ref(false);
 const activeTab = ref('analysis'); // 默认显示解析
 const isDarkMode = ref(false);
-const fontSize = ref(16);
+const fontSize = ref(14);
 const isFavorite = ref(false);
 const relatedQuestions = ref([]);
 
@@ -1209,23 +1232,55 @@ const displayQuestionText = computed(() => {
     return '';
   }
   
+  // 直接返回整个题目文本，包括选项
+  // 预处理换行符，将其转换为 <br>
   let text = currentQuestionData.value.first_request[0].QuestionText || '';
   
-  // 如果是在测试模式且提取到了选项，则在正文中隐藏它们，避免重复显示
-  if (studyMode.value === 'test' && questionType.value === '选择题' && extractedOptions.value.length >= 2) {
-    // 找到第一个选项出现的位置
-    const labelPattern = /(?:\\\(|\\\[|\$)?\s*(?:\\left\(\s*)?(?:\\mathrm\{|\\\{\\rm\s*|（|\()?([A-D])(?:\s*\})?(?:\s*\\right\))?(?:\s*）|\))?\s*(?:\\\)|\\\]|\$)?[\.\s\、\)\:]/i;
-    const match = text.match(labelPattern);
-    if (match) {
-      // 只有当匹配到的 label 是提取到的第一个选项时才截断
-      if (match[1] === extractedOptions.value[0].label) {
-        text = text.substring(0, match.index).trim();
-      }
-    }
-  }
+  // 处理 Markdown 格式图片 ![alt](url) -> <img>
+  // 使用更宽松的正则来匹配 URL（允许括号嵌套）
+  text = text.replace(/!\[([^\]]*)\]\((https?:\/\/[^\s]+?\.(?:png|jpg|jpeg|gif|webp|svg|bmp)[^\)]*)\)/gi, (match, alt, url) => {
+    let cleanUrl = url.replace(/(_yjs|_thumb|_small|_medium|_large)(\?.*)?$/i, '$2');
+    cleanUrl = cleanUrl.replace(/^http:\/\//i, 'https://');
+    return `<img src="${cleanUrl}" alt="${alt}" style="max-width:100%;height:auto;display:block;margin:10px 0;" />`;
+  });
   
+  // 处理裸图片 URL
+  text = text.replace(/(https?:\/\/[^\s<>"]+\.(?:png|jpg|jpeg|gif|webp|svg|bmp))(?:_yjs|_thumb|_small|_medium|_large)?(?!["'])/gi, (match, url) => {
+    let cleanUrl = url.replace(/(_yjs|_thumb|_small|_medium|_large)$/i, '');
+    cleanUrl = cleanUrl.replace(/^http:\/\//i, 'https://');
+    return `<img src="${cleanUrl}" style="max-width:100%;height:auto;display:block;margin:10px 0;" />`;
+  });
+  
+  // 处理换行符
+  text = text.replace(/\\n/g, '<br>');
+  text = text.replace(/\\t/g, ' ');
+  text = text.replace(/\n/g, '<br>');
+  text = text.replace(/\t/g, ' ');
   return text;
 });
+
+// 预处理解析和考点等内容（用于 mp-html 渲染）
+const preprocessContent = (content) => {
+  if (!content) return '';
+
+  let text = content;
+
+  // 处理裸图片 URL（不在 Markdown 格式中的图片链接）
+  // 使用负向前瞻，避免匹配 Markdown 格式中的 URL
+  text = text.replace(/(https?:\/\/[^\s<>"]+\.(?:png|jpg|jpeg|gif|webp|svg|bmp))(?:_yjs|_thumb|_small|_medium|_large)?(?!["'])(?!\))/gi, (match, url) => {
+    let cleanUrl = url.replace(/(_yjs|_thumb|_small|_medium|_large)$/i, '');
+    cleanUrl = cleanUrl.replace(/^http:\/\//i, 'https://');
+    return `<img src="${cleanUrl}" style="max-width:100%;height:auto;display:block;margin:10px 0;" />`;
+  });
+
+  // 处理换行符
+  text = text.replace(/\\n/g, '<br>');
+  text = text.replace(/\\t/g, ' ');
+  text = text.replace(/\n/g, '<br>');
+  text = text.replace(/\t/g, ' ');
+
+  return text;
+};
 
 // #ifdef MP-WEIXIN
 // 监听题目文本变化，更新 Towxml 节点
@@ -1255,20 +1310,43 @@ const extractedOptions = computed(() => {
   const text = currentQuestionData.value.first_request[0].QuestionText || '';
   const options = [];
   
-  // 改进的选项提取正则：将末尾的分隔符改为可选 (?)，以适应更多紧凑排列的题目
-  const labelPattern = /(?:\\\(|\\\[|\$)?\s*(?:\\left\(\s*)?(?:\\mathrm\{|\\\{\\rm\s*|（|\()?([A-D])(?:\s*\})?(?:\s*\\right\))?(?:\s*）|\))?\s*(?:\\\)|\\\]|\$)?[\.\s\、\)\:]?/g;
+  // 改进的选项提取正则：支持更多格式的选项标签
+  // 包括：A. B. C. D. 或 A) B) C) D) 或 (A) (B) (C) (D) 或 \(\mathrm{A}\) 等LaTeX格式
+  // 使用多个正则分别匹配不同格式
+  const patterns = [
+    // 匹配 \(\mathrm{A}\) 或 \(\mathrm{B}\) 等LaTeX格式
+    /\\\s*\(\s*\\mathrm\{\s*([A-D])\s*\}\s*\\\s*\)/gi,
+    // 匹配 $...$ 包裹的选项标签，如 $\left( \mathrm{A} \right)$
+    /\$\s*\\left\(\s*\\mathrm\{\s*([A-D])\s*\}\s*\\right\)\s*\$/gi,
+    // 匹配普通格式 A. B. C. D.
+    /([A-D])[\.\s\、\)\:]/g,
+    // 匹配括号格式 (A) (B) (C) (D)
+    /\(\s*([A-D])\s*\)/g
+  ];
   
   const matches = [];
-  let m;
-  const tempRegex = new RegExp(labelPattern);
-  while ((m = tempRegex.exec(text)) !== null) {
-    matches.push({
-      index: m.index,
-      length: m[0].length,
-      label: m[1],
-      fullMatch: m[0]
-    });
+  
+  // 尝试每种模式
+  for (const pattern of patterns) {
+    let m;
+    while ((m = pattern.exec(text)) !== null) {
+      // 检查这个位置是否已经被匹配过
+      const alreadyMatched = matches.some(match => 
+        Math.abs(match.index - m.index) < 5
+      );
+      if (!alreadyMatched) {
+        matches.push({
+          index: m.index,
+          length: m[0].length,
+          label: m[1],
+          fullMatch: m[0]
+        });
+      }
+    }
   }
+  
+  // 按位置排序
+  matches.sort((a, b) => a.index - b.index);
   
   if (matches.length > 0) {
     for (let i = 0; i < matches.length; i++) {
@@ -1276,8 +1354,15 @@ const extractedOptions = computed(() => {
       const end = (i < matches.length - 1) ? matches[i+1].index : text.length;
       let content = text.substring(start, end).trim();
       
+      // 移除内容开头的选项标签（如果有的话）
+      // 匹配 $\left( \mathrm{X} \right)$ 或 \(\mathrm{X}\) 等格式
+      content = content.replace(/^\$\s*\\left\(\s*\\mathrm\{\s*[A-D]\s*\}\s*\\right\)\s*\$\s*/i, '');
+      content = content.replace(/^\\\s*\(\s*\\mathrm\{\s*[A-D]\s*\}\s*\\\s*\)\s*/i, '');
+      content = content.replace(/^\(\s*[A-D]\s*\)\s*/i, '');
+      content = content.replace(/^[A-D][\.\s\、\)\:]\s*/i, '');
+      
       // 修复：如果内容包含 LaTeX 指令但没有分隔符，且看起来像是因为分割导致的残余，进行补偿
-      if (content.includes('\\') && !content.includes('$') && !content.includes('\\(')) {
+      if (content.includes('\\') && !content.includes('$') && !content.includes('\\(') && !content.includes('\\[')) {
         // 如果内容以 \right) 开头或以 \left( 结尾，说明分割点在 LaTeX 内部
         // 这种情况下，我们尝试修复它
         if (content.startsWith('\\right)')) {
@@ -1287,9 +1372,14 @@ const extractedOptions = computed(() => {
           content = content + '\\right)';
         }
         // 如果仍然没有分隔符，包裹它
-        if (!content.includes('\\(')) {
+        if (!content.includes('\\(') && !content.includes('\\[')) {
           content = '\\(' + content + '\\)';
         }
+      }
+      
+      // 确保内容有 LaTeX 分隔符，以便 mp-html 能正确渲染
+      if (content.includes('\\') && !content.includes('$') && !content.includes('\\(') && !content.includes('\\[')) {
+        content = '\\(' + content + '\\)';
       }
       
       options.push({
@@ -1299,13 +1389,23 @@ const extractedOptions = computed(() => {
       });
     }
   } else {
-    // 备用方案：原来的普通匹配
-    const optionRegex = /([A-D])[\.\s\、\)]\s*([\s\S]*?)(?=(?:\s*[A-D][\.\s\、\)])|$)/g;
+    // 备用方案：支持更多格式的选项匹配
+    // 匹配模式：A. B. C. D. 或 A) B) C) D) 或 \(\mathrm{A}\) 等
+    const optionRegex = /([A-D])[\.\s\、\)\:]*\s*([\s\S]*?)(?=(?:\s*[A-D][\.\s\、\)\:]|$))/gi;
     let match;
     while ((match = optionRegex.exec(text)) !== null) {
+      let content = match[2].trim();
+      // 如果内容为空或只是空白，跳过
+      if (!content || content.length === 0) continue;
+      
+      // 确保内容有 LaTeX 分隔符，以便 mp-html 能正确渲染
+      if (content.includes('\\') && !content.includes('$') && !content.includes('\\(') && !content.includes('\\[')) {
+        content = '\\(' + content + '\\)';
+      }
+      
       options.push({
         label: match[1],
-        content: match[2].trim(),
+        content: content,
         isCorrect: false
       });
     }
@@ -1324,6 +1424,229 @@ const extractedOptions = computed(() => {
   
   return options;
 });
+
+// 格式化选项内容，确保 LaTeX 正确渲染
+const formatOptionContent = (content) => {
+  if (!content) return '';
+  
+  // 如果内容包含 LaTeX 命令但没有被 $ 或 \( 包裹，尝试修复
+  let formatted = content.trim();
+  
+  // 移除可能残留的选项标签格式
+  formatted = formatted.replace(/^\$\s*\\left\(\s*\\mathrm\{\s*[A-D]\s*\}\s*\\right\)\s*\$\s*/i, '');
+  formatted = formatted.replace(/^\\\s*\(\s*\\mathrm\{\s*[A-D]\s*\}\s*\\\s*\)\s*/i, '');
+  
+  // 确保所有 LaTeX 公式都被 $ 包裹
+  // 如果内容包含未包裹的 LaTeX 命令，添加 $ 分隔符
+  if (formatted.includes('\\') && !formatted.includes('$') && !formatted.includes('\\(') && !formatted.includes('\\[')) {
+    formatted = '$' + formatted + '$';
+  }
+  
+  return formatted;
+};
+
+// 格式化选项内容为 rich-text 节点格式
+const formatOptionNodes = (content) => {
+  if (!content) return [];
+  
+  let text = content.trim();
+  
+  // 移除可能残留的选项标签格式
+  text = text.replace(/^\$\s*\\left\(\s*\\mathrm\{\s*[A-D]\s*\}\s*\\right\)\s*\$\s*/i, '');
+  text = text.replace(/^\\\s*\(\s*\\mathrm\{\s*[A-D]\s*\}\s*\\\s*\)\s*/i, '');
+  
+  // 如果内容是纯文本（不包含 LaTeX），直接返回
+  if (!text.includes('\\') && !text.includes('$')) {
+    return [{ type: 'text', text: text }];
+  }
+  
+  // 尝试解析 LaTeX 公式
+  const nodes = [];
+  let lastIndex = 0;
+  
+  // 匹配 $...$ 格式的行内公式
+  const regex = /\$([^$\n]+)\$/g;
+  let match;
+  
+  while ((match = regex.exec(text)) !== null) {
+    // 添加公式前的文本
+    if (match.index > lastIndex) {
+      nodes.push({
+        type: 'text',
+        text: text.substring(lastIndex, match.index)
+      });
+    }
+    
+    // 添加公式（暂时作为纯文本显示）
+    nodes.push({
+      type: 'text',
+      text: match[1],
+      attrs: {
+        style: 'font-style: italic;'
+      }
+    });
+    
+    lastIndex = match.index + match[0].length;
+  }
+  
+  // 添加剩余的文本
+  if (lastIndex < text.length) {
+    nodes.push({
+      type: 'text',
+      text: text.substring(lastIndex)
+    });
+  }
+  
+  return nodes.length > 0 ? nodes : [{ type: 'text', text: text }];
+};
+
+// mp-html 加载完成回调
+const onMpHtmlLoad = () => {
+  // 调试：打印选项内容
+  if (extractedOptions.value && extractedOptions.value.length > 0) {
+    console.log('Options loaded:', extractedOptions.value.map(opt => ({
+      label: opt.label,
+      content: opt.content
+    })));
+  }
+};
+
+// 解析选项文本，移除 LaTeX 标记，保留纯文本内容
+const parseOptionText = (content) => {
+  if (!content) return '';
+  
+  let text = content.trim();
+  
+  // 移除选项标签格式
+  text = text.replace(/^\$\s*\\left\(\s*\\mathrm\{\s*[A-D]\s*\}\s*\\right\)\s*\$\s*/i, '');
+  text = text.replace(/^\\\s*\(\s*\\mathrm\{\s*[A-D]\s*\}\s*\\\s*\)\s*/i, '');
+  
+  // 移除 $ 符号
+  text = text.replace(/\$/g, '');
+  
+  // 将常见的 LaTeX 命令转换为纯文本
+  text = text.replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, '$1/$2');
+  text = text.replace(/\\left\(/g, '(');
+  text = text.replace(/\\right\)/g, ')');
+  text = text.replace(/\\mathrm\{([^}]+)\}/g, '$1');
+  text = text.replace(/\\boldsymbol\{([^}]+)\}/g, '$1');
+  text = text.replace(/\\alpha/g, 'α');
+  text = text.replace(/\\beta/g, 'β');
+  text = text.replace(/\\gamma/g, 'γ');
+  text = text.replace(/\\delta/g, 'δ');
+  text = text.replace(/\\sum/g, '∑');
+  text = text.replace(/\\infty/g, '∞');
+  text = text.replace(/\\ne/g, '≠');
+  text = text.replace(/\\le/g, '≤');
+  text = text.replace(/\\ge/g, '≥');
+  text = text.replace(/\\cdot/g, '·');
+  text = text.replace(/\\times/g, '×');
+  text = text.replace(/\\div/g, '÷');
+  text = text.replace(/\\pm/g, '±');
+  text = text.replace(/\\mp/g, '∓');
+  text = text.replace(/\\sqrt\{([^}]+)\}/g, '√$1');
+  text = text.replace(/\\sqrt/g, '√');
+  text = text.replace(/\\pi/g, 'π');
+  text = text.replace(/\\theta/g, 'θ');
+  text = text.replace(/\\lambda/g, 'λ');
+  text = text.replace(/\\mu/g, 'μ');
+  text = text.replace(/\\sigma/g, 'σ');
+  text = text.replace(/\\omega/g, 'ω');
+  text = text.replace(/\\partial/g, '∂');
+  text = text.replace(/\\int/g, '∫');
+  text = text.replace(/\\iint/g, '∬');
+  text = text.replace(/\\iiint/g, '∭');
+  text = text.replace(/\\oint/g, '∮');
+  text = text.replace(/\\sim/g, '~');
+  text = text.replace(/\\approx/g, '≈');
+  text = text.replace(/\\equiv/g, '≡');
+  text = text.replace(/\\propto/g, '∝');
+  text = text.replace(/\\perp/g, '⊥');
+  text = text.replace(/\\parallel/g, '∥');
+  text = text.replace(/\\angle/g, '∠');
+  text = text.replace(/\\triangle/g, '△');
+  text = text.replace(/\\square/g, '□');
+  text = text.replace(/\\ldots/g, '...');
+  text = text.replace(/\\cdots/g, '⋯');
+  text = text.replace(/\\vdots/g, '⋮');
+  text = text.replace(/\\ddots/g, '⋱');
+  text = text.replace(/\\forall/g, '∀');
+  text = text.replace(/\\exists/g, '∃');
+  text = text.replace(/\\nexists/g, '∄');
+  text = text.replace(/\\in/g, '∈');
+  text = text.replace(/\\notin/g, '∉');
+  text = text.replace(/\\subset/g, '⊂');
+  text = text.replace(/\\subseteq/g, '⊆');
+  text = text.replace(/\\supset/g, '⊃');
+  text = text.replace(/\\supseteq/g, '⊇');
+  text = text.replace(/\\cup/g, '∪');
+  text = text.replace(/\\cap/g, '∩');
+  text = text.replace(/\\setminus/g, '\\');
+  text = text.replace(/\\emptyset/g, '∅');
+  text = text.replace(/\\aleph/g, 'ℵ');
+  text = text.replace(/\\infty/g, '∞');
+  text = text.replace(/\\nabla/g, '∇');
+  text = text.replace(/\\hbar/g, 'ℏ');
+  text = text.replace(/\\ell/g, 'ℓ');
+  text = text.replace(/\\Re/g, 'ℜ');
+  text = text.replace(/\\Im/g, 'ℑ');
+  text = text.replace(/\\wp/g, '℘');
+  text = text.replace(/\\prime/g, '′');
+  text = text.replace(/\\surd/g, '√');
+  text = text.replace(/\\angle/g, '∠');
+  text = text.replace(/\\triangle/g, '△');
+  text = text.replace(/\\backslash/g, '\\');
+  text = text.replace(/\\{/g, '{');
+  text = text.replace(/\\}/g, '}');
+  text = text.replace(/\\$/g, '$');
+  text = text.replace(/\\&/g, '&');
+  text = text.replace(/\\%/g, '%');
+  text = text.replace(/\\#/g, '#');
+  text = text.replace(/\\_/g, '_');
+  text = text.replace(/\\^/g, '^');
+  text = text.replace(/\\~/g, '~');
+  text = text.replace(/\\,/g, ' ');
+  text = text.replace(/\\;/g, ' ');
+  text = text.replace(/\\:/g, ' ');
+  text = text.replace(/\\!/g, '');
+  text = text.replace(/\\ /g, ' ');
+  text = text.replace(/\\quad/g, '  ');
+  text = text.replace(/\\qquad/g, '    ');
+  
+  // 移除剩余的反斜杠
+  text = text.replace(/\\/g, '');
+  
+  // 清理多余的空格
+  text = text.replace(/\s+/g, ' ').trim();
+  
+  return text;
+};
+
+// 为 mp-html 包装 LaTeX 内容，确保正确渲染
+const wrapLatexForMpHtml = (content) => {
+  if (!content) return '';
+  
+  let text = content.trim();
+  
+  // 移除内容开头的选项标签格式
+  text = text.replace(/^\$\s*\\left\(\s*\\mathrm\{\s*[A-D]\s*\}\s*\\right\)\s*\$\s*/i, '');
+  text = text.replace(/^\\\s*\(\s*\\mathrm\{\s*[A-D]\s*\}\s*\\\s*\)\s*/i, '');
+  text = text.replace(/^\(\s*[A-D]\s*\)\s*/i, '');
+  text = text.replace(/^[A-D][\.\s\、\)\:]\s*/i, '');
+  
+  // 如果内容已经被 $ 或 \( 包裹，直接返回
+  if ((text.startsWith('$') && text.endsWith('$')) || 
+      (text.startsWith('\\(') && text.endsWith('\\)'))) {
+    return text;
+  }
+  
+  // 如果内容包含 LaTeX 命令，用 \( ... \) 包裹
+  if (text.includes('\\')) {
+    return '\\(' + text + '\\)';
+  }
+  
+  return text;
+};
 
 const toggleFavorite = async () => {
   if (!currentVisibleSourceId.value) return;
@@ -1423,9 +1746,13 @@ const toggleTheme = () => {
 const changeFontSize = (delta) => {
   const newSize = fontSize.value + delta;
   if (newSize >= 12 && newSize <= 30) {
-    fontSize.value = newSize;
-    uni.setStorageSync('math-font-size', newSize);
+    setFontSize(newSize);
   }
+};
+
+const setFontSize = (size) => {
+  fontSize.value = size;
+  uni.setStorageSync('math-font-size', size);
 };
 
 watch(analysisExpanded, async (newVal) => {
@@ -1506,11 +1833,12 @@ const otherDetails = computed(() => {
   
   const KAO_DIAN_BUS_TYPE = '考点';
   const YI_NAN_DIAN_BUS_TYPE = '疑难点';
+  const MO_BAN_ZI_YUAN_BUS_TYPE = '模板资源';
   
-  // 过滤掉考点和疑难点
+  // 过滤掉考点、疑难点和模板资源
   const filtered = currentQuestionData.value.second_request.filter(item => {
     const busType = item.BusType;
-    return busType !== KAO_DIAN_BUS_TYPE && busType !== YI_NAN_DIAN_BUS_TYPE;
+    return busType !== KAO_DIAN_BUS_TYPE && busType !== YI_NAN_DIAN_BUS_TYPE && busType !== MO_BAN_ZI_YUAN_BUS_TYPE;
   });
 
   // 排序逻辑：优先展示包含“题目详解”的内容
@@ -1705,6 +2033,46 @@ const questionType = computed(() => {
   return '解答题';
 });
 
+// 保存当前刷题状态到首页显示
+const saveCurrentPracticeState = () => {
+  const currentIndex = currentQuestionIndex.value;
+  const totalQuestions = sortedBookQuestionSourceIDs.value.length;
+  
+  let practiceState = {
+    type: 'math',
+    subject: '数学',
+    currentQuestionId: currentVisibleSourceId.value,
+    currentIndex: currentIndex >= 0 ? currentIndex + 1 : 1,
+    totalQuestions: totalQuestions > 0 ? totalQuestions : 1,
+    timestamp: Date.now()
+  };
+  
+  // 如果有书本ID，保存书本信息
+  if (currentBookId.value && topNavTitle.value) {
+    practiceState.bookId = currentBookId.value;
+    practiceState.bookTitle = topNavTitle.value;
+    practiceState.title = topNavTitle.value;
+    practiceState.url = `/pages/math/math-question-detail?bookId=${currentBookId.value}&bookTitle=${encodeURIComponent(topNavTitle.value)}&questionId=${currentVisibleSourceId.value}`;
+  } 
+  // 如果是考点刷题模式（有ids参数）
+  else if (sortedBookQuestionSourceIDs.value.length > 0) {
+    practiceState.mode = 'knowledge';
+    practiceState.ids = sortedBookQuestionSourceIDs.value.join(',');
+    practiceState.title = topNavTitle.value || '考点刷题';
+    practiceState.url = `/pages/math/math-question-detail?ids=${sortedBookQuestionSourceIDs.value.join(',')}&questionId=${currentVisibleSourceId.value}`;
+  }
+  // 单题模式
+  else {
+    practiceState.mode = 'single';
+    practiceState.title = '题目详情';
+    practiceState.url = `/pages/math/math-question-detail?questionId=${currentVisibleSourceId.value}`;
+  }
+  
+  // 保存到本地存储
+  uni.setStorageSync('lastPracticeSubject', practiceState);
+  uni.setStorageSync('currentPracticeState', practiceState);
+};
+
 const navigateToQuestion = (sourceId, bookIdForNav = null) => {
   const targetBookId = bookIdForNav || currentBookId.value;
   
@@ -1745,16 +2113,24 @@ const navigateToQuestion = (sourceId, bookIdForNav = null) => {
 
   // 如果当前在题目列表模式（ids 模式），且没有传入新的 bookId，则保持当前列表
   if (sortedBookQuestionSourceIDs.value.length > 0 && !bookIdForNav) {
-    currentVisibleSourceId.value = String(sourceId);
-    
+    const targetId = String(sourceId);
+    currentVisibleSourceId.value = targetId;
+
+    // #ifdef MP-WEIXIN
+    // 如果数据未缓存，主动获取数据
+    if (!allQuestionsData.value[targetId]) {
+      fetchQuestionData(targetId);
+    }
+    // #endif
+
     // #ifdef MP-WEIXIN
     // 预加载后3个题目的数据
-    const currentIdx = sortedBookQuestionSourceIDs.value.indexOf(String(sourceId));
+    const currentIdx = sortedBookQuestionSourceIDs.value.indexOf(targetId);
     if (currentIdx !== -1) {
       preloadNextQuestions(currentIdx);
     }
     // #endif
-    
+
     // 更新 URL，保留 ids 参数
     setQueryParam('questionId', sourceId);
     return;
@@ -1784,6 +2160,9 @@ const navigateToQuestion = (sourceId, bookIdForNav = null) => {
     uni.setStorageSync(`last_question_${targetBookId}`, sourceId);
     uni.setStorageSync('last_book_id', targetBookId);
   }
+
+  // 保存当前刷题状态到首页显示
+  saveCurrentPracticeState();
 
   // 更新URL历史记录
   // #ifdef H5
@@ -1863,8 +2242,10 @@ const getDetailHeader = (item) => {
   if (itemBusType) {
     if (itemBusType === '答案') {
       headerHtml += `<span class="answer-label">${itemBusType}</span> `;
-    } else if (['解析', '证明'].includes(itemBusType)) {
-      headerHtml += `<span class="tag-label-${itemBusType.toLowerCase()}">${itemBusType}</span> `;
+    } else if (itemBusType === '解析') {
+      headerHtml += `<span class="tag-label-jiexi">${itemBusType}</span> `;
+    } else if (itemBusType === '证明') {
+      headerHtml += `<span class="tag-label-zhengming">${itemBusType}</span> `;
     } else if (['步骤'].includes(itemBusType)) {
       headerHtml += `<span class="tag-label-steps">${itemBusType}</span> `;
     } else if (['分析', '思路分析', '注释'].includes(itemBusType)) {
@@ -1876,7 +2257,12 @@ const getDetailHeader = (item) => {
   
   const itemTitle = item.KPTitle || (item._question_code && item._question_code.KPTitle) || item.Title;
   if (itemTitle) {
+    // #ifdef H5
     headerHtml += `<span class="detail-title">${transformContextString(itemTitle)}</span>`;
+    // #endif
+    // #ifdef MP-WEIXIN
+    headerHtml += `<span class="detail-title">${itemTitle}</span>`;
+    // #endif
   }
   
   if (headerHtml) {
@@ -2231,7 +2617,21 @@ const fetchBookDetails = async () => {
     // 如果当前没有题目ID，且书本有题目，则默认选中第一个题目
     if (!currentVisibleSourceId.value && sortedBookQuestionSourceIDs.value.length > 0) {
       currentVisibleSourceId.value = sortedBookQuestionSourceIDs.value[0];
+      
+      // 初始化题目相关的状态
+      isSubmitted.value = uni.getStorageSync(`submitted_${currentVisibleSourceId.value}`) || false;
+      isTestSubmitted.value = uni.getStorageSync(`test_submitted_${currentVisibleSourceId.value}`) || false;
+      // 背题模式下直接展开答案解析
+      if (studyMode.value === 'practice') {
+        analysisExpanded.value = true;
+      }
+      
       fetchQuestionData(currentVisibleSourceId.value);
+      
+      // 初始加载后更新索引
+      nextTick(() => {
+        updateCurrentQuestionIndex();
+      });
       
       // #ifdef MP-WEIXIN
       // 预加载后3个题目的数据
@@ -2250,6 +2650,9 @@ const fetchBookDetails = async () => {
       }
       // #endif
     }
+    
+    // 保存当前刷题状态到首页
+    saveCurrentPracticeState();
   } catch (err) {
     console.error('Error fetching book details:', err);
     errorSidebar.value = `加载书本失败: ${err.message}`;
@@ -2278,6 +2681,8 @@ onLoad((options) => {
       currentVisibleSourceId.value = options.questionId || ids[0];
       updateCurrentQuestionIndex();
       studyMode.value = options.mode || 'practice';
+      // 有 ids 参数时不是单题模式，显示完整题目列表
+      isSingleQuestionMode.value = false;
       fetchQuestionData(currentVisibleSourceId.value);
       
       // #ifdef MP-WEIXIN
@@ -2292,10 +2697,13 @@ onLoad((options) => {
         sidebarTitle.value = '题目列表';
       }
 
-      if (options.bookId) {
-        currentBookId.value = options.bookId;
-        fetchBookDetails();
-      }
+      // 保存当前刷题状态到首页
+      setTimeout(() => {
+        saveCurrentPracticeState();
+      }, 100);
+
+      // 注意：有 ids 参数时，不再加载书本详情，避免覆盖题目列表
+      // 如果需要书本标题，可以通过 bookId 参数单独获取
       return;
     }
   }
@@ -2312,6 +2720,12 @@ onLoad((options) => {
     if (studyMode.value === 'practice') {
       analysisExpanded.value = true;
     }
+    
+    // 保存当前刷题状态到首页
+    setTimeout(() => {
+      saveCurrentPracticeState();
+    }, 100);
+    
     return;
   }
 
@@ -2327,10 +2741,8 @@ onLoad((options) => {
     currentVisibleSourceId.value = uni.getStorageSync(`last_question_${currentBookId.value}`);
   }
 
-  if (!currentVisibleSourceId.value || !currentBookId.value) {
-    if (!currentVisibleSourceId.value) currentVisibleSourceId.value = getQueryParam('questionId');
-    if (!currentBookId.value) currentBookId.value = getQueryParam('bookId');
-  }
+  // 注意：这里不再从 URL 查询参数中读取，因为 URL 中可能包含旧的书本/题目 ID
+  // 优先使用页面 options 中的参数
 
   if (currentBookId.value) {
     fetchBookDetails();
@@ -2407,12 +2819,12 @@ watch(() => currentVisibleSourceId.value, async (newVal) => {
     relatedExpanded.value = analysisExpanded.value;
     // 重置 Tab 为解析
     activeTab.value = 'analysis';
-    
+
     if (allQuestionsData.value[newVal]) {
       currentQuestionData.value = allQuestionsData.value[newVal];
-      // 增加刷题计数
-      await increaseQuestionCount();
       renderKatex();
+      // 增加刷题计数（不等待，避免阻塞渲染）
+      increaseQuestionCount().catch(err => console.error('增加刷题计数失败:', err));
     } else {
       fetchQuestionData(newVal);
     }
@@ -2966,7 +3378,8 @@ watch(relatedExpanded, (newVal) => {
 }
 
 .chapter-questions-container.expanded {
-  max-height: 2000px;
+  max-height: none;
+  overflow: visible;
 }
 
 .question-item {
@@ -3150,6 +3563,66 @@ watch(relatedExpanded, (newVal) => {
 .answer-label {
   display: inline-block;
   background: #4db6ac;
+  color: #ffffff;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  margin-right: 10px;
+}
+
+/* 解析标签 */
+.tag-label-jiexi {
+  display: inline-block;
+  background: #2196f3;
+  color: #ffffff;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  margin-right: 10px;
+}
+
+/* 证明标签 */
+.tag-label-zhengming {
+  display: inline-block;
+  background: #9c27b0;
+  color: #ffffff;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  margin-right: 10px;
+}
+
+/* 步骤标签 */
+.tag-label-steps {
+  display: inline-block;
+  background: #ff9800;
+  color: #ffffff;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  margin-right: 10px;
+}
+
+/* 分析标签 */
+.tag-label-analysis {
+  display: inline-block;
+  background: #607d8b;
+  color: #ffffff;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  margin-right: 10px;
+}
+
+/* 其他类型标签 */
+.bus-type-label {
+  display: inline-block;
+  background: #795548;
   color: #ffffff;
   padding: 3px 8px;
   border-radius: 6px;
@@ -4424,6 +4897,17 @@ watch(relatedExpanded, (newVal) => {
   max-width: 100%;
   display: inline-block;
   vertical-align: middle;
+}
+
+/* 确保 KaTeX 大括号正确显示 */
+:deep(.katex .mopen),
+:deep(.katex .mclose) {
+  display: inline-block !important;
+  visibility: visible !important;
+}
+
+:deep(.katex .delimeter-sizing) {
+  display: inline-block !important;
 }
 
 :deep(.katex-html) {

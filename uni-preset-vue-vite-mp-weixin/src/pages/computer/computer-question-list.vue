@@ -361,6 +361,17 @@ const goToDetail = (question) => {
   if (options.majorId) practiceUrl += `&majorId=${options.majorId}`;
   if (options.examGroupId) practiceUrl += `&examGroupId=${options.examGroupId}`;
   
+  // 保存为最近练习科目，以便在首页显示
+  const practiceItem = {
+    type: 'computer',
+    subject: '计算机',
+    id: options.chapterId || options.tagId || 'computer',
+    title: displayTitle.value || '计算机刷题',
+    url: practiceUrl,
+    icon: 'computer'
+  };
+  uni.setStorageSync('lastPracticeSubject', practiceItem);
+  
   uni.navigateTo({
     url: practiceUrl
   });

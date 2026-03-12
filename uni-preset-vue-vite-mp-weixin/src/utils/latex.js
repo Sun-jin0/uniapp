@@ -86,9 +86,9 @@ function latexToUnicode(formula) {
   // 处理 \mathrm{text}, \text{text}, \mathbf{text} 等
   result = result.replace(/\\(?:mathrm|text|mathbf|mathit|mathcal|mathbb)\{([^}]*)\}/g, '$1');
   
-  // 处理 \left 和 \right
-  result = result.replace(/\\left\s*([(\[{|)])/g, '$1');
-  result = result.replace(/\\right\s*([)\]}|)])/g, '$1');
+  // 处理 \left 和 \right (包括周围的空格)
+  result = result.replace(/\\left\s*([(\[{|)])\s*/g, '$1');
+  result = result.replace(/\\right\s*([)\]}|)])\s*/g, '$1');
   result = result.replace(/\\left\s*\\?/g, '');
   result = result.replace(/\\right\s*\\?/g, '');
   
@@ -509,7 +509,8 @@ export function transformContextString(rawContextString) {
       const rendered = katex.renderToString(expression, {
         throwOnError: false,
         displayMode: displayMode,
-        strict: false
+        strict: false,
+        trust: true
       });
       return createPlaceholder(rendered, 'math');
     } catch (e) {
@@ -526,18 +527,74 @@ export function transformContextString(rawContextString) {
     .replace(/&quot;/g, '"')
     .replace(/&#039;/g, "'");
 
-  // 3. 处理 《答案》等自定义标签
-  currentText = currentText
-    .replace(/《答案》/g, '<span style="color:#009688;font-weight:bold;">【答案】</span>')
-    .replace(/《\/答案》/g, '')
-    .replace(/《分析》/g, '<span style="color:#009688;font-weight:bold;">【思路分析】</span>')
-    .replace(/《\/分析》/g, '')
-    .replace(/《点评》/g, '<span style="color:#FF5405;font-weight:bold;">【点评】</span>')
-    .replace(/《\/点评》/g, '')
-    .replace(/《注释》/g, '<span style="color:#666;font-style:italic;">')
-    .replace(/《\/注释》/g, '</span>')
-    .replace(/《步骤》/g, '<span style="color:#FF5405;font-weight:bold;">')
-    .replace(/《\/步骤》/g, '</span>');
+  // 3. 处理 《答案》《解析》等自定义标签（参考 que.php 的实现）
+  const brPatternInHtml = "(?:<br\\s*\\/>\\s*(?:\\n)?)?";
+
+  // 标签样式：更精致的圆角标签，带渐变和阴影效果
+  const answerLabelStyle = 'display:inline-block;padding:4px 12px;border-radius:6px;background:linear-gradient(135deg,#009688 0%,#00796b 100%);color:#fff;font-size:13px;font-weight:600;margin-right:6px;box-shadow:0 2px 4px rgba(0,150,136,0.3);letter-spacing:0.5px;';
+  const jiexiLabelStyle = 'display:inline-block;padding:4px 12px;border-radius:6px;background:linear-gradient(135deg,#2196F3 0%,#1976D2 100%);color:#fff;font-size:13px;font-weight:600;margin-right:6px;box-shadow:0 2px 4px rgba(33,150,243,0.3);letter-spacing:0.5px;';
+
+  // 处理 《答案》【答案】《/答案》→ 答案标签
+  const answerMarkerRegex = new RegExp(`《答案》${brPatternInHtml}【答案】${brPatternInHtml}《\\/答案》(?:\\s|${brPatternInHtml})*`, "g");
+  currentText = currentText.replace(answerMarkerRegex, `<span class="tag-label-答案" style="${answerLabelStyle}">答案</span>`);
+
+  // 处理 《答案》【证明】《/答案》→ 证明标签
+  const answerMarkerRegex1 = new RegExp(`《答案》${brPatternInHtml}【证明】${brPatternInHtml}《\\/答案》(?:\\s|${brPatternInHtml})*`, "g");
+  currentText = currentText.replace(answerMarkerRegex1, `<span class="tag-label-证明" style="${answerLabelStyle}">证明</span>`);
+
+  // 处理 《解析》【解析】《/解析》→ 解析标签
+  const jiexiMarkerRegex = new RegExp(`《解析》${brPatternInHtml}【解析】${brPatternInHtml}《\\/解析》(?:\\s|${brPatternInHtml})*`, "g");
+  currentText = currentText.replace(jiexiMarkerRegex, `<span class="tag-label-解析" style="${jiexiLabelStyle}">解析</span>`);
+
+  // 辅助函数：样式化自定义块 - 虚线边框版本（蓝色系）
+  const styleCustomBlock = (contentToStyle, styleString, labelClass = '') => {
+    let processedContent = contentToStyle.replace(/<strong>|<\/strong>|<b>|<\/b>/gi, '');
+    let trimmedContent = processedContent.trim().replace(/^(<br\s*\/?>\s*)+|(<br\s*\/?>\s*)+$/gi, '');
+    if (!trimmedContent) return '';
+    return `<div style="margin:2px 0;padding:6px 10px;background:rgba(33,150,243,0.03);border:1px dashed #2196F3;border-radius:6px;"><span style="${styleString}">${trimmedContent}</span></div>`;
+  };
+
+  // 辅助函数：注释专用 - 不使用虚线框（青绿色）
+  const styleCustomBlockNote = (contentToStyle, styleString, labelClass = '') => {
+    let processedContent = contentToStyle.replace(/<strong>|<\/strong>|<b>|<\/b>/gi, '');
+    let trimmedContent = processedContent.trim().replace(/^(<br\s*\/?>\s*)+|(<br\s*\/?>\s*)+$/gi, '');
+    if (!trimmedContent) return '';
+    return `<div style="margin:2px 0;padding:6px 10px;background:linear-gradient(135deg,rgba(0,150,136,0.08) 0%,rgba(0,150,136,0.03) 100%);border-left:3px solid #009688;border-radius:0 6px 6px 0;"><span style="${styleString}">${trimmedContent}</span></div>`;
+  };
+
+  const styleCustomBlock2 = (contentToStyle, styleString, labelClass = '') => {
+    let processedContent = contentToStyle.replace(/<strong>|<\/strong>|<b>|<\/b>/gi, '');
+    let trimmedContent = processedContent.trim().replace(/^(<br\s*\/?>\s*)+|(<br\s*\/?>\s*)+$/gi, '');
+    if (!trimmedContent) return '';
+    return `<div style="margin:2px 0;padding:6px 10px;background:linear-gradient(135deg,rgba(255,84,5,0.08) 0%,rgba(255,84,5,0.03) 100%);border-left:3px solid #FF5405;border-radius:0 6px 6px 0;"><span style="${styleString}">${trimmedContent}</span></div>`;
+  };
+
+  const commentaryTextStyle = "color:#1565C0;line-height:1.6;";
+  const commentaryTextStyleNote = "color:#00796b;line-height:1.6;";
+  const commentaryTextStyle2 = "color:#E64A19;line-height:1.6;";
+
+  // 处理 《分析》...《/分析》
+  currentText = currentText.replace(/《分析》([\s\S]*?)《\/分析》/g, (match, innerContent) =>
+    styleCustomBlock(innerContent, commentaryTextStyle, 'tag-label-analysis')
+  );
+
+  // 处理 《思路分析》...《/思路分析》
+  currentText = currentText.replace(/《思路分析》([\s\S]*?)《\/思路分析》/g, (match, innerContent) =>
+    styleCustomBlock(innerContent, commentaryTextStyle, 'tag-label-思路分析')
+  );
+
+  // 处理 《注释》...《/注释》 - 不使用虚线框（保持青绿色）
+  currentText = currentText.replace(/《注释》([\s\S]*?)《\/注释》/g, (match, innerContent) =>
+    styleCustomBlockNote(innerContent, commentaryTextStyleNote, 'tag-label-注释')
+  );
+
+  // 处理 《点评》...《/点评》→ 移除（替换为空格）
+  currentText = currentText.replace(/《点评》([\s\S]*?)《\/点评》/g, ' ');
+
+  // 处理 《步骤》...《/步骤》
+  currentText = currentText.replace(/《步骤》([\s\S]*?)《\/步骤》/g, (match, innerContent) =>
+    styleCustomBlock2(innerContent, commentaryTextStyle2, 'tag-label-steps')
+  );
 
   // 4. 处理 \color 和 \bold 命令
   currentText = currentText
@@ -613,9 +670,9 @@ export function transformContextString(rawContextString) {
 // 非 H5 版本的 transformContextString 函数（小程序环境）
 export function transformContextString(rawContextString) {
   if (typeof rawContextString !== 'string') return '';
-  
+
   let currentText = rawContextString.trim().replace(/\t/g, ' ').replace(/ {2,}/g, ' ');
-  
+
   // 1. 处理 HTML 实体
   currentText = currentText
     .replace(/&amp;/g, '&')
@@ -624,20 +681,76 @@ export function transformContextString(rawContextString) {
     .replace(/&quot;/g, '"')
     .replace(/&#039;/g, "'")
     .replace(/&#36;/g, '$');
-  
-  // 2. 处理 《答案》等自定义标签
-  currentText = currentText
-    .replace(/《答案》/g, '<span style="color:#009688;font-weight:bold;">【答案】</span>')
-    .replace(/《\/答案》/g, '')
-    .replace(/《分析》/g, '<span style="color:#009688;font-weight:bold;">【思路分析】</span>')
-    .replace(/《\/分析》/g, '')
-    .replace(/《点评》/g, '<span style="color:#FF5405;font-weight:bold;">【点评】</span>')
-    .replace(/《\/点评》/g, '')
-    .replace(/《注释》/g, '<span style="color:#666;font-style:italic;">')
-    .replace(/《\/注释》/g, '</span>')
-    .replace(/《步骤》/g, '<span style="color:#FF5405;font-weight:bold;">')
-    .replace(/《\/步骤》/g, '</span>');
-  
+
+  // 2. 处理 《答案》《解析》等自定义标签（参考 que.php 的实现）
+  const brPatternInHtml = "(?:<br\\s*\\/>\\s*(?:\\n)?)?";
+
+  // 标签样式：更精致的圆角标签，带渐变和阴影效果
+  const answerLabelStyle = 'display:inline-block;padding:4px 12px;border-radius:6px;background:linear-gradient(135deg,#009688 0%,#00796b 100%);color:#fff;font-size:13px;font-weight:600;margin-right:6px;box-shadow:0 2px 4px rgba(0,150,136,0.3);letter-spacing:0.5px;';
+  const jiexiLabelStyle = 'display:inline-block;padding:4px 12px;border-radius:6px;background:linear-gradient(135deg,#2196F3 0%,#1976D2 100%);color:#fff;font-size:13px;font-weight:600;margin-right:6px;box-shadow:0 2px 4px rgba(33,150,243,0.3);letter-spacing:0.5px;';
+
+  // 处理 《答案》【答案】《/答案》→ 答案标签
+  const answerMarkerRegex = new RegExp(`《答案》${brPatternInHtml}【答案】${brPatternInHtml}《\\/答案》(?:\\s|${brPatternInHtml})*`, "g");
+  currentText = currentText.replace(answerMarkerRegex, `<span class="tag-label-答案" style="${answerLabelStyle}">答案</span>`);
+
+  // 处理 《答案》【证明】《/答案》→ 证明标签
+  const answerMarkerRegex1 = new RegExp(`《答案》${brPatternInHtml}【证明】${brPatternInHtml}《\\/答案》(?:\\s|${brPatternInHtml})*`, "g");
+  currentText = currentText.replace(answerMarkerRegex1, `<span class="tag-label-证明" style="${answerLabelStyle}">证明</span>`);
+
+  // 处理 《解析》【解析】《/解析》→ 解析标签
+  const jiexiMarkerRegex = new RegExp(`《解析》${brPatternInHtml}【解析】${brPatternInHtml}《\\/解析》(?:\\s|${brPatternInHtml})*`, "g");
+  currentText = currentText.replace(jiexiMarkerRegex, `<span class="tag-label-解析" style="${jiexiLabelStyle}">解析</span>`);
+
+  // 辅助函数：样式化自定义块 - 虚线边框版本（蓝色系）
+  const styleCustomBlock = (contentToStyle, styleString, labelClass = '') => {
+    let processedContent = contentToStyle.replace(/<strong>|<\/strong>|<b>|<\/b>/gi, '');
+    let trimmedContent = processedContent.trim().replace(/^(<br\s*\/?>\s*)+|(<br\s*\/?>\s*)+$/gi, '');
+    if (!trimmedContent) return '';
+    return `<div style="margin:2px 0;padding:6px 10px;background:rgba(33,150,243,0.03);border:1px dashed #2196F3;border-radius:6px;"><span style="${styleString}">${trimmedContent}</span></div>`;
+  };
+
+  // 辅助函数：注释专用 - 不使用虚线框（青绿色）
+  const styleCustomBlockNote = (contentToStyle, styleString, labelClass = '') => {
+    let processedContent = contentToStyle.replace(/<strong>|<\/strong>|<b>|<\/b>/gi, '');
+    let trimmedContent = processedContent.trim().replace(/^(<br\s*\/?>\s*)+|(<br\s*\/?>\s*)+$/gi, '');
+    if (!trimmedContent) return '';
+    return `<div style="margin:2px 0;padding:6px 10px;background:linear-gradient(135deg,rgba(0,150,136,0.08) 0%,rgba(0,150,136,0.03) 100%);border-left:3px solid #009688;border-radius:0 6px 6px 0;"><span style="${styleString}">${trimmedContent}</span></div>`;
+  };
+
+  const styleCustomBlock2 = (contentToStyle, styleString, labelClass = '') => {
+    let processedContent = contentToStyle.replace(/<strong>|<\/strong>|<b>|<\/b>/gi, '');
+    let trimmedContent = processedContent.trim().replace(/^(<br\s*\/?>\s*)+|(<br\s*\/?>\s*)+$/gi, '');
+    if (!trimmedContent) return '';
+    return `<div style="margin:2px 0;padding:6px 10px;background:linear-gradient(135deg,rgba(255,84,5,0.08) 0%,rgba(255,84,5,0.03) 100%);border-left:3px solid #FF5405;border-radius:0 6px 6px 0;"><span style="${styleString}">${trimmedContent}</span></div>`;
+  };
+
+  const commentaryTextStyle = "color:#1565C0;line-height:1.6;";
+  const commentaryTextStyleNote = "color:#00796b;line-height:1.6;";
+  const commentaryTextStyle2 = "color:#E64A19;line-height:1.6;";
+
+  // 处理 《分析》...《/分析》
+  currentText = currentText.replace(/《分析》([\s\S]*?)《\/分析》/g, (match, innerContent) =>
+    styleCustomBlock(innerContent, commentaryTextStyle, 'tag-label-analysis')
+  );
+
+  // 处理 《思路分析》...《/思路分析》
+  currentText = currentText.replace(/《思路分析》([\s\S]*?)《\/思路分析》/g, (match, innerContent) =>
+    styleCustomBlock(innerContent, commentaryTextStyle, 'tag-label-思路分析')
+  );
+
+  // 处理 《注释》...《/注释》 - 不使用虚线框（保持青绿色）
+  currentText = currentText.replace(/《注释》([\s\S]*?)《\/注释》/g, (match, innerContent) =>
+    styleCustomBlockNote(innerContent, commentaryTextStyleNote, 'tag-label-注释')
+  );
+
+  // 处理 《点评》...《/点评》→ 移除（替换为空格）
+  currentText = currentText.replace(/《点评》([\s\S]*?)《\/点评》/g, ' ');
+
+  // 处理 《步骤》...《/步骤》
+  currentText = currentText.replace(/《步骤》([\s\S]*?)《\/步骤》/g, (match, innerContent) =>
+    styleCustomBlock2(innerContent, commentaryTextStyle2, 'tag-label-steps')
+  );
+
   // 3. 处理 \color 和 \bold 命令
   currentText = currentText
     .replace(/\\color\{#([0-9A-Fa-f]{6})\}\{([^}]+)\}/g, '<span style="color:#$1;">$2</span>')

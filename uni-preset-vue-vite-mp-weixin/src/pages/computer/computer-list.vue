@@ -260,7 +260,7 @@ import { request } from '@/api/request';
 import SvgIcon from '@/components/SvgIcon/SvgIcon.vue';
 
 const statusBarHeight = ref(0);
-const currentMode = ref('chapter'); // 'chapter' | 'year' | 'random'
+const currentMode = ref('smart'); // 'smart' | 'chapter' | 'year' | 'random'
 const loading = ref(true);
 
 const subjects = ref([]);

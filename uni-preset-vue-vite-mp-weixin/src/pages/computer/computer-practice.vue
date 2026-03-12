@@ -639,6 +639,42 @@ onMounted(async () => {
   loadUserSettings();
 });
 
+// 保存当前刷题状态到首页显示
+const saveCurrentPracticeState = () => {
+  const options = pageOptions.value;
+  const totalQuestions = allQuestionIds.value.length || questions.value.length;
+  const currentQuestionNum = currentIndex.value + 1;
+  
+  let practiceState = {
+    type: 'computer',
+    subject: '计算机',
+    currentIndex: currentQuestionNum,
+    totalQuestions: totalQuestions,
+    timestamp: Date.now()
+  };
+  
+  // 根据模式设置标题和URL
+  if (options.mode === 'wrong_book') {
+    practiceState.title = '计算机 - 错题本';
+    practiceState.url = `/pages/computer/computer-practice?mode=wrong_book`;
+  } else if (options.chapterId) {
+    practiceState.title = '计算机 - 章节练习';
+    practiceState.url = `/pages/computer/computer-practice?questionId=${allQuestionIds.value[currentIndex.value]}&context=${options.context || ''}&chapterId=${options.chapterId}&majorId=${options.majorId || ''}`;
+  } else if (options.tagId) {
+    practiceState.title = '计算机 - 考点练习';
+    practiceState.url = `/pages/computer/computer-practice?questionId=${allQuestionIds.value[currentIndex.value]}&context=${options.context || ''}&tagId=${options.tagId}&chapterId=${options.chapterId || ''}&majorId=${options.majorId || ''}`;
+  } else if (options.examGroupId) {
+    practiceState.title = '计算机 - 历年真题';
+    practiceState.url = `/pages/computer/computer-practice?questionId=${allQuestionIds.value[currentIndex.value]}&context=${options.context || ''}&examGroupId=${options.examGroupId}`;
+  } else {
+    practiceState.title = '计算机刷题';
+    practiceState.url = `/pages/computer/computer-practice?questionId=${allQuestionIds.value[currentIndex.value] || ''}`;
+  }
+  
+  // 保存到本地存储
+  uni.setStorageSync('lastPracticeSubject', practiceState);
+};
+
 const fetchQuestions = async () => {
   loading.value = true;
   errorMsg.value = '';
@@ -852,6 +888,9 @@ const fetchQuestions = async () => {
         await loadNearbyQuestions(currentIndex.value);
         await loadQuestionDetails(currentIndex.value);
       }
+      
+      // 保存当前刷题状态到首页
+      saveCurrentPracticeState();
     } else {
       errorMsg.value = '暂无相关题目';
     }
@@ -1404,6 +1443,8 @@ const jumpToQuestion = async (index) => {
   showAnswerSheet.value = false;
   await loadNearbyQuestions(index);
   loadQuestionDetails(index);
+  // 保存当前刷题状态
+  saveCurrentPracticeState();
 };
 
 const updateProgress = (index) => {
@@ -1552,6 +1593,8 @@ const goToNextQuestion = async () => {
     scrollTop.value = 0;
     await loadNearbyQuestions(currentIndex.value);
     loadQuestionDetails(currentIndex.value);
+    // 保存当前刷题状态
+    saveCurrentPracticeState();
   }
 };
 

@@ -351,6 +351,7 @@ export const adminApi = {
   batchDeleteMathBookQuestions: (bookId, questionIds) => service.post(`/math/admin/books/${bookId}/questions/batch-delete`, { questionIds }),
   getMathKnowledgePoint: (id) => service.get(`/math/admin/knowledge-points/${id}`),
   updateMathKnowledgePoint: (id, data) => service.put(`/math/admin/knowledge-points/${id}`, data),
+  getAllMathKnowledgePoints: () => service.get('/math/admin/knowledge-points'),
   // 考点分类管理
   getMathKnowledgeCategories: () => service.get('/admin/math/knowledge-categories'),
   updateMathKnowledgeCategory: (id, data) => service.put(`/admin/math/knowledge-categories/${id}`, data),
@@ -359,6 +360,9 @@ export const adminApi = {
   // 题目导入
   importMathQuestions: (data) => service.post('/math/admin/import-questions', data),
   importMathFromFiles: (data) => service.post('/math/admin/import-from-files', data),
+  // 从本地 books 文件夹扫描和导入
+  scanBooksFolder: () => service.get('/math/admin/scan-books-folder'),
+  importFromBooksFolder: (data) => service.post('/math/admin/import-from-books-folder', data),
   // 保存相关题关系
   saveRelatedQuestions: (data) => service.post('/math/admin/related-questions', data),
   // AI 代码格式化

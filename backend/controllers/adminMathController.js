@@ -1,5 +1,7 @@
 const mysqlPool = require('../config/mysql');
 const { successResponse, errorResponse } = require('../utils/response');
+const fs = require('fs');
+const path = require('path');
 
 // 获取数学科目列表
 const getSubjects = async (req, res) => {
@@ -787,6 +789,27 @@ const updateKnowledgePoint = async (req, res) => {
     res.json(successResponse(null, '考点更新成功'));
   } catch (error) {
     console.error('更新考点失败:', error);
+    res.status(500).json(errorResponse('服务器错误'));
+  }
+};
+
+// 获取所有考点列表（用于管理页面显示所有考点）
+const getAllKnowledgePoints = async (req, res) => {
+  try {
+    const [rows] = await mysqlPool.query(`
+      SELECT 
+        KnowledgePointID,
+        KPTitle,
+        KPContent,
+        KPNotes,
+        KPType,
+        KPCode
+      FROM math_knowledgepoints
+      ORDER BY KnowledgePointID DESC
+    `);
+    res.json(successResponse(rows));
+  } catch (error) {
+    console.error('获取所有考点失败:', error);
     res.status(500).json(errorResponse('服务器错误'));
   }
 };
@@ -2028,6 +2051,131 @@ const importFromFiles = async (req, res) => {
   }
 };
 
+// 扫描 books 文件夹获取可用的书籍数据
+const scanBooksFolder = async (req, res) => {
+  try {
+    const booksPath = path.join(__dirname, '..', '..', 'books');
+    
+    // 检查 books 文件夹是否存在
+    if (!fs.existsSync(booksPath)) {
+      return res.json(successResponse({
+        available: false,
+        message: '未找到 books 文件夹',
+        books: []
+      }));
+    }
+
+    const books = [];
+    const structPath = path.join(booksPath, 'books_struct');
+    const questionsPath = path.join(booksPath, 'books_questions');
+    const detailsPath = path.join(booksPath, 'books_details');
+
+    // 读取结构文件夹中的文件
+    if (fs.existsSync(structPath)) {
+      const structFiles = fs.readdirSync(structPath).filter(f => f.endsWith('.json'));
+      
+      for (const file of structFiles) {
+        const bookName = file.replace('.json', '');
+        const structFile = path.join(structPath, file);
+        const questionsFile = path.join(questionsPath, file);
+        const detailsFile = path.join(detailsPath, bookName + '_详情.json');
+
+        // 检查对应的题目和详情文件是否存在
+        const hasQuestions = fs.existsSync(questionsFile);
+        const hasDetails = fs.existsSync(detailsFile);
+
+        // 读取结构文件获取题目数量
+        let questionCount = 0;
+        let chapterCount = 0;
+        try {
+          const structData = JSON.parse(fs.readFileSync(structFile, 'utf8'));
+          if (Array.isArray(structData) && structData.length > 0) {
+            // 统计章节数
+            const chapters = new Set();
+            structData.forEach(item => {
+              if (item.BookChapter) {
+                chapters.add(item.BookChapter);
+              }
+            });
+            chapterCount = chapters.size;
+            questionCount = structData.length;
+          }
+        } catch (e) {
+          console.error(`读取 ${file} 失败:`, e.message);
+        }
+
+        books.push({
+          name: bookName,
+          structFile: file,
+          hasQuestions,
+          hasDetails,
+          questionCount,
+          chapterCount,
+          complete: hasQuestions && hasDetails
+        });
+      }
+    }
+
+    res.json(successResponse({
+      available: true,
+      path: booksPath,
+      books: books.sort((a, b) => a.name.localeCompare(b.name, 'zh-CN'))
+    }));
+  } catch (error) {
+    console.error('扫描 books 文件夹失败:', error);
+    res.status(500).json(errorResponse('扫描失败: ' + error.message));
+  }
+};
+
+// 从 books 文件夹导入指定书籍
+const importFromBooksFolder = async (req, res) => {
+  try {
+    const { bookName, subjectId, contentType = 'book' } = req.body;
+    
+    if (!bookName) {
+      return res.status(400).json(errorResponse('请指定书籍名称'));
+    }
+
+    const booksPath = path.join(__dirname, '..', '..', 'books');
+    const structFile = path.join(booksPath, 'books_struct', `${bookName}.json`);
+    const questionsFile = path.join(booksPath, 'books_questions', `${bookName}.json`);
+    const detailsFile = path.join(booksPath, 'books_details', `${bookName}_详情.json`);
+
+    // 检查文件是否存在
+    if (!fs.existsSync(structFile)) {
+      return res.status(404).json(errorResponse(`未找到书籍 "${bookName}" 的结构文件`));
+    }
+    if (!fs.existsSync(questionsFile)) {
+      return res.status(404).json(errorResponse(`未找到书籍 "${bookName}" 的题目文件`));
+    }
+
+    // 读取文件内容
+    const structData = JSON.parse(fs.readFileSync(structFile, 'utf8'));
+    const questionsData = JSON.parse(fs.readFileSync(questionsFile, 'utf8'));
+    let detailsData = {};
+    
+    if (fs.existsSync(detailsFile)) {
+      detailsData = JSON.parse(fs.readFileSync(detailsFile, 'utf8'));
+    }
+
+    // 调用导入逻辑
+    req.body = {
+      structData,
+      questionsData,
+      detailsData,
+      subjectId,
+      contentType
+    };
+
+    // 复用 importFromFiles 逻辑
+    await importFromFiles(req, res);
+    
+  } catch (error) {
+    console.error('从 books 文件夹导入失败:', error);
+    res.status(500).json(errorResponse('导入失败: ' + error.message));
+  }
+};
+
 module.exports = {
   getSubjects,
   createSubject,
@@ -2039,6 +2187,7 @@ module.exports = {
   searchKnowledgePoints,
   getKnowledgePointDetail,
   updateKnowledgePoint,
+  getAllKnowledgePoints,
   getQuestionForEdit,
   updateQuestion,
   createQuestion,
@@ -2062,5 +2211,7 @@ module.exports = {
   updateBookQuestion,
   deleteBookQuestion,
   batchDeleteBookQuestions,
-  saveRelatedQuestions
+  saveRelatedQuestions,
+  scanBooksFolder,
+  importFromBooksFolder
 };

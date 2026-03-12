@@ -155,15 +155,19 @@ const handleBookClick = (book) => {
   } else {
     // 保存为最近练习科目，以便在首页显示
     const practiceItem = {
+      type: 'math',
+      subject: '数学',
       id: book.BookID,
-      title: `数学 - ${book.BookTitle}`,
-      url: '/pages/math/math-practice',
+      title: book.BookTitle,
+      bookTitle: book.BookTitle,
+      bookId: book.BookID,
+      url: `/pages/math/math-question-detail?bookId=${book.BookID}&bookTitle=${encodeURIComponent(book.BookTitle)}`,
       icon: 'math'
     };
     uni.setStorageSync('lastPracticeSubject', practiceItem);
 
     uni.navigateTo({
-      url: `/pages/math/math-book-detail?bookId=${book.BookID}&bookTitle=${encodeURIComponent(book.BookTitle)}`
+      url: `/pages/math/math-question-detail?bookId=${book.BookID}&bookTitle=${encodeURIComponent(book.BookTitle)}`
     });
   }
 };

@@ -446,6 +446,83 @@
             </el-row>
           </el-card>
 
+          <!-- 本地 books 文件夹批量导入 -->
+          <el-card class="mb-20" shadow="hover">
+            <template #header>
+              <div class="card-header">
+                <span>本地 Books 文件夹批量导入</span>
+                <el-tag v-if="availableBooks.length > 0" type="success" size="small" class="ml-10">{{ availableBooks.length }} 本</el-tag>
+              </div>
+            </template>
+            
+            <!-- 选择文件夹按钮 -->
+            <el-row :gutter="20" class="mb-20">
+              <el-col :span="24">
+                <input
+                  ref="folderInputRef"
+                  type="file"
+                  webkitdirectory
+                  directory
+                  multiple
+                  style="display: none"
+                  @change="handleFolderSelect"
+                />
+                <el-button type="primary" @click="selectFolder" :loading="scanningBooksFolder">
+                  <el-icon><FolderOpened /></el-icon> 选择 Books 文件夹
+                </el-button>
+                <el-text v-if="selectedFolderName" type="info" class="ml-10">已选择: {{ selectedFolderName }}</el-text>
+                <div class="upload-desc mt-10">请选择包含 books_struct、books_questions、books_details 三个子文件夹的目录</div>
+              </el-col>
+            </el-row>
+
+            <!-- 可导入的书籍列表 -->
+            <div v-if="availableBooks.length > 0">
+              <el-divider>可导入的书籍 ({{ availableBooks.length }} 本)</el-divider>
+              <el-table :data="availableBooks" border stripe size="small" max-height="400">
+                <el-table-column type="selection" width="55" align="center" />
+                <el-table-column prop="name" label="书籍名称" min-width="200" />
+                <el-table-column prop="questionCount" label="题目数" width="100" align="center" />
+                <el-table-column prop="chapterCount" label="章节数" width="100" align="center" />
+                <el-table-column label="文件完整性" width="150" align="center">
+                  <template #default="{ row }">
+                    <el-tag v-if="row.complete" type="success" size="small">完整</el-tag>
+                    <el-tag v-else type="warning" size="small">不完整</el-tag>
+                  </template>
+                </el-table-column>
+                <el-table-column label="操作" width="120" align="center" fixed="right">
+                  <template #default="{ row }">
+                    <el-button 
+                      type="primary" 
+                      size="small" 
+                      @click="importBookFromFolder(row)"
+                      :disabled="!row.complete || !fileImportForm.subjectId"
+                      :loading="row.importing"
+                    >
+                      导入
+                    </el-button>
+                  </template>
+                </el-table-column>
+              </el-table>
+              
+              <!-- 批量导入按钮 -->
+              <div class="mt-20">
+                <el-button 
+                  type="success" 
+                  size="large" 
+                  @click="batchImportBooks"
+                  :loading="batchImporting"
+                  :disabled="!fileImportForm.subjectId || !hasCompleteBooks"
+                >
+                  <el-icon><UploadFilled /></el-icon> 批量导入所有完整书籍
+                </el-button>
+                <el-text v-if="!fileImportForm.subjectId" type="danger" class="ml-10">请先选择科目</el-text>
+              </div>
+            </div>
+
+            <!-- 空状态 -->
+            <el-empty v-else-if="booksFolderScanned" description="未找到可用的书籍数据，请确保选择了正确的文件夹" />
+          </el-card>
+
           <!-- 文件上传区域 -->
           <el-card class="mb-20" shadow="hover">
             <template #header>
@@ -742,7 +819,6 @@
                 <span class="node-name">
                   <el-tag v-if="getCategoryLevel(data) === 1" size="small" type="danger">科目</el-tag>
                   <el-tag v-else-if="getCategoryLevel(data) === 2" size="small" type="warning">章节</el-tag>
-                  <el-tag v-else size="small" type="success">考点</el-tag>
                   {{ node.label }}
                 </span>
                 <span class="node-info">
@@ -763,9 +839,141 @@
               </div>
             </template>
           </el-tree>
+
+          <!-- 未分类考点列表 -->
+          <div class="uncategorized-kp-section mt-30">
+            <div class="section-header">
+              <h3>未分类（题目关联）</h3>
+              <div>
+                <el-button v-if="selectedUncategorizedKPs.length > 0" type="primary" size="small" @click="openBatchAddToCategoryModal">
+                  批量添加到分类 ({{ selectedUncategorizedKPs.length }})
+                </el-button>
+                <el-button type="warning" size="small" @click="openAIAutoClassifyModal" :loading="aiClassifying">
+                  <el-icon><MagicStick /></el-icon>
+                  AI 自动分类
+                </el-button>
+                <el-button size="small" @click="fetchAllKnowledgePoints">刷新</el-button>
+              </div>
+            </div>
+            <el-table 
+              :data="uncategorizedKPList" 
+              v-loading="loadingUncategorizedKPs" 
+              border 
+              stripe 
+              size="small"
+              @selection-change="handleUncategorizedKPSelectionChange"
+            >
+              <el-table-column type="selection" width="55" align="center" />
+              <el-table-column prop="KnowledgePointID" label="ID" width="80" align="center" />
+              <el-table-column prop="KPTitle" label="考点标题" min-width="200" show-overflow-tooltip />
+              <el-table-column prop="KPType" label="类型" width="100" align="center" />
+              <el-table-column prop="KPCode" label="代码" width="120" show-overflow-tooltip />
+              <el-table-column label="操作" width="150" align="center" fixed="right">
+                <template #default="{ row }">
+                  <el-button size="small" type="primary" @click="editUncategorizedKP(row)">编辑</el-button>
+                  <el-button size="small" @click="openAddToCategoryModal(row)">添加到分类</el-button>
+                </template>
+              </el-table-column>
+            </el-table>
+          </div>
         </div>
       </el-tab-pane>
     </el-tabs>
+
+    <!-- 添加到分类对话框 -->
+    <el-dialog
+      v-model="addToCategoryModalVisible"
+      title="添加到分类"
+      width="500px"
+      destroy-on-close
+    >
+      <el-form label-width="100px">
+        <el-form-item label="选择科目">
+          <el-select v-model="addToCategoryForm.subjectId" placeholder="请选择科目" @change="onAddToCategorySubjectChange" style="width: 100%">
+            <el-option 
+              v-for="subject in knowledgeCategoryTree" 
+              :key="subject.id" 
+              :label="subject.CategoryName" 
+              :value="subject.id" 
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="选择章节">
+          <el-select v-model="addToCategoryForm.chapterId" placeholder="请先选择科目" :disabled="!addToCategoryForm.subjectId" style="width: 100%">
+            <el-option 
+              v-for="chapter in addToCategoryChapters" 
+              :key="chapter.id" 
+              :label="chapter.CategoryName" 
+              :value="chapter.id" 
+            />
+          </el-select>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="addToCategoryModalVisible = false">取消</el-button>
+        <el-button type="primary" :loading="addingToCategory" @click="confirmAddToCategory">确定</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- AI 自动分类对话框 -->
+    <el-dialog
+      v-model="aiAutoClassifyModalVisible"
+      title="AI 自动分类"
+      width="700px"
+      destroy-on-close
+    >
+      <div class="ai-classify-container">
+        <el-alert
+          title="AI 将分析未分类考点的标题和内容，自动推荐合适的科目和章节"
+          type="info"
+          :closable="false"
+          class="mb-20"
+        />
+        
+        <div class="ai-config mb-20">
+          <el-alert
+            title="使用硅基流动 API (DeepSeek-V3.2) 进行智能分类"
+            type="success"
+            :closable="false"
+          />
+        </div>
+
+        <div class="ai-preview" v-if="aiClassifyResults.length > 0">
+          <h4>分类预览（{{ aiClassifyResults.length }} 个考点）</h4>
+          <el-table :data="aiClassifyResults" size="small" border max-height="400">
+            <el-table-column prop="kpTitle" label="考点标题" min-width="200" show-overflow-tooltip />
+            <el-table-column prop="suggestedSubject" label="推荐科目" width="120" />
+            <el-table-column prop="suggestedChapter" label="推荐章节" width="150" show-overflow-tooltip />
+            <el-table-column prop="confidence" label="置信度" width="100">
+              <template #default="{ row }">
+                <el-tag :type="row.confidence > 0.8 ? 'success' : row.confidence > 0.5 ? 'warning' : 'danger'" size="small">
+                  {{ Math.round(row.confidence * 100) }}%
+                </el-tag>
+              </template>
+            </el-table-column>
+          </el-table>
+        </div>
+
+        <div class="ai-progress" v-if="aiClassifying">
+          <el-progress :percentage="aiClassifyProgress" :status="aiClassifyProgress === 100 ? 'success' : ''" />
+          <p class="progress-text">正在分析考点 {{ aiCurrentKPIndex }} / {{ uncategorizedKPList.length }}...</p>
+        </div>
+      </div>
+      <template #footer>
+        <el-button @click="aiAutoClassifyModalVisible = false">取消</el-button>
+        <el-button type="primary" :loading="aiClassifying" @click="startAIClassify">
+          开始分析
+        </el-button>
+        <el-button 
+          v-if="aiClassifyResults.length > 0" 
+          type="success" 
+          :loading="applyingAIResults"
+          @click="applyAIClassifyResults"
+        >
+          应用分类结果
+        </el-button>
+      </template>
+    </el-dialog>
 
     <!-- 题目编辑对话框 - 完整版 -->
     <el-dialog
@@ -1409,7 +1617,7 @@
 <script setup>
 import { ref, reactive, onMounted, nextTick, computed, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Search, ArrowUp, ArrowDown, Delete, Document, Memo, Link, Edit, InfoFilled, CircleCheck, Plus, UploadFilled, Connection } from '@element-plus/icons-vue'
+import { Search, ArrowUp, ArrowDown, Delete, Document, Memo, Link, Edit, InfoFilled, CircleCheck, Plus, UploadFilled, Connection, FolderOpened, MagicStick } from '@element-plus/icons-vue'
 import { adminApi } from '../api'
 import katex from 'katex'
 import 'katex/dist/katex.min.css'
@@ -1581,6 +1789,23 @@ const questionsFileList = ref([])
 const detailsFileList = ref([])
 const fileImporting = ref(false)
 const fileImportResult = ref(null)
+
+// 本地 books 文件夹导入相关
+const booksFolderAvailable = ref(false)
+const booksFolderPath = ref('')
+const booksFolderScanned = ref(false)
+const scanningBooksFolder = ref(false)
+const availableBooks = ref([])
+const batchImporting = ref(false)
+const selectedBooks = ref([])
+const folderInputRef = ref(null)
+const selectedFolderName = ref('')
+const folderFiles = ref({ struct: {}, questions: {}, details: {} })
+
+// 计算是否有完整的书籍可以导入
+const hasCompleteBooks = computed(() => {
+  return availableBooks.value.some(book => book.complete)
+})
 
 // 相关题导入相关
 const relatedQuestionsFileList = ref([])
@@ -1763,6 +1988,273 @@ const importRelatedQuestions = async () => {
   }
   
   return importedCount
+}
+
+// 选择文件夹
+const selectFolder = () => {
+  folderInputRef.value?.click()
+}
+
+// 处理文件夹选择
+const handleFolderSelect = async (event) => {
+  const files = event.target.files
+  if (!files || files.length === 0) {
+    return
+  }
+
+  scanningBooksFolder.value = true
+  booksFolderScanned.value = false
+  availableBooks.value = []
+  folderFiles.value = { struct: {}, questions: {}, details: {} }
+
+  try {
+    // 获取文件夹名称
+    const firstFile = files[0]
+    const pathParts = firstFile.webkitRelativePath.split('/')
+    selectedFolderName.value = pathParts[0]
+
+    // 分类文件到三个子文件夹
+    for (const file of files) {
+      const pathParts = file.webkitRelativePath.split('/')
+      if (pathParts.length < 2) continue
+
+      const subFolder = pathParts[1]
+      const fileName = pathParts[pathParts.length - 1]
+
+      if (subFolder === 'books_struct' && fileName.endsWith('.json')) {
+        folderFiles.value.struct[fileName] = file
+      } else if (subFolder === 'books_questions' && fileName.endsWith('.json')) {
+        folderFiles.value.questions[fileName] = file
+      } else if (subFolder === 'books_details' && fileName.endsWith('.json')) {
+        folderFiles.value.details[fileName] = file
+      }
+    }
+
+    // 扫描并解析书籍
+    await scanLocalBooks()
+    booksFolderScanned.value = true
+
+    if (availableBooks.value.length > 0) {
+      ElMessage.success(`扫描完成，发现 ${availableBooks.value.length} 本书籍`)
+    } else {
+      ElMessage.warning('未找到可用的书籍数据，请确保选择了正确的文件夹')
+    }
+  } catch (error) {
+    console.error('扫描文件夹失败:', error)
+    ElMessage.error('扫描失败: ' + (error.message || '未知错误'))
+  } finally {
+    scanningBooksFolder.value = false
+    // 清空 input 以便可以再次选择同一文件夹
+    event.target.value = ''
+  }
+}
+
+// 读取文件内容为 JSON
+const readFileAsJson = (file) => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      try {
+        const data = JSON.parse(e.target.result)
+        resolve(data)
+      } catch (err) {
+        reject(new Error(`解析 ${file.name} 失败: ${err.message}`))
+      }
+    }
+    reader.onerror = () => reject(new Error(`读取 ${file.name} 失败`))
+    reader.readAsText(file)
+  })
+}
+
+// 扫描本地书籍
+const scanLocalBooks = async () => {
+  const books = []
+  const structFiles = Object.keys(folderFiles.value.struct)
+
+  for (const fileName of structFiles) {
+    const bookName = fileName.replace('.json', '')
+    const structFile = folderFiles.value.struct[fileName]
+    const questionsFile = folderFiles.value.questions[fileName]
+    const detailsFileName = bookName + '_详情.json'
+    const detailsFile = folderFiles.value.details[detailsFileName]
+
+    const hasQuestions = !!questionsFile
+    const hasDetails = !!detailsFile
+
+    // 读取结构文件获取题目数量
+    let questionCount = 0
+    let chapterCount = 0
+    let structData = null
+
+    try {
+      structData = await readFileAsJson(structFile)
+      if (Array.isArray(structData) && structData.length > 0) {
+        // 处理可能嵌套的数组
+        const flatStruct = structData.flat ? structData.flat() : structData
+        const chapters = new Set()
+        flatStruct.forEach(item => {
+          if (item.BookChapter) {
+            chapters.add(item.BookChapter)
+          }
+        })
+        chapterCount = chapters.size
+        questionCount = flatStruct.length
+      }
+    } catch (e) {
+      console.error(`读取 ${fileName} 失败:`, e.message)
+      continue
+    }
+
+    books.push({
+      name: bookName,
+      fileName: fileName,
+      structFile,
+      questionsFile,
+      detailsFile,
+      hasQuestions,
+      hasDetails,
+      questionCount,
+      chapterCount,
+      complete: hasQuestions,
+      structData,
+      importing: false
+    })
+  }
+
+  availableBooks.value = books.sort((a, b) => a.name.localeCompare(b.name, 'zh-CN'))
+}
+
+// 从文件夹导入单本书籍
+const importBookFromFolder = async (book) => {
+  if (!fileImportForm.subjectId) {
+    ElMessage.warning('请先选择科目')
+    return
+  }
+  
+  book.importing = true
+  try {
+    // 读取题目和详情文件
+    let questionsData = []
+    let detailsData = {}
+
+    if (book.questionsFile) {
+      questionsData = await readFileAsJson(book.questionsFile)
+    }
+    if (book.detailsFile) {
+      detailsData = await readFileAsJson(book.detailsFile)
+    }
+
+    // 调用导入 API
+    const res = await adminApi.importMathFromFiles({
+      structData: book.structData,
+      questionsData: questionsData,
+      detailsData: detailsData,
+      subjectId: fileImportForm.subjectId,
+      contentType: fileImportForm.contentType
+    })
+    
+    if (res.code === 0 || res.code === 200) {
+      ElMessage.success(`《${book.name}》导入成功！`)
+      fileImportResult.value = {
+        success: true,
+        data: res.data
+      }
+    } else {
+      ElMessage.error(res.message || '导入失败')
+    }
+  } catch (error) {
+    console.error('导入失败:', error)
+    ElMessage.error('导入失败: ' + (error.message || '未知错误'))
+  } finally {
+    book.importing = false
+  }
+}
+
+// 批量导入所有完整书籍
+const batchImportBooks = async () => {
+  if (!fileImportForm.subjectId) {
+    ElMessage.warning('请先选择科目')
+    return
+  }
+
+  const completeBooks = availableBooks.value.filter(book => book.complete)
+  if (completeBooks.length === 0) {
+    ElMessage.warning('没有完整的书籍可以导入')
+    return
+  }
+
+  try {
+    await ElMessageBox.confirm(
+      `确定要批量导入 ${completeBooks.length} 本书籍吗？`,
+      '确认批量导入',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }
+    )
+  } catch {
+    return
+  }
+
+  batchImporting.value = true
+  let successCount = 0
+  let failCount = 0
+
+  for (const book of completeBooks) {
+    book.importing = true
+    try {
+      // 读取题目和详情文件
+      let questionsData = []
+      let detailsData = {}
+
+      if (book.questionsFile) {
+        questionsData = await readFileAsJson(book.questionsFile)
+      }
+      if (book.detailsFile) {
+        detailsData = await readFileAsJson(book.detailsFile)
+      }
+
+      // 调用导入 API
+      const res = await adminApi.importMathFromFiles({
+        structData: book.structData,
+        questionsData: questionsData,
+        detailsData: detailsData,
+        subjectId: fileImportForm.subjectId,
+        contentType: fileImportForm.contentType
+      })
+
+      if (res.code === 0 || res.code === 200) {
+        successCount++
+        ElMessage.success(`《${book.name}》导入成功 (${successCount}/${completeBooks.length})`)
+      } else {
+        failCount++
+        ElMessage.error(`《${book.name}》导入失败: ${res.message}`)
+      }
+    } catch (error) {
+      failCount++
+      console.error(`《${book.name}》导入失败:`, error)
+      ElMessage.error(`《${book.name}》导入失败`)
+    } finally {
+      book.importing = false
+    }
+  }
+
+  batchImporting.value = false
+
+  // 显示最终导入结果
+  fileImportResult.value = {
+    success: true,
+    data: {
+      message: `批量导入完成：成功 ${successCount} 本，失败 ${failCount} 本`
+    }
+  }
+  
+  ElMessage({
+    message: `批量导入完成：成功 ${successCount} 本，失败 ${failCount} 本`,
+    type: failCount > 0 ? 'warning' : 'success',
+    duration: 5000
+  })
 }
 
 // 题目导入（旧版）
@@ -3256,6 +3748,25 @@ const parseImportSourceCode = () => {
 // 考点分类管理
 const knowledgeCategories = ref([])
 const loadingKnowledgeCategories = ref(false)
+const uncategorizedKPs = ref([])
+const loadingUncategorizedKPs = ref(false)
+const selectedUncategorizedKPs = ref([])
+const addToCategoryModalVisible = ref(false)
+const addingToCategory = ref(false)
+const addToCategoryForm = reactive({
+  subjectId: null,
+  chapterId: null,
+  kpIds: []
+})
+const currentAddToCategoryRow = ref(null)
+
+// AI 自动分类相关
+const aiAutoClassifyModalVisible = ref(false)
+const aiClassifying = ref(false)
+const aiClassifyProgress = ref(0)
+const aiCurrentKPIndex = ref(0)
+const aiClassifyResults = ref([])
+const applyingAIResults = ref(false)
 const knowledgeCategoryModalVisible = ref(false)
 const movePointModalVisible = ref(false)
 const isEditingKnowledgeCategory = ref(false)
@@ -3285,6 +3796,21 @@ const getCategoryLevel = (data) => {
   if (!data?.CategoryCode) return 0
   return data.CategoryCode.split('-').length
 }
+
+// 添加到分类时的章节选项
+const addToCategoryChapters = computed(() => {
+  if (!addToCategoryForm.subjectId) return []
+  const subject = knowledgeCategoryTree.value.find(s => s.id === addToCategoryForm.subjectId)
+  return subject?.children || []
+})
+
+// 过滤掉已分类的考点，只显示未分类的
+const uncategorizedKPList = computed(() => {
+  // 获取已分类的考点名称集合
+  const categorizedNames = new Set(knowledgeCategories.value.map(cat => cat.CategoryName))
+  // 过滤掉已分类的考点
+  return uncategorizedKPs.value.filter(kp => !categorizedNames.has(kp.KPTitle))
+})
 
 const knowledgeCategoryTree = computed(() => {
   const categories = knowledgeCategories.value
@@ -3334,6 +3860,347 @@ const fetchKnowledgeCategories = async () => {
   } finally {
     loadingKnowledgeCategories.value = false
   }
+}
+
+// 获取所有未分类考点
+const fetchAllKnowledgePoints = async () => {
+  loadingUncategorizedKPs.value = true
+  try {
+    const res = await adminApi.getAllMathKnowledgePoints()
+    uncategorizedKPs.value = res.data || []
+  } catch (error) {
+    console.error('获取未分类考点失败:', error)
+    ElMessage.error('获取未分类考点失败')
+  } finally {
+    loadingUncategorizedKPs.value = false
+  }
+}
+
+// 编辑未分类考点
+const editUncategorizedKP = (row) => {
+  // 打开编辑对话框，使用已有的考点编辑逻辑
+  window.open(`/admin-panel/#/knowledge-point/${row.KnowledgePointID}`, '_blank')
+}
+
+// 处理未分类考点选择变化
+const handleUncategorizedKPSelectionChange = (selection) => {
+  selectedUncategorizedKPs.value = selection
+}
+
+// 打开添加到分类对话框（单个）
+const openAddToCategoryModal = (row) => {
+  currentAddToCategoryRow.value = row
+  addToCategoryForm.kpIds = [row.KnowledgePointID]
+  addToCategoryForm.subjectId = null
+  addToCategoryForm.chapterId = null
+  addToCategoryModalVisible.value = true
+}
+
+// 打开批量添加到分类对话框
+const openBatchAddToCategoryModal = () => {
+  currentAddToCategoryRow.value = null
+  addToCategoryForm.kpIds = selectedUncategorizedKPs.value.map(kp => kp.KnowledgePointID)
+  addToCategoryForm.subjectId = null
+  addToCategoryForm.chapterId = null
+  addToCategoryModalVisible.value = true
+}
+
+// 科目选择变化时重置章节
+const onAddToCategorySubjectChange = () => {
+  addToCategoryForm.chapterId = null
+}
+
+// 确认添加到分类
+const confirmAddToCategory = async () => {
+  if (!addToCategoryForm.subjectId) {
+    ElMessage.warning('请选择科目')
+    return
+  }
+  if (!addToCategoryForm.chapterId) {
+    ElMessage.warning('请选择章节')
+    return
+  }
+  
+  addingToCategory.value = true
+  try {
+    // 获取选中的章节信息
+    const chapter = addToCategoryChapters.value.find(c => c.id === addToCategoryForm.chapterId)
+    const subject = knowledgeCategoryTree.value.find(s => s.id === addToCategoryForm.subjectId)
+    
+    if (!chapter || !subject) {
+      ElMessage.error('分类信息获取失败')
+      return
+    }
+    
+    // 构建 CategoryCode (格式: X-Y-Z)
+    const subjectCode = subject.CategoryCode
+    const chapterCode = chapter.CategoryCode.split('-')[1]
+    
+    // 获取该章节下已有的所有考点代码
+    const existingPointCodes = knowledgeCategories.value
+      .filter(cat => {
+        const parts = cat.CategoryCode.split('-')
+        return parts.length === 3 && parts[0] === subjectCode && parts[1] === chapterCode
+      })
+      .map(cat => parseInt(cat.CategoryCode.split('-')[2]) || 0)
+    
+    // 找到最大的考点编号
+    const maxPointNumber = Math.max(0, ...existingPointCodes)
+    let nextPointNumber = maxPointNumber + 1
+    
+    // 为每个考点创建分类
+    for (const kpId of addToCategoryForm.kpIds) {
+      const kp = uncategorizedKPs.value.find(k => k.KnowledgePointID === kpId)
+      if (!kp) continue
+      
+      // 生成新的考点代码，确保不重复
+      let newCategoryCode = `${subjectCode}-${chapterCode}-${nextPointNumber}`
+      
+      // 检查是否已存在，如果存在则递增
+      while (knowledgeCategories.value.some(cat => cat.CategoryCode === newCategoryCode)) {
+        nextPointNumber++
+        newCategoryCode = `${subjectCode}-${chapterCode}-${nextPointNumber}`
+      }
+      
+      // 创建新的考点分类
+      await adminApi.createMathKnowledgeCategory({
+        CategoryCode: newCategoryCode,
+        CategoryName: kp.KPTitle,
+        Description: kp.KPContent || '',
+        SortOrder: 0,
+        IsActive: 1
+      })
+      
+      // 添加到本地列表以避免重复检查
+      knowledgeCategories.value.push({
+        CategoryCode: newCategoryCode,
+        CategoryName: kp.KPTitle
+      })
+      
+      nextPointNumber++
+    }
+    
+    ElMessage.success(`成功添加 ${addToCategoryForm.kpIds.length} 个考点到分类`)
+    addToCategoryModalVisible.value = false
+    
+    // 刷新数据
+    await fetchKnowledgeCategories()
+    await fetchAllKnowledgePoints()
+    
+    // 清空选择
+    selectedUncategorizedKPs.value = []
+  } catch (error) {
+    console.error('添加到分类失败:', error)
+    ElMessage.error('添加到分类失败: ' + (error.message || '未知错误'))
+  } finally {
+    addingToCategory.value = false
+  }
+}
+
+// AI 自动分类相关方法
+const openAIAutoClassifyModal = () => {
+  aiAutoClassifyModalVisible.value = true
+  aiClassifyResults.value = []
+  aiClassifyProgress.value = 0
+  aiCurrentKPIndex.value = 0
+}
+
+const startAIClassify = async () => {
+  aiClassifying.value = true
+  aiClassifyProgress.value = 0
+  aiCurrentKPIndex.value = 0
+  aiClassifyResults.value = []
+  
+  const kps = uncategorizedKPList.value
+  const total = kps.length
+  
+  // 准备分类结构信息
+  const categoryStructure = knowledgeCategoryTree.value.map(subject => ({
+    subject: subject.CategoryName,
+    chapters: subject.children?.map(chapter => chapter.CategoryName) || []
+  }))
+  
+  for (let i = 0; i < kps.length; i++) {
+    const kp = kps[i]
+    aiCurrentKPIndex.value = i + 1
+    
+    try {
+      const result = await classifyKPWithAI(kp, categoryStructure)
+      aiClassifyResults.value.push({
+        kpId: kp.KnowledgePointID,
+        kpTitle: kp.KPTitle,
+        kpContent: kp.KPContent,
+        ...result
+      })
+    } catch (error) {
+      console.error(`AI 分类失败 [${kp.KPTitle}]:`, error)
+      aiClassifyResults.value.push({
+        kpId: kp.KnowledgePointID,
+        kpTitle: kp.KPTitle,
+        kpContent: kp.KPContent,
+        suggestedSubject: '未知',
+        suggestedChapter: '未知',
+        confidence: 0
+      })
+    }
+    
+    aiClassifyProgress.value = Math.round(((i + 1) / total) * 100)
+  }
+  
+  aiClassifying.value = false
+  ElMessage.success(`AI 分类完成，成功分析 ${aiClassifyResults.value.length} 个考点`)
+}
+
+const classifyKPWithAI = async (kp, categoryStructure) => {
+  const prompt = `请分析以下数学考点，并将其分类到合适的科目和章节中。
+
+考点标题: ${kp.KPTitle}
+考点内容: ${kp.KPContent || '无详细内容'}
+
+可选的分类结构:
+${JSON.stringify(categoryStructure, null, 2)}
+
+请返回 JSON 格式的结果，包含以下字段:
+- suggestedSubject: 推荐的科目名称
+- suggestedChapter: 推荐的章节名称
+- confidence: 置信度 (0-1 之间的数字)
+- reason: 分类理由
+
+只返回 JSON，不要其他内容。`
+
+  // 使用硅基流动 API (与 TutorialManage 相同)
+  const API_KEY = 'sk-xjwophkydyodyfcexfhydvvpgcrnchurjkniopiqqbfmzqeb'
+  const API_URL = 'https://api.siliconflow.cn/v1/chat/completions'
+  const MODEL = 'deepseek-ai/DeepSeek-V3.2'
+  
+  const response = await fetch(API_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${API_KEY}`
+    },
+    body: JSON.stringify({
+      model: MODEL,
+      messages: [
+        { role: 'system', content: '你是一个专业的数学教育分类助手，擅长将数学考点分类到合适的科目和章节中。' },
+        { role: 'user', content: prompt }
+      ],
+      temperature: 0.3,
+      max_tokens: 1024
+    })
+  })
+  
+  if (!response.ok) {
+    throw new Error(`API 请求失败: ${response.status}`)
+  }
+  
+  const data = await response.json()
+  const content = data.choices[0]?.message?.content || ''
+  
+  // 解析 JSON 结果
+  try {
+    const jsonMatch = content.match(/\{[\s\S]*\}/)
+    if (jsonMatch) {
+      return JSON.parse(jsonMatch[0])
+    }
+    throw new Error('无法解析 AI 返回结果')
+  } catch (e) {
+    console.error('解析 AI 结果失败:', content)
+    return {
+      suggestedSubject: '未知',
+      suggestedChapter: '未知',
+      confidence: 0,
+      reason: '解析失败'
+    }
+  }
+}
+
+const applyAIClassifyResults = async () => {
+  applyingAIResults.value = true
+  
+  let successCount = 0
+  let failCount = 0
+  
+  for (const result of aiClassifyResults.value) {
+    if (result.confidence < 0.5) {
+      console.log(`跳过低置信度分类: ${result.kpTitle}`)
+      continue
+    }
+    
+    // 查找匹配的科目和章节
+    const subject = knowledgeCategoryTree.value.find(s => 
+      s.CategoryName === result.suggestedSubject
+    )
+    
+    if (!subject) {
+      console.log(`未找到科目: ${result.suggestedSubject}`)
+      failCount++
+      continue
+    }
+    
+    const chapter = subject.children?.find(c => 
+      c.CategoryName === result.suggestedChapter
+    )
+    
+    if (!chapter) {
+      console.log(`未找到章节: ${result.suggestedChapter}`)
+      failCount++
+      continue
+    }
+    
+    try {
+      // 获取该章节下已有的所有考点代码
+      const subjectCode = subject.CategoryCode
+      const chapterCode = chapter.CategoryCode.split('-')[1]
+      
+      const existingPointCodes = knowledgeCategories.value
+        .filter(cat => {
+          const parts = cat.CategoryCode.split('-')
+          return parts.length === 3 && parts[0] === subjectCode && parts[1] === chapterCode
+        })
+        .map(cat => parseInt(cat.CategoryCode.split('-')[2]) || 0)
+      
+      const maxPointNumber = Math.max(0, ...existingPointCodes)
+      let nextPointNumber = maxPointNumber + 1
+      
+      // 生成新的考点代码
+      let newCategoryCode = `${subjectCode}-${chapterCode}-${nextPointNumber}`
+      while (knowledgeCategories.value.some(cat => cat.CategoryCode === newCategoryCode)) {
+        nextPointNumber++
+        newCategoryCode = `${subjectCode}-${chapterCode}-${nextPointNumber}`
+      }
+      
+      // 创建新的考点分类
+      await adminApi.createMathKnowledgeCategory({
+        CategoryCode: newCategoryCode,
+        CategoryName: result.kpTitle,
+        Description: result.kpContent || '',
+        SortOrder: 0,
+        IsActive: 1
+      })
+      
+      // 添加到本地列表
+      knowledgeCategories.value.push({
+        CategoryCode: newCategoryCode,
+        CategoryName: result.kpTitle
+      })
+      
+      successCount++
+    } catch (error) {
+      console.error(`创建分类失败 [${result.kpTitle}]:`, error)
+      failCount++
+    }
+  }
+  
+  applyingAIResults.value = false
+  aiAutoClassifyModalVisible.value = false
+  
+  // 刷新数据
+  await fetchKnowledgeCategories()
+  await fetchAllKnowledgePoints()
+  selectedUncategorizedKPs.value = []
+  
+  ElMessage.success(`分类完成: 成功 ${successCount} 个, 失败 ${failCount} 个`)
 }
 
 const openCreateSubjectModal = () => {
@@ -3516,6 +4383,7 @@ onMounted(() => {
   searchQuestions()
   fetchBooks()
   fetchKnowledgeCategories()
+  fetchAllKnowledgePoints()
 })
 </script>
 
@@ -3539,6 +4407,55 @@ onMounted(() => {
   display: flex;
   justify-content: flex-end;
 }
+
+/* 未分类考点样式 */
+.uncategorized-kp-section {
+  margin-top: 30px;
+  padding-top: 20px;
+  border-top: 2px dashed #dcdfe6;
+}
+.uncategorized-kp-section .section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 15px;
+}
+.uncategorized-kp-section .section-header h3 {
+  margin: 0;
+  font-size: 16px;
+  color: #303133;
+}
+.mt-30 {
+  margin-top: 30px;
+}
+
+/* AI 自动分类样式 */
+.ai-classify-container {
+  padding: 10px 0;
+}
+.ai-classify-container .ai-config {
+  background: #f5f7fa;
+  padding: 20px;
+  border-radius: 4px;
+}
+.ai-classify-container .ai-preview {
+  margin-top: 20px;
+}
+.ai-classify-container .ai-preview h4 {
+  margin: 0 0 15px 0;
+  font-size: 14px;
+  color: #606266;
+}
+.ai-classify-container .ai-progress {
+  margin-top: 20px;
+  text-align: center;
+}
+.ai-classify-container .ai-progress .progress-text {
+  margin-top: 10px;
+  color: #909399;
+  font-size: 14px;
+}
+
 .filter-card {
   background: #f5f7fa;
   padding: 20px;

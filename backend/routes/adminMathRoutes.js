@@ -59,7 +59,14 @@ router.post('/math/admin/import-questions', adminMathController.importQuestions)
 router.post('/math/admin/import-complex-questions', adminMathController.importComplexQuestions);
 router.post('/math/admin/import-from-files', adminMathController.importFromFiles);
 
+// 从本地 books 文件夹扫描和导入
+router.get('/math/admin/scan-books-folder', adminMathController.scanBooksFolder);
+router.post('/math/admin/import-from-books-folder', adminMathController.importFromBooksFolder);
+
 // 相关题管理
 router.post('/math/admin/related-questions', adminMathController.saveRelatedQuestions);
+
+// 获取所有考点列表
+router.get('/math/admin/knowledge-points', adminMathController.getAllKnowledgePoints);
 
 module.exports = router;

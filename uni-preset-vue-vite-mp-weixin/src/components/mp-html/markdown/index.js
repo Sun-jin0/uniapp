@@ -83,14 +83,11 @@ function preprocessText(content) {
     });
   
   // 7. 处理 Markdown 格式图片 ![alt](url)
+  // 使用更宽松的正则来匹配 URL（允许括号嵌套）
   processed = processed.replace(
-    /!\[([^\]]*)\]\(([^)]+)\)/g,
+    /!\[([^\]]*)\]\((https?:\/\/[^\s]+?\.(?:png|jpg|jpeg|gif|webp|svg|bmp)[^\)]*)\)/gi,
     (match, alt, url) => {
-      let decodedUrl = url;
-      try {
-        decodedUrl = decodeURIComponent(url);
-      } catch (e) {}
-      let cleanUrl = decodedUrl.replace(/(_yjs|_thumb|_small|_medium|_large)(\?.*)?$/i, '$2');
+      let cleanUrl = url.replace(/(_yjs|_thumb|_small|_medium|_large)(\?.*)?$/i, '$2');
       cleanUrl = cleanUrl.replace(/^http:\/\//i, 'https://');
       return `<img src="${cleanUrl}" alt="${alt}" style="max-width:100%;height:auto;display:block;margin:10px 0;" />`;
     }

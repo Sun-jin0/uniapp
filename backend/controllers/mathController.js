@@ -2243,6 +2243,23 @@ const getKnowledgeCategories = async (req, res) => {
       ORDER BY CategoryCode ASC
     `);
 
+    // 获取所有三级考点的实际题目数量
+    const pointIds = categories
+      .filter(cat => cat.CategoryCode.split('-').length === 3)
+      .map(cat => cat.id);
+    
+    let questionCounts = {};
+    if (pointIds.length > 0) {
+      // 使用 FIND_IN_SET 查询每个考点的实际题目数量
+      for (const pointId of pointIds) {
+        const [result] = await mysqlPool.query(
+          'SELECT COUNT(*) as count FROM math_questions WHERE FIND_IN_SET(?, LinksCount)',
+          [pointId]
+        );
+        questionCounts[pointId] = result[0].count;
+      }
+    }
+
     const result = {
       subjects: []
     };
@@ -2283,7 +2300,7 @@ const getKnowledgeCategories = async (req, res) => {
               code: cat.CategoryCode,
               originalId: parseInt(parts[2]),
               name: cat.CategoryName,
-              questionCount: cat.QuestionCount
+              questionCount: questionCounts[cat.id] || 0
             });
           }
         }

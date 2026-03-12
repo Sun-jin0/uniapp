@@ -73,27 +73,18 @@
           <view class="current-info">
             <view class="current-title">
               <view class="title-text">
-                {{ 
-                  (recentLearningList && recentLearningList[0]?.isCurrent) 
-                    ? (recentLearningList[0].chapterName 
-                        ? (recentLearningList[0].subjectName + (recentLearningList[0].chapterName.includes(recentLearningList[0].subjectName) ? '' : ' - ' + recentLearningList[0].chapterName)) 
-                        : (recentLearningList[0].subjectName || lastPracticeSubject.title)) 
-                    : lastPracticeSubject.title 
-                }}
+                {{ getCurrentPracticeTitle() }}
               </view>
               <view class="title-text duplicate">
-                {{ 
-                  (recentLearningList && recentLearningList[0]?.isCurrent) 
-                    ? (recentLearningList[0].chapterName 
-                        ? (recentLearningList[0].subjectName + (recentLearningList[0].chapterName.includes(recentLearningList[0].subjectName) ? '' : ' - ' + recentLearningList[0].chapterName)) 
-                        : (recentLearningList[0].subjectName || lastPracticeSubject.title)) 
-                    : lastPracticeSubject.title 
-                }}
+                {{ getCurrentPracticeTitle() }}
               </view>
             </view>
-            <view class="current-status">Learning</view>
+            <view class="current-progress" v-if="lastPracticeSubject.currentIndex && lastPracticeSubject.totalQuestions">
+              第{{ lastPracticeSubject.currentIndex }}题/共{{ lastPracticeSubject.totalQuestions }}题
+            </view>
+            <view class="current-status" v-else>Learning</view>
           </view>
-          <SvgIcon :name="getIconName((recentLearningList && recentLearningList[0]?.isCurrent) ? (recentLearningList[0].subjectName || lastPracticeSubject.icon) : lastPracticeSubject.icon)" size="48" fill="#ff9800" />
+          <SvgIcon :name="getCurrentPracticeIcon()" size="48" fill="#ff9800" />
         </view>
       </view>
     </view>
@@ -598,8 +589,10 @@ const lastPracticeSubject = ref({
 const loadLastPracticeSubject = () => {
   const saved = uni.getStorageSync('lastPracticeSubject');
   if (saved) {
+    // 复制对象，避免引用问题
+    const practiceData = { ...saved };
     // 确保有图标，如果没有则根据标题映射
-    if (!saved.icon || saved.icon === 'books') {
+    if (!practiceData.icon || practiceData.icon === 'books') {
       const titleIconMap = {
         '计算机': 'computer',
         '数学': 'math',
@@ -608,22 +601,28 @@ const loadLastPracticeSubject = () => {
         '全部': 'books'
       };
       for (const key in titleIconMap) {
-        if (saved.title && saved.title.includes(key)) {
-          saved.icon = titleIconMap[key];
+        if (practiceData.title && practiceData.title.includes(key)) {
+          practiceData.icon = titleIconMap[key];
           break;
         }
       }
     }
-    lastPracticeSubject.value = saved;
+    lastPracticeSubject.value = practiceData;
   }
 };
 
 // 处理继续练习
 const handleContinuePractice = () => {
   if (!checkLoginAndAlert()) return;
-  
+
   if (lastPracticeSubject.value) {
-    const url = lastPracticeSubject.value.url || `/pages/practice/practice-detail?id=${lastPracticeSubject.value.id}`;
+    // 如果有直接的URL，使用URL跳转
+    if (lastPracticeSubject.value.url) {
+      uni.navigateTo({ url: lastPracticeSubject.value.url });
+      return;
+    }
+    // 否则使用默认跳转
+    const url = `/pages/practice/practice-detail?id=${lastPracticeSubject.value.id}`;
     if (lastPracticeSubject.value.isTab) {
       uni.switchTab({ url });
     } else {
@@ -682,6 +681,36 @@ const getIconName = (val) => {
   if (n.includes('public') || n.includes('公共')) return 'flag';
   
   return 'books';
+};
+
+// 获取当前练习标题
+const getCurrentPracticeTitle = () => {
+  // 如果有详细的书本标题
+  if (lastPracticeSubject.value.bookTitle) {
+    return lastPracticeSubject.value.bookTitle;
+  }
+  // 如果有标题
+  if (lastPracticeSubject.value.title) {
+    return lastPracticeSubject.value.title;
+  }
+  // 默认返回
+  return '考研数学';
+};
+
+// 获取当前练习图标
+const getCurrentPracticeIcon = () => {
+  // 根据类型返回图标
+  if (lastPracticeSubject.value.type === 'computer' || lastPracticeSubject.value.subject === '计算机') {
+    return 'computer';
+  }
+  if (lastPracticeSubject.value.type === 'math' || lastPracticeSubject.value.subject === '数学') {
+    return 'math';
+  }
+  // 如果有图标字段
+  if (lastPracticeSubject.value.icon) {
+    return getIconName(lastPracticeSubject.value.icon);
+  }
+  return 'math';
 };
 
 // 获取签到数据并自动签到
@@ -1945,6 +1974,13 @@ page {
   font-size: 14rpx; /* 减小字体 */
   color: #ff9800;
   margin-top: 4rpx; /* 调整上方间距 */
+}
+
+.current-progress {
+  font-size: 16rpx;
+  color: #ff9800;
+  margin-top: 4rpx;
+  font-weight: 500;
 }
 
 .current-card .svg-icon {

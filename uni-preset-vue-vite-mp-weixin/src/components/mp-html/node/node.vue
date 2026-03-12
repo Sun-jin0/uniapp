@@ -1,6 +1,8 @@
 <template>
   <view :id="attrs.id" :class="'_block _'+name+' '+attrs.class" :style="attrs.style">
     <block v-for="(n, i) in nodes" v-bind:key="i">
+      <!-- 跳过无效节点 -->
+      <block v-if="n">
       <!-- 图片 -->
       <!-- 占位图 -->
       <image v-if="n.name==='img'&&!n.t&&((opts[1]&&!ctrl[i])||ctrl[i]<0)" class="_img" :style="n.attrs.style" :src="ctrl[i]<0?opts[2]:opts[1]" mode="widthFix" />
@@ -89,6 +91,7 @@
         <node v-for="(n2, j) in n.children" v-bind:key="j" :style="n2.f" :name="n2.name" :attrs="n2.attrs" :childs="n2.children" :opts="opts" />
       </view>
       <node v-else :style="n.f" :name="n.name" :attrs="n.attrs" :childs="n.children" :opts="opts" />
+      </block>
     </block>
   </view>
 </template>
@@ -122,7 +125,6 @@ module.exports = {
 </script>
 <script>
 
-import node from './node'
 export default {
   name: 'node',
   options: {
@@ -156,20 +158,30 @@ export default {
   watch: {
     childs: {
 		  handler (nodes) {
+        // 确保 nodes 是数组
+        if (!nodes || !Array.isArray(nodes)) {
+          this.nodes = []
+          return
+        }
+        // 处理节点，确保每个节点都有完整的结构
+        const result = nodes.map(node => {
+          if (!node) return { name: 'span', attrs: { id: '', class: '', style: '' }, children: [] }
+          return {
+            ...node,
+            attrs: node.attrs || { id: '', class: '', style: '' }
+          }
+        })
         // 列表缩短会刷新整个列表，因此进行空填充
-        while (this.nodes.length > nodes.length) {
-			    nodes.push({})
+        while (this.nodes.length > result.length) {
+			    result.push({ name: 'span', attrs: { id: '', class: '', style: '' }, children: [] })
 		    }
-        this.nodes = nodes
+        this.nodes = result
       },
 	    immediate: true
 	  }
   },
   components: {
-
-    // #ifndef ((H5 || APP-PLUS) && VUE3) || APP-HARMONY
-    node
-    // #endif
+    // 递归组件通过 name 属性自动注册，无需显式导入
   },
   mounted () {
     this.$nextTick(() => {
