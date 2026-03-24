@@ -356,4 +356,5 @@ Object.assign(adminApi, {
   deleteNavCategory: (id) => service.delete(`/admin/nav-categories/${id}`),
 })
 
+export { service }
 export default adminApi
