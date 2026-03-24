@@ -10,10 +10,7 @@ if (typeof window !== 'undefined') {
 }
 // #endif
 
-// #ifdef MP-WEIXIN
-// 微信小程序下静态导入 towxml
-const towxml = require("../wxcomponents/towxml/index");
-// #endif
+
 
 function escapeHtml(text) {
   if (!text) return '';
@@ -441,8 +438,9 @@ export function parseTextWithLatexForMp(text) {
     // 1. 预处理文本
     let processedText = preprocessTextForMp(text);
     
-    // 2. 使用 Towxml 解析为 Markdown/LaTeX
-    // towxml 已在文件顶部静态导入
+    // 2. 动态导入并使用 Towxml 解析为 Markdown/LaTeX
+    // 使用 ./towxml 路径，因为 towxml 已复制到 utils 目录下
+    const towxml = require('./towxml/index');
     const result = towxml(processedText, 'markdown');
     
     return result || {};

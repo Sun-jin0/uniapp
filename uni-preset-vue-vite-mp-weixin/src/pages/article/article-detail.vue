@@ -57,8 +57,29 @@
 
         <!-- 文章正文 -->
         <view class="article-body">
-          <rich-text :nodes="article.content"></rich-text>
+          <!-- #ifdef MP-WEIXIN -->
+          <rich-text :nodes="article.content" selectable :preview="true" @itemclick="handleRichTextClick"></rich-text>
+          <!-- #endif -->
+          <!-- #ifdef H5 -->
+          <view v-html="processedContent" @click="handleContentClick"></view>
+          <!-- #endif -->
         </view>
+
+        <!-- 小程序端：文章内容中的链接列表 -->
+        <!-- #ifdef MP-WEIXIN -->
+        <view v-if="articleLinks.length > 0" class="article-links-section">
+          <view class="links-section-title">文章链接</view>
+          <view 
+            v-for="(link, index) in articleLinks" 
+            :key="index" 
+            class="article-link-item"
+            @click="copyLink(link.href)"
+          >
+            <text class="link-text">{{ link.text }}</text>
+            <text class="link-copy-btn">复制</text>
+          </view>
+        </view>
+        <!-- #endif -->
 
         <!-- 文章链接 -->
         <view v-if="article.linkUrl" class="article-link-section">
@@ -107,6 +128,9 @@ const article = ref(null);
 // 网盘链接列表
 const panLinks = ref([]);
 
+// 文章内容中的超链接列表（小程序端用）
+const articleLinks = ref([]);
+
 // 登录状态
 const isLoggedIn = ref(false);
 const isCheckingLogin = ref(true);
@@ -115,6 +139,113 @@ const isCheckingLogin = ref(true);
 const isLiked = ref(false);
 const isCollected = ref(false);
 const likeCount = ref(0);
+
+// 处理文章内容（H5用）
+const processedContent = computed(() => {
+  if (!article.value?.content) return '';
+  let content = article.value.content;
+  
+  // 为链接添加 data-href 属性用于点击识别
+  content = content.replace(/<a([^>]*)href=["']([^"']*)["']([^>]*)>/gi, (match, before, href, after) => {
+    return `<a${before}href="${href}" data-href="${href}"${after}>`;
+  });
+  
+  return content;
+});
+
+// 从文章内容中提取所有超链接（小程序端用）
+const extractArticleLinks = (content) => {
+  if (!content) return [];
+  const links = [];
+  const linkRegex = /<a[^>]*href=["']([^"']*)["'][^>]*>([^<]*)<\/a>/gi;
+  let match;
+  
+  while ((match = linkRegex.exec(content)) !== null) {
+    const href = match[1];
+    const text = match[2].trim() || href;
+    // 排除锚点链接
+    if (!href.startsWith('#')) {
+      links.push({
+        href: href,
+        text: text.length > 30 ? text.substring(0, 30) + '...' : text
+      });
+    }
+  }
+  
+  return links;
+};
+
+// 处理 rich-text 点击事件（小程序）
+const handleRichTextClick = (e) => {
+  const { href, src } = e.detail || {};
+  
+  // 处理链接点击 - 复制链接
+  if (href) {
+    // 排除锚点链接（#开头）
+    if (href.startsWith('#')) return;
+    
+    uni.setClipboardData({
+      data: href,
+      success: () => {
+        uni.showToast({ title: '链接已复制', icon: 'success', duration: 2000 });
+      }
+    });
+    return;
+  }
+  
+  // 处理图片点击 - 预览图片（微信会自动支持长按识别二维码）
+  if (src) {
+    uni.previewImage({
+      urls: [src],
+      current: src
+    });
+  }
+};
+
+// 复制链接（小程序端链接列表用）
+const copyLink = (href) => {
+  uni.setClipboardData({
+    data: href,
+    success: () => {
+      uni.showToast({ title: '链接已复制', icon: 'success', duration: 2000 });
+    }
+  });
+};
+
+// 处理内容点击（H5）
+const handleContentClick = (e) => {
+  const target = e.target;
+  if (!target) return;
+  
+  const tagName = target.tagName || '';
+  
+  // 处理图片点击
+  if (tagName === 'IMG') {
+    const src = target.dataset ? (target.dataset.src || target.src) : target.src;
+    if (src) {
+      uni.previewImage({
+        urls: [src],
+        current: src
+      });
+    }
+    e.preventDefault();
+    return;
+  }
+  
+  // 处理链接点击 - 复制链接
+  if (tagName === 'A') {
+    const href = target.dataset ? target.dataset.href : null;
+    if (href) {
+      e.preventDefault();
+      uni.setClipboardData({
+        data: href,
+        success: () => {
+          uni.showToast({ title: '链接已复制', icon: 'success', duration: 2000 });
+        }
+      });
+    }
+  }
+};
 
 // 网盘链接识别正则
 const PAN_REGEX = {
@@ -334,6 +465,7 @@ const initArticle = async () => {
         // 提取文章中的网盘链接
         if (article.value.content) {
           panLinks.value = extractPanLinks(article.value.content);
+          articleLinks.value = extractArticleLinks(article.value.content);
         }
       } else {
         uni.showToast({
@@ -645,6 +777,11 @@ export default {
   line-height: 1.8;
 }
 
+/* rich-text 组件样式 */
+.article-body rich-text {
+  width: 100%;
+}
+
 /* 调整富文本中的图片 */
 :deep(img) {
   max-width: 100% !important;
@@ -656,6 +793,89 @@ export default {
 
 :deep(p) {
   margin-bottom: 20rpx;
+  word-break: break-word;
+  display: block;
+}
+
+/* rich-text 样式 */
+.article-body {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.article-content-selectable {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.article-body rich-text {
+  width: 100%;
+}
+
+/* 富文本图片样式 */
+:deep(img) {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin: 20rpx 0;
+  border-radius: 8rpx;
+}
+
+/* 富文本段落样式 */
+:deep(p) {
+  margin-bottom: 20rpx;
+  word-break: break-word;
+}
+
+/* 文章链接样式 */
+:deep(a) {
+  word-break: break-all;
+  color: #576b95;
+}
+
+/* 小程序端文章链接列表样式 */
+.article-links-section {
+  margin-top: 40rpx;
+  padding: 30rpx;
+  background: #f8f8f8;
+  border-radius: 12rpx;
+}
+
+.links-section-title {
+  font-size: 28rpx;
+  font-weight: bold;
+  color: #333;
+  margin-bottom: 20rpx;
+}
+
+.article-link-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20rpx 24rpx;
+  background: #fff;
+  border-radius: 8rpx;
+  margin-bottom: 16rpx;
+}
+
+.article-link-item:last-child {
+  margin-bottom: 0;
+}
+
+.article-link-item .link-text {
+  flex: 1;
+  font-size: 26rpx;
+  color: #576b95;
+  word-break: break-all;
+}
+
+.article-link-item .link-copy-btn {
+  font-size: 24rpx;
+  color: #fff;
+  background: #576b95;
+  padding: 8rpx 20rpx;
+  border-radius: 6rpx;
+  margin-left: 20rpx;
 }
 
 /* 文章链接部分 */

@@ -9,6 +9,7 @@ import adminApi from './admin.js'
 import mathApi from './math.js'
 import medicalApi from './medical.js'
 import videoApi from './video.js'
+import qqGroupApi from './qqGroup.js'
 
 export default {
   publicApi,
@@ -21,5 +22,6 @@ export default {
   adminApi,
   mathApi,
   medicalApi,
-  videoApi
+  videoApi,
+  qqGroupApi
 }

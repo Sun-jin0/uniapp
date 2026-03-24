@@ -354,62 +354,217 @@
         </div>
         <div class="modal-body">
           <div class="book-list">
-            <div v-for="book in availableBooks" :key="book.BookID" class="book-item">
-              <div class="book-header" @click="toggleBookSelection(book.BookID)">
-                <div class="checkbox" :class="{ checked: isBookSelected(book.BookID) }"></div>
-                <span class="book-name">{{ book.BookTitle }}</span>
-                <div class="expand-icon" @click.stop="toggleBookExpand(book.BookID)">
-                  {{ expandedBooks.includes(book.BookID) ? '收起设置 ▲' : '配置题量/选择章节 ▼' }}
-                </div>
+            <!-- 书籍分类 -->
+            <div v-if="categorizedBooks.books.length > 0" class="book-category">
+              <div class="category-title" @click="toggleCategory('books')">
+                <span>书籍</span>
+                <span class="category-toggle">{{ expandedCategories.books ? '▼' : '▶' }}</span>
               </div>
+              <div v-show="expandedCategories.books" class="category-content">
+                <div v-for="book in categorizedBooks.books" :key="book.BookID" class="book-item">
+                <div class="book-header" @click="toggleBookSelection(book.BookID)">
+                  <div class="checkbox" :class="{ checked: isBookSelected(book.BookID) }"></div>
+                  <span class="book-name">{{ book.BookTitle }}</span>
+                  <div class="expand-icon" @click.stop="toggleBookExpand(book.BookID)">
+                    {{ expandedBooks.includes(book.BookID) ? '收起设置 ▲' : '配置题量/选择章节 ▼' }}
+                  </div>
+                </div>
 
-              <!-- 书籍层级的题量设置 -->
-              <div v-if="expandedBooks.includes(book.BookID) && isBookSelected(book.BookID) && getSelectedChaptersCount(book.BookID) === 0" class="scope-config-area">
-                <div class="config-label">整本书题量设置:</div>
-                <div class="mini-counters">
-                  <div class="mini-counter" v-for="type in ['choice', 'fill', 'analysis']" :key="type">
-                    <span>{{ type === 'choice' ? '选' : type === 'fill' ? '填' : '解' }}:</span>
-                    <div class="ctl">
-                      <button @click.stop="updateScopeConfig(book.BookID, null, type, -1)">-</button>
-                      <input type="number" :value="getScopeConfig(book.BookID)[type]" @input="e => getScopeConfig(book.BookID)[type] = parseInt(e.detail.value || 0)" @click.stop />
-                      <button @click.stop="updateScopeConfig(book.BookID, null, type, 1)">+</button>
+                <!-- 书籍层级的题量设置 -->
+                <div v-if="expandedBooks.includes(book.BookID) && isBookSelected(book.BookID) && getSelectedChaptersCount(book.BookID) === 0" class="scope-config-area">
+                  <div class="config-label">整本书题量设置:</div>
+                  <div class="mini-counters">
+                    <div class="mini-counter" v-for="type in ['choice', 'fill', 'analysis']" :key="type">
+                      <span>{{ type === 'choice' ? '选' : type === 'fill' ? '填' : '解' }}:</span>
+                      <div class="ctl">
+                        <button @click.stop="updateScopeConfig(book.BookID, null, type, -1)">-</button>
+                        <input type="number" :value="getScopeConfig(book.BookID)[type]" @input="e => getScopeConfig(book.BookID)[type] = parseInt(e.detail.value || 0)" @click.stop />
+                        <button @click.stop="updateScopeConfig(book.BookID, null, type, 1)">+</button>
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
-              
-              <div v-if="expandedBooks.includes(book.BookID)" class="chapter-list">
-                <div v-if="loadingChapters[book.BookID]" class="loading-inline">加载章节中...</div>
-                <div v-else-if="!bookChapters[book.BookID] || bookChapters[book.BookID].length === 0" class="no-data">暂无章节信息</div>
-                <div v-else>
-                  <div class="chapter-actions">
-                    <span @click="selectAllChapters(book.BookID)">全选章节</span>
-                    <span @click="deselectAllChapters(book.BookID)">清空章节</span>
-                  </div>
-                  <div class="chapter-list-vertical">
-                    <div 
-                      v-for="(chapter, cIndex) in bookChapters[book.BookID]" 
-                      :key="chapter.name"
-                      class="chapter-row-item"
-                      :class="{ active: isChapterSelected(book.BookID, chapter.name) }"
-                      @click="toggleChapterSelection(book.BookID, chapter.name)"
-                    >
-                      <div class="chapter-row-left">
-                        <span class="chapter-index">{{ cIndex + 1 }}</span>
-                        <span class="chapter-name-text">{{ chapter.name }}</span>
-                      </div>
-                      <div v-if="isChapterSelected(book.BookID, chapter.name)" class="chapter-row-config" @click.stop>
-                        <div class="m-cfg-item" v-for="type in ['choice', 'fill', 'analysis']" :key="type">
-                          <span>{{ type === 'choice' ? '选' : type === 'fill' ? '填' : '解' }}</span>
-                          <input type="number" :value="getScopeConfig(book.BookID, chapter.name)[type]" @input="e => getScopeConfig(book.BookID, chapter.name)[type] = parseInt(e.detail.value || 0)" />
+                
+                <div v-if="expandedBooks.includes(book.BookID)" class="chapter-list">
+                  <div v-if="loadingChapters[book.BookID]" class="loading-inline">加载章节中...</div>
+                  <div v-else-if="!bookChapters[book.BookID] || bookChapters[book.BookID].length === 0" class="no-data">暂无章节信息</div>
+                  <div v-else>
+                    <div class="chapter-actions">
+                      <span @click="selectAllChapters(book.BookID)">全选章节</span>
+                      <span @click="deselectAllChapters(book.BookID)">清空章节</span>
+                    </div>
+                    <div class="chapter-list-vertical">
+                      <div 
+                        v-for="(chapter, cIndex) in bookChapters[book.BookID]" 
+                        :key="chapter.name"
+                        class="chapter-row-item"
+                        :class="{ 
+                          active: isChapterSelected(book.BookID, chapter.name),
+                          'level-1': chapter.level === 1,
+                          'level-2': chapter.level === 2
+                        }"
+                        @click="toggleChapterSelection(book.BookID, chapter.name)"
+                      >
+                        <div class="chapter-row-left">
+                          <span class="chapter-index" :class="{ 'sub-index': chapter.level === 2 }">{{ chapter.level === 2 ? '└' : '' }}{{ cIndex + 1 }}</span>
+                          <span class="chapter-name-text" :class="{ 'sub-name': chapter.level === 2 }">{{ chapter.name }}</span>
+                        </div>
+                        <div v-if="isChapterSelected(book.BookID, chapter.name)" class="chapter-row-config" @click.stop>
+                          <div class="m-cfg-item" v-for="type in ['choice', 'fill', 'analysis']" :key="type">
+                            <span>{{ type === 'choice' ? '选' : type === 'fill' ? '填' : '解' }}</span>
+                            <input type="number" :value="getScopeConfig(book.BookID, chapter.name)[type]" @input="e => getScopeConfig(book.BookID, chapter.name)[type] = parseInt(e.detail.value || 0)" />
+                          </div>
+                        </div>
+                        <div v-else class="chapter-check-icon">
+                          <span>+</span>
                         </div>
                       </div>
-                      <div v-else class="chapter-check-icon">
-                        <span>+</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              </div>
+            </div>
+
+            <!-- 真题卷分类 -->
+            <div v-if="categorizedBooks.realPapers.length > 0" class="book-category">
+              <div class="category-title" @click="toggleCategory('realPapers')">
+                <span>真题卷</span>
+                <span class="category-toggle">{{ expandedCategories.realPapers ? '▼' : '▶' }}</span>
+              </div>
+              <div v-show="expandedCategories.realPapers" class="category-content">
+                <div v-for="book in categorizedBooks.realPapers" :key="book.BookID" class="book-item">
+                <div class="book-header" @click="toggleBookSelection(book.BookID)">
+                  <div class="checkbox" :class="{ checked: isBookSelected(book.BookID) }"></div>
+                  <span class="book-name">{{ book.BookTitle }}</span>
+                  <div class="expand-icon" @click.stop="toggleBookExpand(book.BookID)">
+                    {{ expandedBooks.includes(book.BookID) ? '收起设置 ▲' : '配置题量/选择章节 ▼' }}
+                  </div>
+                </div>
+
+                <div v-if="expandedBooks.includes(book.BookID) && isBookSelected(book.BookID) && getSelectedChaptersCount(book.BookID) === 0" class="scope-config-area">
+                  <div class="config-label">整本书题量设置:</div>
+                  <div class="mini-counters">
+                    <div class="mini-counter" v-for="type in ['choice', 'fill', 'analysis']" :key="type">
+                      <span>{{ type === 'choice' ? '选' : type === 'fill' ? '填' : '解' }}:</span>
+                      <div class="ctl">
+                        <button @click.stop="updateScopeConfig(book.BookID, null, type, -1)">-</button>
+                        <input type="number" :value="getScopeConfig(book.BookID)[type]" @input="e => getScopeConfig(book.BookID)[type] = parseInt(e.detail.value || 0)" @click.stop />
+                        <button @click.stop="updateScopeConfig(book.BookID, null, type, 1)">+</button>
                       </div>
                     </div>
                   </div>
                 </div>
+                
+                <div v-if="expandedBooks.includes(book.BookID)" class="chapter-list">
+                  <div v-if="loadingChapters[book.BookID]" class="loading-inline">加载章节中...</div>
+                  <div v-else-if="!bookChapters[book.BookID] || bookChapters[book.BookID].length === 0" class="no-data">暂无章节信息</div>
+                  <div v-else>
+                    <div class="chapter-actions">
+                      <span @click="selectAllChapters(book.BookID)">全选章节</span>
+                      <span @click="deselectAllChapters(book.BookID)">清空章节</span>
+                    </div>
+                    <div class="chapter-list-vertical">
+                      <div 
+                        v-for="(chapter, cIndex) in bookChapters[book.BookID]" 
+                        :key="chapter.name"
+                        class="chapter-row-item"
+                        :class="{ 
+                          active: isChapterSelected(book.BookID, chapter.name),
+                          'level-1': chapter.level === 1,
+                          'level-2': chapter.level === 2
+                        }"
+                        @click="toggleChapterSelection(book.BookID, chapter.name)"
+                      >
+                        <div class="chapter-row-left">
+                          <span class="chapter-index" :class="{ 'sub-index': chapter.level === 2 }">{{ chapter.level === 2 ? '└' : '' }}{{ cIndex + 1 }}</span>
+                          <span class="chapter-name-text" :class="{ 'sub-name': chapter.level === 2 }">{{ chapter.name }}</span>
+                        </div>
+                        <div v-if="isChapterSelected(book.BookID, chapter.name)" class="chapter-row-config" @click.stop>
+                          <div class="m-cfg-item" v-for="type in ['choice', 'fill', 'analysis']" :key="type">
+                            <span>{{ type === 'choice' ? '选' : type === 'fill' ? '填' : '解' }}</span>
+                            <input type="number" :value="getScopeConfig(book.BookID, chapter.name)[type]" @input="e => getScopeConfig(book.BookID, chapter.name)[type] = parseInt(e.detail.value || 0)" />
+                          </div>
+                        </div>
+                        <div v-else class="chapter-check-icon">
+                          <span>+</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              </div>
+            </div>
+
+            <!-- 模拟卷分类 -->
+            <div v-if="categorizedBooks.mockPapers.length > 0" class="book-category">
+              <div class="category-title" @click="toggleCategory('mockPapers')">
+                <span>模拟卷</span>
+                <span class="category-toggle">{{ expandedCategories.mockPapers ? '▼' : '▶' }}</span>
+              </div>
+              <div v-show="expandedCategories.mockPapers" class="category-content">
+                <div v-for="book in categorizedBooks.mockPapers" :key="book.BookID" class="book-item">
+                <div class="book-header" @click="toggleBookSelection(book.BookID)">
+                  <div class="checkbox" :class="{ checked: isBookSelected(book.BookID) }"></div>
+                  <span class="book-name">{{ book.BookTitle }}</span>
+                  <div class="expand-icon" @click.stop="toggleBookExpand(book.BookID)">
+                    {{ expandedBooks.includes(book.BookID) ? '收起设置 ▲' : '配置题量/选择章节 ▼' }}
+                  </div>
+                </div>
+
+                <div v-if="expandedBooks.includes(book.BookID) && isBookSelected(book.BookID) && getSelectedChaptersCount(book.BookID) === 0" class="scope-config-area">
+                  <div class="config-label">整本书题量设置:</div>
+                  <div class="mini-counters">
+                    <div class="mini-counter" v-for="type in ['choice', 'fill', 'analysis']" :key="type">
+                      <span>{{ type === 'choice' ? '选' : type === 'fill' ? '填' : '解' }}:</span>
+                      <div class="ctl">
+                        <button @click.stop="updateScopeConfig(book.BookID, null, type, -1)">-</button>
+                        <input type="number" :value="getScopeConfig(book.BookID)[type]" @input="e => getScopeConfig(book.BookID)[type] = parseInt(e.detail.value || 0)" @click.stop />
+                        <button @click.stop="updateScopeConfig(book.BookID, null, type, 1)">+</button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                
+                <div v-if="expandedBooks.includes(book.BookID)" class="chapter-list">
+                  <div v-if="loadingChapters[book.BookID]" class="loading-inline">加载章节中...</div>
+                  <div v-else-if="!bookChapters[book.BookID] || bookChapters[book.BookID].length === 0" class="no-data">暂无章节信息</div>
+                  <div v-else>
+                    <div class="chapter-actions">
+                      <span @click="selectAllChapters(book.BookID)">全选章节</span>
+                      <span @click="deselectAllChapters(book.BookID)">清空章节</span>
+                    </div>
+                    <div class="chapter-list-vertical">
+                      <div 
+                        v-for="(chapter, cIndex) in bookChapters[book.BookID]" 
+                        :key="chapter.name"
+                        class="chapter-row-item"
+                        :class="{ 
+                          active: isChapterSelected(book.BookID, chapter.name),
+                          'level-1': chapter.level === 1,
+                          'level-2': chapter.level === 2
+                        }"
+                        @click="toggleChapterSelection(book.BookID, chapter.name)"
+                      >
+                        <div class="chapter-row-left">
+                          <span class="chapter-index" :class="{ 'sub-index': chapter.level === 2 }">{{ chapter.level === 2 ? '└' : '' }}{{ cIndex + 1 }}</span>
+                          <span class="chapter-name-text" :class="{ 'sub-name': chapter.level === 2 }">{{ chapter.name }}</span>
+                        </div>
+                        <div v-if="isChapterSelected(book.BookID, chapter.name)" class="chapter-row-config" @click.stop>
+                          <div class="m-cfg-item" v-for="type in ['choice', 'fill', 'analysis']" :key="type">
+                            <span>{{ type === 'choice' ? '选' : type === 'fill' ? '填' : '解' }}</span>
+                            <input type="number" :value="getScopeConfig(book.BookID, chapter.name)[type]" @input="e => getScopeConfig(book.BookID, chapter.name)[type] = parseInt(e.detail.value || 0)" />
+                          </div>
+                        </div>
+                        <div v-else class="chapter-check-icon">
+                          <span>+</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
               </div>
             </div>
           </div>
@@ -438,11 +593,49 @@ const selectedScope = ref([]); // [{ bookId, chapters: [] }]
 const scopeConfigs = ref({}); // { 'book-1': { choice, fill, analysis }, 'chapter-1-Name': { choice, fill, analysis } }
 const showScopeModal = ref(false);
 
+// 分类展开状态
+const expandedCategories = ref({
+  books: true,
+  realPapers: true,
+  mockPapers: true
+});
+
 // 组卷模式：smart (智能), manual (手动), my-papers (我的组卷)
 const compositionMode = ref('smart');
 
 // 我的组卷列表
 const generatedPapers = ref([]);
+
+// 按类型分类书籍
+const categorizedBooks = computed(() => {
+  const books = [];
+  const realPapers = []; // 真题卷
+  const mockPapers = []; // 模拟卷
+
+  availableBooks.value.forEach(book => {
+    const title = book.BookTitle || '';
+    // 判断是否包含年份（如2024年、2025年等）
+    const hasYear = /\d{4}年/.test(title);
+    // 判断是否包含"真题"
+    const isRealPaper = title.includes('真题');
+    // 判断是否包含"模考"或"模拟"
+    const isMockPaper = title.includes('模考') || title.includes('模拟');
+
+    if (isRealPaper || (hasYear && !isMockPaper)) {
+      realPapers.push(book);
+    } else if (isMockPaper) {
+      mockPapers.push(book);
+    } else {
+      books.push(book);
+    }
+  });
+
+  return {
+    books,
+    realPapers,
+    mockPapers
+  };
+});
 
 const fetchGeneratedPapers = async () => {
   const subjectId = selectedSubjectId.value || uni.getStorageSync('math_selected_subject_id');
@@ -939,6 +1132,53 @@ const toggleBookExpand = async (bookId) => {
   }
 };
 
+// 切换分类展开状态
+const toggleCategory = (category) => {
+  expandedCategories.value[category] = !expandedCategories.value[category];
+};
+
+// 解析章节层级和排序号
+const parseChapterInfo = (chapterName) => {
+  // 匹配"第X章"或"X."或"X、"开头的格式
+  const match = chapterName.match(/第([一二三四五六七八九十百千万亿\d]+)章|^(\d+)[\.、\s]/);
+  if (match) {
+    const numStr = match[1] || match[2];
+    // 将中文数字转换为阿拉伯数字
+    const num = chineseToNumber(numStr) || parseInt(numStr) || 0;
+    return { level: 1, order: num, name: chapterName };
+  }
+  // 匹配"X.Y"格式（如 1.2、2.3）表示子章节
+  const subMatch = chapterName.match(/^(\d+)\.(\d+)/);
+  if (subMatch) {
+    const mainNum = parseInt(subMatch[1]);
+    const subNum = parseInt(subMatch[2]);
+    return { level: 2, order: mainNum * 100 + subNum, name: chapterName };
+  }
+  // 默认按原样处理
+  return { level: 1, order: 9999, name: chapterName };
+};
+
+// 中文数字转阿拉伯数字
+const chineseToNumber = (chinese) => {
+  const map = { '一': 1, '二': 2, '三': 3, '四': 4, '五': 5, '六': 6, '七': 7, '八': 8, '九': 9, '十': 10 };
+  if (/^\d+$/.test(chinese)) return parseInt(chinese);
+  
+  let result = 0;
+  let temp = 0;
+  for (let i = 0; i < chinese.length; i++) {
+    const char = chinese[i];
+    const num = map[char];
+    if (num === 10) {
+      if (temp === 0) temp = 1;
+      result += temp * 10;
+      temp = 0;
+    } else if (num) {
+      temp = num;
+    }
+  }
+  return result + temp;
+};
+
 const fetchBookChapters = async (bookId) => {
   loadingChapters.value[bookId] = true;
   try {
@@ -949,10 +1189,23 @@ const fetchBookChapters = async (bookId) => {
     questions.forEach(q => {
       const chapterName = (q.BookChapter && q.BookChapter.trim() !== "") ? q.BookChapter.trim() : "未分类章节";
       if (!chapterMap[chapterName]) {
-        chapterMap[chapterName] = { name: chapterName };
+        const info = parseChapterInfo(chapterName);
+        chapterMap[chapterName] = { 
+          name: chapterName,
+          level: info.level,
+          order: info.order
+        };
       }
     });
-    bookChapters.value[bookId] = Object.values(chapterMap);
+    
+    // 按层级和序号排序
+    const chapters = Object.values(chapterMap);
+    chapters.sort((a, b) => {
+      if (a.level !== b.level) return a.level - b.level;
+      return a.order - b.order;
+    });
+    
+    bookChapters.value[bookId] = chapters;
   } catch (err) {
     console.error('Fetch chapters error:', err);
   } finally {
@@ -1243,6 +1496,45 @@ watch(selectedSubjectId, (newId) => {
   display: flex;
   flex-direction: column;
   gap: 12rpx;
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.book-category {
+  display: flex;
+  flex-direction: column;
+  gap: 12rpx;
+}
+
+.category-title {
+  font-size: 30rpx;
+  font-weight: 600;
+  color: #333;
+  padding: 20rpx 16rpx;
+  background-color: #f5f5f5;
+  border-radius: 8rpx;
+  margin-bottom: 12rpx;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.category-title:active {
+  background-color: #e8e8e8;
+}
+
+.category-toggle {
+  font-size: 24rpx;
+  color: #666;
+}
+
+.category-content {
+  display: flex;
+  flex-direction: column;
+  gap: 12rpx;
 }
 
 .book-item {
@@ -1346,9 +1638,25 @@ watch(selectedSubjectId, (newId) => {
   transition: all 0.2s;
 }
 
+.chapter-row-item.level-1 {
+  background: #fff;
+  border-left: 4rpx solid #4db6ac;
+}
+
+.chapter-row-item.level-2 {
+  background: #fafafa;
+  border-left: 4rpx solid #ccc;
+  margin-left: 30rpx;
+}
+
 .chapter-row-item.active {
   background: rgba(77, 182, 172, 0.1);
   border-color: #4db6ac;
+}
+
+.chapter-row-item.level-2.active {
+  background: rgba(77, 182, 172, 0.05);
+  border-left-color: #4db6ac;
 }
 
 .chapter-row-item:active {
@@ -1376,8 +1684,19 @@ watch(selectedSubjectId, (newId) => {
   flex-shrink: 0;
 }
 
+.chapter-index.sub-index {
+  background: #e0e0e0;
+  color: #999;
+  font-size: 18rpx;
+}
+
 .chapter-row-item.active .chapter-index {
   background: #4db6ac;
+  color: #fff;
+}
+
+.chapter-row-item.active .chapter-index.sub-index {
+  background: #80cbc4;
   color: #fff;
 }
 
@@ -1385,6 +1704,11 @@ watch(selectedSubjectId, (newId) => {
   font-size: 24rpx;
   color: #333;
   flex: 1;
+}
+
+.chapter-name-text.sub-name {
+  font-size: 22rpx;
+  color: #666;
 }
 
 .chapter-row-config {
@@ -2210,9 +2534,16 @@ watch(selectedSubjectId, (newId) => {
 .modal-content {
   background: #fff;
   width: 100%;
+  max-height: 80vh;
   border-radius: 30rpx 30rpx 0 0;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
   animation: slideUp 0.3s ease-out;
+}
+
+.scope-modal {
+  max-height: 85vh;
 }
 
 @keyframes slideUp {

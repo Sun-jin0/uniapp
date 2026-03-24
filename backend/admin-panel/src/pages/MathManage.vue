@@ -813,6 +813,7 @@
             node-key="id"
             default-expand-all
             highlight-current
+            @node-click="handleCategoryNodeClick"
           >
             <template #default="{ node, data }">
               <div class="custom-tree-node">
@@ -839,6 +840,44 @@
               </div>
             </template>
           </el-tree>
+
+          <!-- 选中分类的题目列表 -->
+          <div v-if="selectedCategoryNode" class="category-questions-section mt-30">
+            <div class="section-header">
+              <h3>{{ selectedCategoryNode.CategoryName }} - 关联题目</h3>
+              <div>
+                <el-tag type="info" size="small">{{ categoryQuestions.length }} 题</el-tag>
+                <el-button size="small" @click="fetchCategoryQuestions" :loading="loadingCategoryQuestions">刷新</el-button>
+              </div>
+            </div>
+            <el-table 
+              :data="categoryQuestions" 
+              v-loading="loadingCategoryQuestions" 
+              border 
+              stripe 
+              size="small"
+              max-height="400"
+            >
+              <el-table-column prop="QuestionID" label="ID" width="80" align="center" />
+              <el-table-column prop="QuestionText" label="题干" min-width="300" show-overflow-tooltip>
+                <template #default="{ row }">
+                  <div class="question-text-preview" v-html="renderLatex(row.QuestionText?.substring(0, 100) + (row.QuestionText?.length > 100 ? '...' : ''))"></div>
+                </template>
+              </el-table-column>
+              <el-table-column prop="QuestionType" label="题型" width="100" align="center" />
+              <el-table-column prop="Difficulty" label="难度" width="80" align="center">
+                <template #default="{ row }">
+                  <el-rate v-model="row.Difficulty" disabled :max="5" />
+                </template>
+              </el-table-column>
+              <el-table-column label="操作" width="150" align="center" fixed="right">
+                <template #default="{ row }">
+                  <el-button size="small" type="primary" @click="openEditModal(row.QuestionID)">编辑</el-button>
+                  <el-button size="small" @click="removeQuestionFromCategory(row.QuestionID)">移除</el-button>
+                </template>
+              </el-table-column>
+            </el-table>
+          </div>
 
           <!-- 未分类考点列表 -->
           <div class="uncategorized-kp-section mt-30">
@@ -1283,6 +1322,10 @@
 
       <template #footer>
         <span class="dialog-footer">
+          <el-button type="warning" @click="formatQuestionContent" :title="'格式化内容：将\\\\times改为×，\\\\ne/\\\\neq改为≠，<改为空格包裹，删除文字标签'">
+            <el-icon><MagicStick /></el-icon>
+            格式化内容
+          </el-button>
           <el-button @click="editModalVisible = false">取消</el-button>
           <el-button type="primary" @click="saveQuestion" :loading="saving">保存</el-button>
         </span>
@@ -2870,6 +2913,59 @@ const insertSymbol = (code) => {
   })
 }
 
+// 格式化题目内容
+const formatQuestionContent = () => {
+  // 格式化函数：处理文本替换
+  const formatText = (text) => {
+    if (!text) return text
+    
+    // 调试：检查是否包含 \text
+    if (text.includes('\\text')) {
+      console.log('发现 \\text，原始片段:', text.substring(text.indexOf('\\text'), text.indexOf('\\text') + 50))
+    }
+    
+    let result = text
+      // 将 \times 改为 ×
+      .replace(/\\times/g, '×')
+      // 将 \ne 或 \neq 改为 ≠
+      .replace(/\\neq?/g, '≠')
+      // 将 < 改为前后加空格（但保留 HTML 标签）
+      .replace(/<(?![a-zA-Z\/])/g, ' < ')
+      // 删除 \text{文字} 格式的 LaTeX 文本标签，保留内部文字
+      // 注意：在 JavaScript 正则中，\\ 匹配一个反斜杠字符
+      .replace(/\\text\{([^}]*)\}/g, '$1')
+      // 清理多余的空格
+      .replace(/\s+/g, ' ')
+      .trim()
+    
+    return result
+  }
+
+  // 格式化题干
+  if (editForm.questionText) {
+    editForm.questionText = formatText(editForm.questionText)
+  }
+
+  // 格式化答案
+  if (editForm.answerText) {
+    editForm.answerText = formatText(editForm.answerText)
+  }
+
+  // 格式化详情卡片
+  if (editForm.details && editForm.details.length > 0) {
+    editForm.details.forEach(detail => {
+      if (detail.Title) {
+        detail.Title = formatText(detail.Title)
+      }
+      if (detail.Content) {
+        detail.Content = formatText(detail.Content)
+      }
+    })
+  }
+
+  ElMessage.success('内容格式化完成')
+}
+
 // 保存题目
 const saveQuestion = async () => {
   if (!editForm.questionText) {
@@ -3751,6 +3847,9 @@ const loadingKnowledgeCategories = ref(false)
 const uncategorizedKPs = ref([])
 const loadingUncategorizedKPs = ref(false)
 const selectedUncategorizedKPs = ref([])
+const selectedCategoryNode = ref(null)
+const categoryQuestions = ref([])
+const loadingCategoryQuestions = ref(false)
 const addToCategoryModalVisible = ref(false)
 const addingToCategory = ref(false)
 const addToCategoryForm = reactive({
@@ -3873,6 +3972,43 @@ const fetchAllKnowledgePoints = async () => {
     ElMessage.error('获取未分类考点失败')
   } finally {
     loadingUncategorizedKPs.value = false
+  }
+}
+
+// 处理分类节点点击
+const handleCategoryNodeClick = (data) => {
+  selectedCategoryNode.value = data
+  fetchCategoryQuestions()
+}
+
+// 获取分类下的题目
+const fetchCategoryQuestions = async () => {
+  if (!selectedCategoryNode.value) return
+  
+  loadingCategoryQuestions.value = true
+  try {
+    const res = await adminApi.getQuestionsByKnowledgeCategory(selectedCategoryNode.value.id)
+    categoryQuestions.value = res.data || []
+  } catch (error) {
+    console.error('获取分类题目失败:', error)
+    ElMessage.error('获取分类题目失败')
+  } finally {
+    loadingCategoryQuestions.value = false
+  }
+}
+
+// 从分类中移除题目
+const removeQuestionFromCategory = async (questionId) => {
+  try {
+    await ElMessageBox.confirm('确定要从该分类中移除此题目吗？', '提示', { type: 'warning' })
+    await adminApi.removeQuestionFromCategory(questionId, selectedCategoryNode.value.id)
+    ElMessage.success('移除成功')
+    fetchCategoryQuestions()
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('移除失败:', error)
+      ElMessage.error('移除失败')
+    }
   }
 }
 

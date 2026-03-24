@@ -1,7 +1,8 @@
 // 根据运行环境设置基础 URL
 const getBaseUrl = () => {
-  // 生产环境使用服务器后端
+  // 生产环境使用服务器
   return 'https://yizhancs.cn/api';
+  // return 'http://localhost:3000/api';
 };
 
 export const BASE_URL = getBaseUrl();

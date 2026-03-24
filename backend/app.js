@@ -56,6 +56,7 @@ app.use('/api', require('./routes/uploadRoutes'));
 app.use('/api', require('./routes/tutorialRoutes'));
 app.use('/api/security', require('./routes/security'));
 app.use('/api', require('./routes/avatarFrameRoutes'));
+app.use('/api/qq-group', require('./routes/qqGroupRoutes'));
 // 邀请功能已删除
 
 // 静态页面用于管理员管理纠错

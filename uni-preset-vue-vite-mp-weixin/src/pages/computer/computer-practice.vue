@@ -1,4 +1,4 @@
-<script setup>
+﻿﻿﻿<script setup>
 import { ref, onMounted, computed, watch, nextTick } from 'vue';
 import { onShareAppMessage, onShareTimeline } from '@dcloudio/uni-app';
 import { onLoad } from '@dcloudio/uni-app';
@@ -9,6 +9,110 @@ import { transformContextString } from '../../utils/latex';
 import SvgIcon from '../../components/SvgIcon/SvgIcon.vue';
 import MpHtml from '../../components/mp-html/mp-html.vue';
 import { checkTextContent } from '@/utils/contentSecurity.js';
+
+// 检测内容是否包含 LaTeX 公式或代码块
+const hasLatex = (text) => {
+  if (!text || typeof text !== 'string') return false;
+  // 检测常见的 LaTeX 公式标记
+  const hasLatexFormula = /\$\$[\s\S]*?\$\$|\$[\s\S]*?\$|\\\[[\s\S]*?\\\]|\\\([\s\S]*?\\\)|\\[a-zA-Z]+\{/.test(text);
+  // 检测代码块标记 ``` 或 ---
+  const hasCodeBlock = /```[\s\S]*?```|---[\s\S]*?---/.test(text);
+  return hasLatexFormula || hasCodeBlock;
+};
+
+// 检测内容是否包含代码块（markdown格式或<pre>标签）
+const hasCodeBlock = (text) => {
+  if (!text || typeof text !== 'string') return false;
+  // 检测 markdown 代码块
+  if (/```[\s\S]*?```|---[\s\S]*?---/.test(text)) return true;
+  // 检测 <pre> 标签
+  if (/<pre[\s\S]*?<\/pre>/i.test(text)) return true;
+  return false;
+};
+
+// 解析内容，将代码块转换为数组格式
+const parseContentWithCodeBlocks = (text) => {
+  if (!text || typeof text !== 'string') return [{ type: 'text', content: text }];
+
+  const result = [];
+  let lastIndex = 0;
+
+  // 首先匹配 <pre> 标签
+  const preRegex = /<pre[^>]*>([\s\S]*?)<\/pre>/gi;
+  let match;
+  let hasPreTag = false;
+
+  while ((match = preRegex.exec(text)) !== null) {
+    hasPreTag = true;
+    // 添加 <pre> 前的文本
+    if (match.index > lastIndex) {
+      result.push({
+        type: 'text',
+        content: text.substring(lastIndex, match.index)
+      });
+    }
+
+    // 提取 <pre> 标签内的内容，移除 <code> 标签
+    let codeContent = match[1];
+    codeContent = codeContent.replace(/<code[^>]*>/gi, '').replace(/<\/code>/gi, '');
+    codeContent = codeContent.replace(/<[^>]+>/g, ''); // 移除其他 HTML 标签
+    codeContent = codeContent.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
+
+    // 添加代码块
+    result.push({
+      type: 'code',
+      lang: 'text',
+      content: codeContent.trim()
+    });
+
+    lastIndex = match.index + match[0].length;
+  }
+
+  // 如果有 <pre> 标签，添加剩余文本
+  if (hasPreTag && lastIndex < text.length) {
+    result.push({
+      type: 'text',
+      content: text.substring(lastIndex)
+    });
+    return result;
+  }
+
+  // 然后匹配 ``` 代码块
+  const markdownCodeRegex = /```([\w]*)\n?([\s\S]*?)```/g;
+  lastIndex = 0;
+  let hasMarkdownCode = false;
+
+  while ((match = markdownCodeRegex.exec(text)) !== null) {
+    hasMarkdownCode = true;
+    // 添加代码块前的文本
+    if (match.index > lastIndex) {
+      result.push({
+        type: 'text',
+        content: text.substring(lastIndex, match.index)
+      });
+    }
+
+    // 添加代码块
+    result.push({
+      type: 'code',
+      lang: match[1] || 'text',
+      content: match[2].trim()
+    });
+
+    lastIndex = match.index + match[0].length;
+  }
+
+  // 如果有 markdown 代码块，添加剩余文本
+  if (hasMarkdownCode && lastIndex < text.length) {
+    result.push({
+      type: 'text',
+      content: text.substring(lastIndex)
+    });
+    return result;
+  }
+
+  return [{ type: 'text', content: text }];
+};
 
 const statusBarHeight = ref(0);
 const questions = ref([]);
@@ -928,8 +1032,18 @@ const adjustImageUrl = (imageUrl) => {
 // 处理题干、解析和答案中的图片
 const fixHtmlImages = (html) => {
   if (!html) return html;
-  return html.replace(/<img[^>]+src=["']([^"']+)["'][^>]*>/gi, (match, src) => {
-    return match.replace(src, adjustImageUrl(src));
+  return html.replace(/<img([^>]*)src=["']([^"']+)["']([^>]*)>/gi, (match, before, src, after) => {
+    const adjustedSrc = adjustImageUrl(src);
+    const hasWidthStyle = /(?:^|\s)style=["'][^"']*max-width/i.test(match) || /(?:^|\s)width\s*=/i.test(match);
+    if (hasWidthStyle) {
+      return `<img${before}src="${adjustedSrc}"${after}>`;
+    }
+    const style = 'max-width:100%;';
+    if (before.includes('style=')) {
+      return `<img${before.replace(/style=["']([^"']*)["']/, `style="$1${style}"`)}src="${adjustedSrc}"${after}>`;
+    } else {
+      return `<img style="${style}"${before}src="${adjustedSrc}"${after}>`;
+    }
   });
 };
 
@@ -1610,6 +1724,12 @@ const previewImage = (url) => {
   });
 };
 
+const handleImageTap = (attrs) => {
+  if (attrs && attrs.src) {
+    previewImage(attrs.src);
+  }
+};
+
 const getOptionClass = (qIndex, oIndex) => {
   const state = questionStates.value[qIndex];
   const question = questions.value[qIndex];
@@ -2079,9 +2199,55 @@ onShareTimeline(() => {
               <view class="question-title-content">
                 <view class="question-title" :style="{ fontSize: dynamicFontSize.title }">
                   <!-- 如果是填空题，先尝试行内渲染 -->
-                  <mp-html v-if="currentQuestion.exercise_type === 3" :content="currentQuestion.truncatedStem || currentQuestion.stem" class="title-rich-text" markdown></mp-html>
+                  <!-- #ifdef H5 -->
+                  <mp-html v-if="currentQuestion.exercise_type === 3" :content="currentQuestion.truncatedStem || currentQuestion.stem" class="title-rich-text" markdown @imgtap="handleImageTap"></mp-html>
                   <!-- 其他题型：如果有截断题干则显示截断的，否则显示完整的原始题干 -->
-                  <mp-html v-else :content="currentQuestion.truncatedStem || currentQuestion.originalStem" class="title-rich-text" markdown></mp-html>
+                  <mp-html v-else :content="currentQuestion.truncatedStem || currentQuestion.originalStem" class="title-rich-text" markdown @imgtap="handleImageTap"></mp-html>
+                  <!-- #endif -->
+                  <!-- #ifdef MP-WEIXIN -->
+                  <template v-if="currentQuestion.exercise_type === 3">
+                    <template v-if="hasCodeBlock(currentQuestion.truncatedStem || currentQuestion.stem)">
+                      <view v-for="(segment, idx) in parseContentWithCodeBlocks(currentQuestion.truncatedStem || currentQuestion.stem)" :key="idx">
+                        <view v-if="segment.type === 'code'" class="code-block-wrapper">
+                          <scroll-view 
+                            class="code-block-scroll" 
+                            scroll-x="true"
+                            scroll-with-animation="true"
+                          >
+                            <view class="code-block-content">
+                              <view class="code-content-text">{{ segment.content }}</view>
+                            </view>
+                          </scroll-view>
+                        </view>
+                        <mp-html v-else-if="hasLatex(segment.content)" :content="segment.content" class="title-rich-text" markdown @imgtap="handleImageTap"></mp-html>
+                        <rich-text v-else :nodes="segment.content" class="title-rich-text"></rich-text>
+                      </view>
+                    </template>
+                    <mp-html v-else-if="hasLatex(currentQuestion.truncatedStem || currentQuestion.stem)" :content="currentQuestion.truncatedStem || currentQuestion.stem" class="title-rich-text" markdown @imgtap="handleImageTap"></mp-html>
+                    <rich-text v-else :nodes="currentQuestion.truncatedStem || currentQuestion.stem" class="title-rich-text"></rich-text>
+                  </template>
+                  <template v-else>
+                    <template v-if="hasCodeBlock(currentQuestion.truncatedStem || currentQuestion.originalStem)">
+                      <view v-for="(segment, idx) in parseContentWithCodeBlocks(currentQuestion.truncatedStem || currentQuestion.originalStem)" :key="idx">
+                        <view v-if="segment.type === 'code'" class="code-block-wrapper">
+                          <scroll-view 
+                            class="code-block-scroll" 
+                            scroll-x="true"
+                            scroll-with-animation="true"
+                          >
+                            <view class="code-block-content">
+                              <view class="code-content-text">{{ segment.content }}</view>
+                            </view>
+                          </scroll-view>
+                        </view>
+                        <mp-html v-else-if="hasLatex(segment.content)" :content="segment.content" class="title-rich-text" markdown @imgtap="handleImageTap"></mp-html>
+                        <rich-text v-else :nodes="segment.content" class="title-rich-text"></rich-text>
+                      </view>
+                    </template>
+                    <mp-html v-else-if="hasLatex(currentQuestion.truncatedStem || currentQuestion.originalStem)" :content="currentQuestion.truncatedStem || currentQuestion.originalStem" class="title-rich-text" markdown @imgtap="handleImageTap"></mp-html>
+                    <rich-text v-else :nodes="currentQuestion.truncatedStem || currentQuestion.originalStem" class="title-rich-text"></rich-text>
+                  </template>
+                  <!-- #endif -->
                 </view>
               </view>
             </view>
@@ -2103,7 +2269,13 @@ onShareTimeline(() => {
             >
               <view class="option-label">{{ String.fromCharCode(65 + index) }}</view>
               <view class="option-content" :style="{ fontSize: dynamicFontSize.option }">
-                <mp-html :content="option.text || option"></mp-html>
+                <!-- #ifdef H5 -->
+                <mp-html :content="option.text || option" @imgtap="handleImageTap"></mp-html>
+                <!-- #endif -->
+                <!-- #ifdef MP-WEIXIN -->
+                <mp-html v-if="hasLatex(option.text || option)" :content="option.text || option" markdown @imgtap="handleImageTap"></mp-html>
+                <rich-text v-else :nodes="option.text || option"></rich-text>
+                <!-- #endif -->
               </view>
               <view v-if="shouldShowAnswer(currentIndex)" class="result-icon">
                 <SvgIcon v-if="isCorrectOption(currentQuestion, index)" name="correct" size="32" fill="#4caf50" />
@@ -2139,7 +2311,13 @@ onShareTimeline(() => {
                 </view>
                 <view class="sub-stem">
                   <view class="sub-index">{{ sIdx + 1 }}.</view>
-                  <mp-html :content="sub.stem"></mp-html>
+                  <!-- #ifdef H5 -->
+                  <mp-html :content="sub.stem" @imgtap="handleImageTap"></mp-html>
+                  <!-- #endif -->
+                  <!-- #ifdef MP-WEIXIN -->
+                  <mp-html v-if="hasLatex(sub.stem)" :content="sub.stem" markdown @imgtap="handleImageTap"></mp-html>
+                  <rich-text v-else :nodes="sub.stem"></rich-text>
+                  <!-- #endif -->
                 </view>
                 <textarea 
                   v-if="questionStates[currentIndex]?.subAnswers"
@@ -2156,11 +2334,27 @@ onShareTimeline(() => {
                 <view v-if="shouldShowAnswer(currentIndex)" class="sub-answer-section animated fadeIn">
                   <view class="sub-answer-item">
                     <text class="label">【答案】</text>
-                    <view class="value"><mp-html :content="sub.answer || sub.originalAnswer || sub.standard_answer || sub.correct_answer"></mp-html></view>
+                    <view class="value">
+                      <!-- #ifdef H5 -->
+                      <mp-html :content="sub.answer || sub.originalAnswer || sub.standard_answer || sub.correct_answer" @imgtap="handleImageTap"></mp-html>
+                      <!-- #endif -->
+                      <!-- #ifdef MP-WEIXIN -->
+                      <mp-html v-if="hasLatex(sub.answer || sub.originalAnswer || sub.standard_answer || sub.correct_answer)" :content="sub.answer || sub.originalAnswer || sub.standard_answer || sub.correct_answer" markdown @imgtap="handleImageTap"></mp-html>
+                      <rich-text v-else :nodes="sub.answer || sub.originalAnswer || sub.standard_answer || sub.correct_answer"></rich-text>
+                      <!-- #endif -->
+                    </view>
                   </view>
                   <view class="sub-answer-item" v-if="sub.analysis || sub.commentary || sub.method || sub.explanation || sub.solution">
                     <text class="label">【解析】</text>
-                    <view class="value"><mp-html :content="sub.analysis || sub.commentary || sub.method || sub.explanation || sub.solution"></mp-html></view>
+                    <view class="value">
+                      <!-- #ifdef H5 -->
+                      <mp-html :content="sub.analysis || sub.commentary || sub.method || sub.explanation || sub.solution" @imgtap="handleImageTap"></mp-html>
+                      <!-- #endif -->
+                      <!-- #ifdef MP-WEIXIN -->
+                      <mp-html v-if="hasLatex(sub.analysis || sub.commentary || sub.method || sub.explanation || sub.solution)" :content="sub.analysis || sub.commentary || sub.method || sub.explanation || sub.solution" markdown @imgtap="handleImageTap"></mp-html>
+                      <rich-text v-else :nodes="sub.analysis || sub.commentary || sub.method || sub.explanation || sub.solution"></rich-text>
+                      <!-- #endif -->
+                    </view>
                   </view>
                 </view>
               </view>
@@ -2250,7 +2444,13 @@ onShareTimeline(() => {
               </view>
             </view>
             <view class="explanation-content" :style="{ fontSize: dynamicFontSize.explanation }">
-              <mp-html :content="currentQuestion.displayAnswer || currentQuestion.answer"></mp-html>
+              <!-- #ifdef H5 -->
+              <mp-html :content="currentQuestion.displayAnswer || currentQuestion.answer" @imgtap="handleImageTap"></mp-html>
+              <!-- #endif -->
+              <!-- #ifdef MP-WEIXIN -->
+              <mp-html v-if="hasLatex(currentQuestion.displayAnswer || currentQuestion.answer)" :content="currentQuestion.displayAnswer || currentQuestion.answer" markdown @imgtap="handleImageTap"></mp-html>
+              <rich-text v-else :nodes="currentQuestion.displayAnswer || currentQuestion.answer"></rich-text>
+              <!-- #endif -->
             </view>
           </view>
 
@@ -2263,7 +2463,13 @@ onShareTimeline(() => {
               </view>
             </view>
             <view class="explanation-content" :style="{ fontSize: dynamicFontSize.explanation }">
-              <mp-html :content="currentQuestion.answer"></mp-html>
+              <!-- #ifdef H5 -->
+              <mp-html :content="currentQuestion.answer" @imgtap="handleImageTap"></mp-html>
+              <!-- #endif -->
+              <!-- #ifdef MP-WEIXIN -->
+              <mp-html v-if="hasLatex(currentQuestion.answer)" :content="currentQuestion.answer" markdown @imgtap="handleImageTap"></mp-html>
+              <rich-text v-else :nodes="currentQuestion.answer"></rich-text>
+              <!-- #endif -->
             </view>
           </view>
 
@@ -2276,7 +2482,13 @@ onShareTimeline(() => {
               </view>
             </view>
             <view class="explanation-content" :style="{ fontSize: dynamicFontSize.explanation }">
-              <mp-html :content="currentQuestion.analysis"></mp-html>
+              <!-- #ifdef H5 -->
+              <mp-html :content="currentQuestion.analysis" @imgtap="handleImageTap"></mp-html>
+              <!-- #endif -->
+              <!-- #ifdef MP-WEIXIN -->
+              <mp-html v-if="hasLatex(currentQuestion.analysis)" :content="currentQuestion.analysis" markdown @imgtap="handleImageTap"></mp-html>
+              <rich-text v-else :nodes="currentQuestion.analysis"></rich-text>
+              <!-- #endif -->
             </view>
           </view>
 
@@ -2369,9 +2581,15 @@ onShareTimeline(() => {
                     </view>
                   </view>
                   <view class="note-content">
-                    <mp-html :content="note.content"></mp-html>
+                    <!-- #ifdef H5 -->
+                    <mp-html :content="note.content" @imgtap="handleImageTap"></mp-html>
+                    <!-- #endif -->
+                    <!-- #ifdef MP-WEIXIN -->
+                    <mp-html v-if="hasLatex(note.content)" :content="note.content" markdown @imgtap="handleImageTap"></mp-html>
+                    <rich-text v-else :nodes="note.content"></rich-text>
+                    <!-- #endif -->
                   </view>
-                  
+
                   <!-- 笔记回复列表 -->
                   <view class="note-replies-container" v-if="note.replies && note.replies.length > 0">
                     <view class="reply-toggle" @tap="note.isRepliesExpanded = !note.isRepliesExpanded">
@@ -2386,10 +2604,16 @@ onShareTimeline(() => {
                       <view v-for="reply in note.replies" :key="reply.id" class="reply-item" @longpress="showReplyActions(reply, note)">
                         <view class="reply-content-row">
                           <text class="reply-user">{{ reply.username }}:</text>
-                          <mp-html class="reply-content" :content="reply.content"></mp-html>
-                          <text 
-                            v-if="String(reply.user_id || reply.userId) === String(currentUserId)" 
-                            class="delete-reply-btn" 
+                          <!-- #ifdef H5 -->
+                          <mp-html class="reply-content" :content="reply.content" @imgtap="handleImageTap"></mp-html>
+                          <!-- #endif -->
+                          <!-- #ifdef MP-WEIXIN -->
+                          <mp-html v-if="hasLatex(reply.content)" class="reply-content" :content="reply.content" markdown @imgtap="handleImageTap"></mp-html>
+                          <rich-text v-else class="reply-content" :nodes="reply.content"></rich-text>
+                          <!-- #endif -->
+                          <text
+                            v-if="String(reply.user_id || reply.userId) === String(currentUserId)"
+                            class="delete-reply-btn"
                             @tap.stop="deleteReply(reply, note)"
                           >删除</text>
                         </view>
@@ -2664,6 +2888,36 @@ onShareTimeline(() => {
 </template>
 
 <style lang="scss" scoped>
+// 代码块样式
+.code-block-wrapper {
+  margin: 16rpx 0;
+  background-color: #f0f9f8;
+  border-radius: 8rpx;
+  border: 1rpx solid #5FBDB5;
+  width: 100%;
+  
+  .code-block-scroll {
+    width: 100%;
+    white-space: nowrap;
+    
+    .code-block-content {
+      display: inline-flex;
+      padding: 20rpx;
+      width: 150%;
+      
+      .code-content-text {
+        font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+        font-size: 28rpx;
+        color: #000000;
+        font-weight: 500;
+        line-height: 1.5;
+        white-space: pre;
+        flex-shrink: 0;
+      }
+    }
+  }
+}
+
 // 虚拟滚动相关样式
 .question-placeholder {
   height: 100%;

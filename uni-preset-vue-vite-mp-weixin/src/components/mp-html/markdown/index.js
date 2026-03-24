@@ -208,21 +208,24 @@ Markdown.prototype.onUpdate = function (content) {
     const result = preprocessText(content);
     let processed = result.text;
     const formulas = result.formulas;
-    
+
     // 解决中文标点符号后粗体失效的问题，增加零宽空格
     processed = processed.replace(/\*\*([^*]+)\*\*([，。！？；：])/g, '**$1**&#8203;$2')
-    
+
     // 处理 --- 包裹的代码块（转换为标准代码块）
     processed = processed.replace(/---\s*\n([\s\S]*?)\n---/g, '\n\n```\n$1\n```\n\n')
-    
-    // 保护代码块，防止换行符被转换为 <br>
+
+    // 保护代码块，防止被其他处理影响
+    // 使用更精确的正则匹配代码块（支持语言标识）
     const codeBlocks = [];
-    processed = processed.replace(/```[\s\S]*?```|`[^`]*`/g, (match) => {
-      const placeholder = `__CODE_BLOCK_${codeBlocks.length}__`;
-      codeBlocks.push(match);
+    processed = processed.replace(/```([\w]*)([\s\S]*?)```/g, (match, lang, code) => {
+      const placeholder = `<!--CODE_BLOCK_${codeBlocks.length}-->`;
+      // 清理代码块内容，移除首尾的换行符
+      const cleanedCode = code.replace(/^\n|\n$/g, '');
+      codeBlocks.push({ lang: lang || 'text', code: cleanedCode });
       return placeholder;
     });
-    
+
     // 配置 marked 选项
     marked.setOptions({
       breaks: true,  // 启用换行符转换为 <br>
@@ -230,26 +233,16 @@ Markdown.prototype.onUpdate = function (content) {
       headerIds: false,  // 禁用自动添加 header id
       mangle: false  // 禁用自动转义
     })
-    
-    // 手动将换行符转换为 <br> 标签（marked 的 breaks 选项可能不总是生效）
-    // 但代码块内的换行符不转换
-    processed = processed.replace(/\n/g, '<br>\n')
-    
-    // 恢复代码块
-    codeBlocks.forEach((block, index) => {
-      processed = processed.replace(`__CODE_BLOCK_${index}__`, block);
-    });
-    
+
     let html = marked(processed);
-    
-    // 移除代码块内的 <br> 标签（代码块应该使用原始换行符）
-    html = html.replace(/(<pre[^>]*>)([\s\S]*?)(<\/pre>)/gi, (match, open, content, close) => {
-      const cleanedContent = content.replace(/<br\s*\/?>/gi, '');
-      return open + cleanedContent + close;
-    });
-    html = html.replace(/(<code[^>]*>)([\s\S]*?)(<\/code>)/gi, (match, open, content, close) => {
-      const cleanedContent = content.replace(/<br\s*\/?>/gi, '');
-      return open + cleanedContent + close;
+
+    // 恢复代码块为正确的 HTML 格式
+    codeBlocks.forEach((block, index) => {
+      const placeholder = `<!--CODE_BLOCK_${index}-->`;
+      // 生成带有样式和 language class 的代码块
+      // 使用内联样式确保在微信小程序端正确显示
+      const codeHtml = `<pre class="language-${block.lang} hl-pre" style="background-color:#f0f9f8;padding:10px;border-radius:4px;white-space:pre-wrap;border:1px solid #5FBDB5;margin:10px 0;"><code class="language-${block.lang} hl-code" style="color:#000000;font-weight:500;font-family:monospace;font-size:14px;">${block.code.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</code></pre>`;
+      html = html.replace(placeholder, codeHtml);
     });
     
     // 还原公式占位符

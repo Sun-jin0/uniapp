@@ -66,6 +66,7 @@
           <el-menu-item index="/system/config">倒计时</el-menu-item>
           <el-menu-item index="/system/pan">网盘管理</el-menu-item>
           <el-menu-item index="/image-storage">图床管理</el-menu-item>
+          <el-menu-item index="/qq-groups">QQ群管理</el-menu-item>
         </el-sub-menu>
       </el-menu>
     </el-aside>

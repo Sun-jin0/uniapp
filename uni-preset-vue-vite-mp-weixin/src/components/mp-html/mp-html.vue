@@ -40,7 +40,7 @@
  * @event {Function} fullscreenchange 视频全屏状态变化时触发
  */
 // #ifndef APP-PLUS-NVUE
-import node from './node/node'
+import node from './node/node.vue'
 // #endif
 import Parser from './parser'
 import markdown from './markdown/index.js'

@@ -215,6 +215,12 @@ const routes = [
     component: () => import('../pages/TutorialManage.vue'),
     meta: { title: '教辅管理' }
   },
+  {
+    path: '/qq-groups',
+    name: 'QQGroupManage',
+    component: () => import('../pages/QQGroupManage.vue'),
+    meta: { title: 'QQ群管理' }
+  },
 ]
 
 const router = createRouter({

@@ -135,7 +135,7 @@ const getQuestionForEdit = async (req, res) => {
     
     // 获取题目关联的书籍和章节信息（从math_bookquestions表）
     const [bookQuestions] = await mysqlPool.query(`
-      SELECT bq.BookID, bq.BookChapter, b.BookTitle
+      SELECT bq.BookID, bq.BookChapter, bq.QuestionPage, bq.QuestionSort, bq.ChapterSort, b.BookTitle
       FROM math_bookquestions bq
       JOIN math_books b ON bq.BookID = b.BookID
       WHERE bq.QuestionID = ?
@@ -152,6 +152,9 @@ const getQuestionForEdit = async (req, res) => {
       questionData.LegacyOriginalBookID = bookQuestions[0].BookID;
       questionData.BookChapter = bookQuestions[0].BookChapter;
       questionData.BookTitle = bookQuestions[0].BookTitle;
+      questionData.QuestionPage = bookQuestions[0].QuestionPage;
+      questionData.QuestionSort = bookQuestions[0].QuestionSort;
+      questionData.ChapterSort = bookQuestions[0].ChapterSort;
     }
     
     // 排序详情
@@ -2176,6 +2179,171 @@ const importFromBooksFolder = async (req, res) => {
   }
 };
 
+// 获取考点分类列表
+const getKnowledgeCategories = async (req, res) => {
+  try {
+    const [rows] = await mysqlPool.query(`
+      SELECT * FROM math_knowledge_categories 
+      WHERE IsActive = 1 
+      ORDER BY CategoryCode ASC
+    `);
+    
+    // 计算每个分类下的题目数量
+    for (const category of rows) {
+      const [countResult] = await mysqlPool.query(`
+        SELECT COUNT(*) as count 
+        FROM math_questiondetails 
+        WHERE LinkedKnowledgePointID IN (
+          SELECT KnowledgePointID 
+          FROM math_knowledgepoints 
+          WHERE KPCode LIKE ?
+        )
+      `, [`${category.CategoryCode}%`]);
+      category.QuestionCount = countResult[0]?.count || 0;
+    }
+    
+    res.json(successResponse(rows));
+  } catch (error) {
+    console.error('获取考点分类失败:', error);
+    res.status(500).json(errorResponse('服务器错误: ' + error.message));
+  }
+};
+
+// 创建考点分类
+const createKnowledgeCategory = async (req, res) => {
+  try {
+    const { CategoryName, CategoryCode, ParentID, SubjectID } = req.body;
+    
+    const [result] = await mysqlPool.query(
+      'INSERT INTO math_knowledge_categories (CategoryName, CategoryCode, ParentID, SubjectID, IsActive) VALUES (?, ?, ?, ?, 1)',
+      [CategoryName, CategoryCode, ParentID || null, SubjectID || null]
+    );
+    
+    res.json(successResponse({ id: result.insertId }, '创建成功'));
+  } catch (error) {
+    console.error('创建考点分类失败:', error);
+    res.status(500).json(errorResponse('服务器错误'));
+  }
+};
+
+// 更新考点分类
+const updateKnowledgeCategory = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { CategoryName, CategoryCode, IsActive } = req.body;
+    
+    await mysqlPool.query(
+      'UPDATE math_knowledge_categories SET CategoryName = ?, CategoryCode = ?, IsActive = ? WHERE id = ?',
+      [CategoryName, CategoryCode, IsActive, id]
+    );
+    
+    res.json(successResponse(null, '更新成功'));
+  } catch (error) {
+    console.error('更新考点分类失败:', error);
+    res.status(500).json(errorResponse('服务器错误: ' + error.message));
+  }
+};
+
+// 删除考点分类
+const deleteKnowledgeCategory = async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    await mysqlPool.query('DELETE FROM math_knowledge_categories WHERE id = ?', [id]);
+    
+    res.json(successResponse(null, '删除成功'));
+  } catch (error) {
+    console.error('删除考点分类失败:', error);
+    res.status(500).json(errorResponse('服务器错误: ' + error.message));
+  }
+};
+
+// 获取分类下的题目
+const getQuestionsByCategory = async (req, res) => {
+  try {
+    const { categoryId } = req.params;
+    
+    // 获取分类信息 - 使用 id 字段（表的主键）
+    const [categories] = await mysqlPool.query(
+      'SELECT * FROM math_knowledge_categories WHERE id = ?',
+      [categoryId]
+    );
+    
+    if (categories.length === 0) {
+      return res.status(404).json(errorResponse('分类不存在'));
+    }
+    
+    const category = categories[0];
+    
+    // 获取该分类下的考点 - math_knowledgepoints 表使用 KPCode 字段
+    const [knowledgePoints] = await mysqlPool.query(
+      'SELECT KnowledgePointID FROM math_knowledgepoints WHERE KPCode LIKE ?',
+      [`${category.CategoryCode}%`]
+    );
+    
+    if (knowledgePoints.length === 0) {
+      return res.json(successResponse([]));
+    }
+    
+    const kpIds = knowledgePoints.map(kp => kp.KnowledgePointID);
+    
+    // 获取关联的题目
+    const [questions] = await mysqlPool.query(`
+      SELECT DISTINCT q.* 
+      FROM math_questions q
+      JOIN math_questiondetails qd ON q.QuestionID = qd.QuestionID
+      WHERE qd.LinkedKnowledgePointID IN (${kpIds.map(() => '?').join(',')})
+      ORDER BY q.QuestionID DESC
+    `, kpIds);
+    
+    res.json(successResponse(questions));
+  } catch (error) {
+    console.error('获取分类题目失败:', error);
+    res.status(500).json(errorResponse('服务器错误: ' + error.message));
+  }
+};
+
+// 从分类中移除题目
+const removeQuestionFromCategory = async (req, res) => {
+  try {
+    const { categoryId, questionId } = req.params;
+    
+    // 获取分类信息 - 使用 id 字段
+    const [categories] = await mysqlPool.query(
+      'SELECT * FROM math_knowledge_categories WHERE id = ?',
+      [categoryId]
+    );
+    
+    if (categories.length === 0) {
+      return res.status(404).json(errorResponse('分类不存在'));
+    }
+    
+    const category = categories[0];
+    
+    // 获取该分类下的考点
+    const [knowledgePoints] = await mysqlPool.query(
+      'SELECT KnowledgePointID FROM math_knowledgepoints WHERE KPCode LIKE ?',
+      [`${category.CategoryCode}%`]
+    );
+    
+    const kpIds = knowledgePoints.map(kp => kp.KnowledgePointID);
+    
+    if (kpIds.length > 0) {
+      // 解除题目与这些考点的关联
+      await mysqlPool.query(
+        `UPDATE math_questiondetails SET LinkedKnowledgePointID = NULL 
+         WHERE QuestionID = ? AND LinkedKnowledgePointID IN (${kpIds.map(() => '?').join(',')})`,
+        [questionId, ...kpIds]
+      );
+    }
+    
+    res.json(successResponse(null, '移除成功'));
+  } catch (error) {
+    console.error('从分类移除题目失败:', error);
+    res.status(500).json(errorResponse('服务器错误: ' + error.message));
+  }
+};
+
 module.exports = {
   getSubjects,
   createSubject,
@@ -2213,5 +2381,11 @@ module.exports = {
   batchDeleteBookQuestions,
   saveRelatedQuestions,
   scanBooksFolder,
-  importFromBooksFolder
+  importFromBooksFolder,
+  getKnowledgeCategories,
+  createKnowledgeCategory,
+  updateKnowledgeCategory,
+  deleteKnowledgeCategory,
+  getQuestionsByCategory,
+  removeQuestionFromCategory
 };

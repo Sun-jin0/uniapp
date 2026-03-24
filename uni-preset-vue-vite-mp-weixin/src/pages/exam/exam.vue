@@ -5,7 +5,7 @@
       <scroll-view class="category-scroll" scroll-x :show-scrollbar="false" :enhanced="true">
         <view class="category-list">
           <view 
-            v-for="cat in categories" 
+            v-for="cat in categories.filter(c => c !== '系统通知')" 
             :key="cat"
             class="category-item"
             :class="{ active: currentCategory === cat }"

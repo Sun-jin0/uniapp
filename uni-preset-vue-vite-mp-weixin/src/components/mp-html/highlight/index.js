@@ -46,6 +46,8 @@ Highlight.prototype.onParse = function (node, vm) {
       if (node.c) {
         node.c = undefined
       }
+      // #ifdef H5
+      // H5端使用prism进行语法高亮
       if (prism.languages[lang]) {
         code.children = (new Parser(this.vm).parse(
           // 加一层 pre 保留空白符
@@ -57,6 +59,14 @@ Highlight.prototype.onParse = function (node, vm) {
           text: text
         }]
       }
+      // #endif
+      // #ifndef H5
+      // 非H5端（微信小程序等）不进行语法高亮，只保留代码文本
+      code.children = [{
+        type: 'text',
+        text: text
+      }]
+      // #endif
       node.attrs.class = 'hl-pre'
       node.attrs.style = 'background-color:#f0f9f8;padding:10px;border-radius:4px;white-space:pre-wrap;border:1px solid #5FBDB5;'
       code.attrs.class = 'hl-code'

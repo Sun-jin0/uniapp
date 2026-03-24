@@ -89,6 +89,14 @@
 				"navigationBarBackgroundColor": "#6366f1",
 				"navigationBarTextStyle": "white"
 			}
+		},
+		{
+			"path": "pages/qq-group/qq-group-list",
+			"style": {
+				"navigationBarTitleText": "Q群讨论",
+				"navigationBarBackgroundColor": "#e0f2fe",
+				"navigationBarTextStyle": "black"
+			}
 		}
 	],
 	"subPackages": [

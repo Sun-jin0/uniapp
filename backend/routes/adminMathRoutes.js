@@ -32,6 +32,14 @@ router.get('/admin/math/search-kp', adminMathController.searchKnowledgePoints);
 router.get('/admin/math/kp/:kpId', adminMathController.getKnowledgePointDetail);
 router.put('/admin/math/kp/:kpId', adminMathController.updateKnowledgePoint);
 
+// 考点分类管理
+router.get('/admin/math/knowledge-categories', adminMathController.getKnowledgeCategories);
+router.post('/admin/math/knowledge-categories', adminMathController.createKnowledgeCategory);
+router.put('/admin/math/knowledge-categories/:id', adminMathController.updateKnowledgeCategory);
+router.delete('/admin/math/knowledge-categories/:id', adminMathController.deleteKnowledgeCategory);
+router.get('/admin/math/knowledge-categories/:categoryId/questions', adminMathController.getQuestionsByCategory);
+router.delete('/admin/math/knowledge-categories/:categoryId/questions/:questionId', adminMathController.removeQuestionFromCategory);
+
 // 书籍/试卷管理 - 注意：更具体的路由要放在前面
 router.get('/math/admin/books', adminMathController.getBooks);
 router.post('/math/admin/books', adminMathController.createBook);

@@ -1634,7 +1634,7 @@ page {
   border-radius: 20rpx;
   padding: 12rpx 10rpx;
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   box-shadow: 0 4rpx 20rpx rgba(0, 0, 0, 0.03);
   border: 1rpx solid rgba(0,0,0,0.01);
   width: 100%;
@@ -1646,6 +1646,7 @@ page {
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: flex-end;
   position: relative;
   padding: 8rpx 0;
 }

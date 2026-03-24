@@ -132,7 +132,7 @@
             如果您对本隐私政策有任何疑问或建议，或需要行使您的权利，请通过以下方式联系我们：
           </text>
           <view class="contact-info">
-            <text class="contact-item">邮箱：3085797138@qq.com</text>
+            <text class="contact-item">邮箱：3439922689@qq.com</text>
           </view>
         </view>
 

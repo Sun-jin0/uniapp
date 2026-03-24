@@ -239,6 +239,14 @@
           </div>
           <div class="menu-arrow"></div>
         </div>
+        <div class="menu-item" @click="goToQQGroupManage">
+          <div class="menu-icon" :style="{ backgroundColor: '#12B7F5' }">&#128172;</div>
+          <div class="menu-content">
+            <div class="menu-title">QQ群管理</div>
+            <div class="menu-desc">管理QQ群信息、置顶设置和标签分类</div>
+          </div>
+          <div class="menu-arrow"></div>
+        </div>
       </div>
     </div>
   </div>
@@ -392,6 +400,10 @@ const goToMedManagement = () => {
 
 const goToPanManagement = () => {
   router.push('/system/pan')
+}
+
+const goToQQGroupManage = () => {
+  router.push('/qq-groups')
 }
 
 // 退出登录

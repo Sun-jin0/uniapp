@@ -53,7 +53,7 @@
       <!-- 用户头像 -->
       <view class="avatar-card">
         <view class="avatar-wrapper">
-          <image class="user-avatar" :src="userInfo.avatar || 'https://picsum.photos/id/1005/100/100'" mode="aspectFill"></image>
+          <image class="user-avatar" :src="getFullAvatarUrl(userInfo.avatar)" mode="aspectFill"></image>
           <view class="avatar-edit" @click="chooseAvatar">
             <view class="edit-icon"></view>
           </view>
@@ -134,6 +134,17 @@ import { BASE_URL } from '@/api/request.js';
 
 const instance = getCurrentInstance();
 
+// 确保头像URL是完整的
+const getFullAvatarUrl = (avatar) => {
+  if (!avatar) return 'https://picsum.photos/id/1005/100/100';
+  // 如果已经是完整URL，直接返回
+  if (avatar.startsWith('http://') || avatar.startsWith('https://')) {
+    return avatar;
+  }
+  // 否则拼接完整URL
+  return BASE_URL + avatar;
+};
+
 // 主题状态
 const isDarkMode = ref(false);
 
@@ -158,13 +169,13 @@ const avatarFrameId = ref(null);
 const loadUserInfo = async () => {
   try {
     const res = await instance.appContext.config.globalProperties.$api.userApi.getUserInfo();
-    
+
     if (res.code === 0) {
       const data = res.data;
       userInfo.nickname = data.nickname || '';
-      userInfo.avatar = data.avatar || 'https://picsum.photos/id/1005/100/100';
+      userInfo.avatar = data.avatar || '/avatar/default.jpg';
       userInfo.studentId = data.studentId || '';
-      
+
       // 加载头像框信息
       avatarFrameId.value = data.avatar_frame_id || null;
       if (avatarFrameId.value) {
@@ -199,37 +210,40 @@ const chooseAvatar = () => {
 const uploadAvatar = async (tempFilePath) => {
   try {
     uni.showLoading({ title: '上传中...' });
-    
+
+    // 获取 token
+    const token = uni.getStorageSync('token') || '';
+
     // 使用uni.uploadFile上传文件
     uni.uploadFile({
       url: `${BASE_URL}/user/upload-avatar`, // 后端上传接口
       filePath: tempFilePath,
       name: 'avatar',
       header: {
-        'Authorization': uni.getStorageSync('token') || ''
+        'Authorization': token ? `Bearer ${token}` : ''
       },
       success: (uploadRes) => {
         uni.hideLoading();
-        
+
         try {
           const res = JSON.parse(uploadRes.data);
           if (res.code === 0) {
-            // 添加时间戳避免缓存
-            const timestamp = Date.now();
-            const newAvatar = res.data.avatar + (res.data.avatar.includes('?') ? '&' : '?') + 't=' + timestamp;
-            userInfo.avatar = newAvatar;
-            
+            // 确保新头像URL完整
+            const newAvatar = getFullAvatarUrl(res.data.avatar);
+            userInfo.avatar = res.data.avatar;
+
             // 更新本地存储的头像
             uni.setStorageSync('userAvatar', newAvatar);
-            
+
             uni.showToast({ title: '头像更新成功', icon: 'success' });
-            
+
             // 发送事件通知其他页面更新头像
             uni.$emit('avatarUpdated', newAvatar);
           } else {
             uni.showToast({ title: '上传失败: ' + res.message, icon: 'none' });
           }
         } catch (error) {
+          console.error('解析上传响应失败:', error, uploadRes.data);
           uni.showToast({ title: '上传失败: 服务器返回数据格式错误', icon: 'none' });
         }
       },

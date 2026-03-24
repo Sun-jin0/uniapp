@@ -88,6 +88,14 @@
 
           <!-- 设置与隐私组 -->
           <view class="menu-group-card">
+            <view class="menu-item-row" @click="goToQQGroups">
+              <view class="icon-box qq-bg">
+                <view class="inner-icon qq"></view>
+              </view>
+              <text class="item-label">Q群讨论</text>
+              <view class="item-arrow"></view>
+            </view>
+            <view class="menu-divider"></view>
             <view class="menu-item-row" @click="goToPrivacyPolicy">
               <view class="icon-box privacy-bg">
                 <view class="inner-icon privacy"></view>
@@ -430,6 +438,13 @@ const goToPrivacyPolicy = () => {
   });
 };
 
+// 跳转到Q群讨论
+const goToQQGroups = () => {
+  uni.navigateTo({
+    url: '/pages/qq-group/qq-group-list'
+  });
+};
+
 // 退出登录
 const logout = () => {
   uni.showModal({
@@ -719,6 +734,9 @@ const logout = () => {
 
 .collection-bg { background: #fef3c7; }
 .collection { background-color: #f59e0b; mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>'); }
+
+.qq-bg { background: #e0f2fe; }
+.qq { background-color: #0ea5e9; mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>'); }
 
 .privacy-bg { background: #e0e7ff; }
 .privacy { background-color: #6366f1; mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/></svg>'); }

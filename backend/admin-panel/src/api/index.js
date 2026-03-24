@@ -2,9 +2,8 @@ import axios from 'axios'
 import { ElMessage } from 'element-plus'
 
 const service = axios.create({
-  baseURL: 'https://yizhancs.cn/api',
-  // baseURL: 'http://localhost:3000/api',
-  timeout: 60000
+  baseURL: '/api',
+  timeout: 10000
 })
 
 // 请求拦截器
@@ -14,10 +13,6 @@ service.interceptors.request.use(
     const token = localStorage.getItem('admin_token')
     if (token) {
       config.headers['Authorization'] = `Bearer ${token}`
-    }
-    // 调试日志
-    if (process.env.NODE_ENV === 'development') {
-      console.log(`[API Request] ${config.method?.toUpperCase()} ${config.url}`, config.params || '')
     }
     return config
   },
@@ -52,15 +47,9 @@ export const adminApi = {
   getUserList: (params) => service.get('/admin/users', { params }),
   updateUser: (id, data) => service.put(`/admin/users/${id}`, data),
   createUser: (data) => service.post('/admin/users', data),
-  getUserStats: (userId) => service.get(`/admin/users/${userId}/stats`),
-  getUserRedeemedVideos: (userId) => service.get(`/admin/users/${userId}/redeemed-videos`),
   
   // 文章管理
   getNotices: (params) => service.get('/admin/notices', { params }),
-  getNoticeCategories: () => service.get('/admin/notices/categories'),
-  createCategory: (data) => service.post('/admin/notices/categories', data),
-  updateCategory: (id, data) => service.put(`/admin/notices/categories/${id}`, data),
-  deleteCategory: (id) => service.delete(`/admin/notices/categories/${id}`),
   getNoticeDetail: (id) => service.get(`/admin/notices/${id}`),
   updateNotice: (id, data) => service.put(`/admin/notices/${id}`, data),
   updateNoticeStatus: (id, status) => service.put(`/admin/notices/${id}/status`, { status }),
@@ -69,7 +58,7 @@ export const adminApi = {
   parseWechatUrl: (url) => service.post('/admin/articles/parse-link', { url }),
   uploadImage: (file) => {
     const formData = new FormData()
-    formData.append('image', file)
+    formData.append('file', file)
     return service.post('/upload/image', formData, {
       headers: { 'Content-Type': 'multipart/form-data' }
     })
@@ -265,137 +254,16 @@ export const adminApi = {
     return service.get(map[type] || '/admin/chapters', { params: { courseId, subjectId: courseId, course_id: courseId } })
   },
 
-  // 计算机题库扩展
-  getComputerWrongBookStats: () => service.get('/computer1/wrong-book/stats'),
-  getComputerSubjects: (params = {}) => service.get('/computer1/subjects', { params }),
-  createComputerSubject: (data) => service.post('/computer1/admin/subjects', data),
-  updateComputerSubject: (id, data) => service.put(`/computer1/admin/subjects/${id}`, data),
-  deleteComputerSubject: (id) => service.delete(`/computer1/admin/subjects/${id}`),
+  // Computer Management
+  getComputerSubjects: () => service.get('/computer1/subjects'),
   getComputerChapters: (params) => service.get('/computer1/chapters', { params }),
-  createComputerChapter: (data) => service.post('/computer1/admin/chapters', data),
-  updateComputerChapter: (id, data) => service.put(`/computer1/admin/chapters/${id}`, data),
-  deleteComputerChapter: (id) => service.delete(`/computer1/admin/chapters/${id}`),
-  // 章节题集
-  getChapterQuestionSet: (chapterId) => service.get(`/computer1/admin/chapters/${chapterId}/question-set`),
-  addQuestionsToChapterSet: (chapterId, data) => service.post(`/computer1/admin/chapters/${chapterId}/question-set`, data),
-  removeQuestionFromChapterSet: (chapterId, questionId) => service.delete(`/computer1/admin/chapters/${chapterId}/question-set/${questionId}`),
   getComputerFeedbacks: (params) => service.get('/computer1/feedbacks', { params }),
   searchComputerQuestions: (params) => service.get('/computer1/admin/questions', { params }),
-  createComputerQuestion: (data) => service.post('/computer1/admin/questions', data),
-  batchAddTagsToQuestions: (data) => service.post('/computer1/admin/batch-add-tags', data),
   getComputerQuestionDetail: (id) => service.get(`/computer1/questions/${id}`),
   updateComputerQuestion: (id, data) => service.put(`/computer1/admin/questions/${id}`, data),
   deleteComputerQuestion: (id) => service.delete(`/computer1/admin/questions/${id}`),
   updateComputerFeedbackStatus: (id, data) => service.put(`/computer1/feedbacks/${id}`, data),
   importComputerPaper: (data) => service.post('/computer1/import-paper', data),
-  importComputerQuestions: (data) => service.post('/computer1/import', data),
-  
-  // 计算机试卷管理
-  getComputerPaperList: (params) => service.get('/computer1/admin/papers', { params }),
-  getComputerPaperDetail: (id) => service.get(`/computer1/admin/papers/${id}`),
-  updateComputerPaper: (id, data) => service.put(`/computer1/admin/papers/${id}`, data),
-  deleteComputerPaper: (id) => service.delete(`/computer1/admin/papers/${id}`),
-  updateComputerPaperQuestions: (id, data) => service.put(`/computer1/admin/papers/${id}/questions`, data),
-  updateComputerQuestion: (id, data) => service.put(`/computer1/admin/questions/${id}`, data),
-  
-  // 计算机考点管理
-  getComputerTags: (params) => service.get('/computer1/admin/tags', { params }),
-  getAllKnowledgeTags: () => service.get('/computer1/admin/tags/all'),
-  getKnowledgeTagById: (id) => service.get(`/computer1/admin/tags/${id}`),
-  getKnowledgeTagByName: (name) => service.get('/computer1/admin/tags/by-name', { params: { name } }),
-  getChapterById: (id) => service.get(`/computer1/chapters/${id}`),
-  createComputerTag: (data) => service.post('/computer1/admin/tags', data),
-  updateComputerTag: (id, data) => service.put(`/computer1/admin/tags/${id}`, data),
-  deleteComputerTag: (id) => service.delete(`/computer1/admin/tags/${id}`),
-  moveComputerTag: (id, data) => service.put(`/computer1/admin/tags/${id}/move`, data),
-  batchMoveComputerTags: (data) => service.put('/computer1/admin/tags/batch-move', data),
-  batchDeleteUnnamedComputerTags: () => service.delete('/computer1/admin/tags/batch-delete-unnamed'),
-  cleanInvalidComputerTags: () => service.delete('/computer1/admin/tags/clean-invalid'),
-  proofreadComputerTags: () => service.post('/computer1/admin/tags/proofread'),
-  getTagQuestions: (tagId) => service.get(`/computer1/admin/tags/${tagId}/questions`),
-
-  // 试卷管理
-  getPaperList: (params) => service.get('/computer1/admin/papers', { params }),
-  getPaperDetail: (id) => service.get(`/computer1/admin/papers/${id}`),
-
-  // 图床管理 - 扫描所有图片
-  scanAllImages: (params) => service.get('/upload/admin/scan-all-images', { params }),
-
-  // 数学题库管理
-  getMathCorrections: (params) => service.get('/math/admin/corrections', { params }),
-  updateMathCorrectionStatus: (id, data) => service.put(`/math/admin/corrections/${id}`, data),
-  searchMathQuestions: (params) => service.get('/math/admin/questions', { params }),
-  getMathQuestionDetail: (id) => service.get(`/math/admin/questions/${id}/detail`),
-  createMathQuestion: (data) => service.post('/math/admin/questions', data),
-  updateMathQuestion: (id, data) => service.put(`/math/admin/questions/${id}`, data),
-  deleteMathQuestion: (id) => service.delete(`/math/admin/questions/${id}`),
-  getMathSubjects: () => service.get('/math/subjects'),
-  createMathSubject: (data) => service.post('/math/admin/subjects', data),
-  updateMathSubject: (id, data) => service.put(`/math/admin/subjects/${id}`, data),
-  deleteMathSubject: (id) => service.delete(`/math/admin/subjects/${id}`),
-  getMathBooks: (params) => service.get('/math/admin/books', { params }),
-  createMathBook: (data) => service.post('/math/admin/books', data),
-  updateMathBook: (id, data) => service.put(`/math/admin/books/${id}`, data),
-  deleteMathBook: (id) => service.delete(`/math/admin/books/${id}`),
-  addQuestionsToMathBook: (bookId, data) => service.post(`/math/admin/books/${bookId}/add-questions`, data),
-  // 书籍章节管理
-  getMathBookChapters: (bookId) => service.get(`/math/admin/books/${bookId}/chapters`),
-  addMathBookChapter: (bookId, data) => service.post(`/math/admin/books/${bookId}/chapters`, data),
-  updateMathBookChapter: (bookId, chapterName, data) => service.put(`/math/admin/books/${bookId}/chapters/${encodeURIComponent(chapterName)}`, data),
-  deleteMathBookChapter: (bookId, chapterName) => service.delete(`/math/admin/books/${bookId}/chapters/${encodeURIComponent(chapterName)}`),
-  getMathBookChapterQuestions: (bookId, chapterName) => service.get(`/math/admin/books/${bookId}/chapters/${encodeURIComponent(chapterName)}/questions`),
-  getMathBookAllQuestions: (bookId) => service.get(`/math/admin/books/${bookId}/questions`),
-  // 书籍题目管理
-  updateMathBookQuestion: (bookId, questionId, data) => service.put(`/math/admin/books/${bookId}/questions/${questionId}`, data),
-  deleteMathBookQuestion: (bookId, questionId) => service.delete(`/math/admin/books/${bookId}/questions/${questionId}`),
-  batchDeleteMathBookQuestions: (bookId, questionIds) => service.post(`/math/admin/books/${bookId}/questions/batch-delete`, { questionIds }),
-  getMathKnowledgePoint: (id) => service.get(`/math/admin/knowledge-points/${id}`),
-  updateMathKnowledgePoint: (id, data) => service.put(`/math/admin/knowledge-points/${id}`, data),
-  getAllMathKnowledgePoints: () => service.get('/math/admin/knowledge-points'),
-  // 考点分类管理
-  getMathKnowledgeCategories: () => service.get('/admin/math/knowledge-categories'),
-  updateMathKnowledgeCategory: (id, data) => service.put(`/admin/math/knowledge-categories/${id}`, data),
-  createMathKnowledgeCategory: (data) => service.post('/admin/math/knowledge-categories', data),
-  deleteMathKnowledgeCategory: (id) => service.delete(`/admin/math/knowledge-categories/${id}`),
-  // 题目导入
-  importMathQuestions: (data) => service.post('/math/admin/import-questions', data),
-  importMathFromFiles: (data) => service.post('/math/admin/import-from-files', data),
-  // 从本地 books 文件夹扫描和导入
-  scanBooksFolder: () => service.get('/math/admin/scan-books-folder'),
-  importFromBooksFolder: (data) => service.post('/math/admin/import-from-books-folder', data),
-  // 保存相关题关系
-  saveRelatedQuestions: (data) => service.post('/math/admin/related-questions', data),
-  // AI 代码格式化
-  aiFormatCode: (data) => service.post('/admin/ai/format-code', data),
-  // 教辅管理
-  getTutorials: (params) => service.get('/computer/tutorials', { params }),
-  getTutorialDetail: (id) => service.get(`/computer/tutorials/${id}`),
-  getChapterQuestions: (chapterId) => service.get(`/computer/tutorial-chapters/${chapterId}/questions`),
-  createTutorial: (data) => service.post('/computer/tutorials', data),
-  updateTutorial: (id, data) => service.put(`/computer/tutorials/${id}`, data),
-  updateTutorialStatus: (id, status) => service.put(`/computer/tutorials/${id}`, { status }),
-  deleteTutorial: (id) => service.delete(`/computer/tutorials/${id}`),
-  importTutorial: (data) => service.post('/computer/tutorials/import', data),
-  
-  // 教辅题目关联
-  getTutorialQuestions: (tutorialId) => service.get(`/computer/tutorials/${tutorialId}/questions`),
-  addTutorialQuestion: (data) => service.post('/computer/tutorial-questions', data),
-  removeTutorialQuestion: (tutorialId, questionId) => service.delete(`/computer/tutorials/${tutorialId}/questions/${questionId}`),
-  updateTutorialQuestionOrder: (data) => service.put('/computer/tutorial-questions/order', data),
-  
-  getTutorialChapters: (tutorialId) => service.get(`/computer/tutorials/${tutorialId}/chapters`),
-  createTutorialChapter: (tutorialId, data) => service.post(`/computer/tutorials/${tutorialId}/chapters`, data),
-  updateTutorialChapter: (id, data) => service.put(`/computer/tutorial-chapters/${id}`, data),
-  deleteTutorialChapter: (id) => service.delete(`/computer/tutorial-chapters/${id}`),
-  replaceTutorialQuestion: (chapterId, data) => service.put(`/computer/tutorial-chapters/${chapterId}/replace-question`, data),
-  // 合集管理
-  getTutorialCollections: (params) => service.get('/computer/tutorial-collections', { params }),
-  getTutorialCollectionDetail: (id) => service.get(`/computer/tutorial-collections/${id}`),
-  createTutorialCollection: (data) => service.post('/computer/tutorial-collections', data),
-  updateTutorialCollection: (id, data) => service.put(`/computer/tutorial-collections/${id}`, data),
-  deleteTutorialCollection: (id) => service.delete(`/computer/tutorial-collections/${id}`),
-  // 重置教辅ID
-  resetTutorialIds: () => service.post('/computer/tutorials/reset-ids'),
 }
 
 export const publicApi = {
@@ -445,29 +313,16 @@ export const adminVideoApi = {
   createResource: (data) => service.post('/admin/video/resources', data),
   updateResource: (id, data) => service.put(`/admin/video/resources/${id}`, data),
   deleteResource: (id) => service.delete(`/admin/video/resources/${id}`),
-  batchUpdateResources: (ids, data) => service.post('/admin/video/resources/batch-update', { ids, data }),
+  batchUpdateResources: (ids, data) => service.post('/admin/video/resources/batch-update', { ids, ...data }),
   batchDeleteResources: (ids) => service.post('/admin/video/resources/batch-delete', { ids }),
   batchUpdateBySubject: (subjectId, data) => service.post(`/admin/video/subjects/${subjectId}/batch-update`, data),
   batchUpdateByCategory: (categoryId, data) => service.post(`/admin/video/categories/${categoryId}/batch-update`, data),
 
   getCodes: (params) => service.get('/admin/video/codes', { params }),
   generateCodes: (data) => service.post('/admin/video/codes/generate', data),
-  deleteCode: (id) => service.delete(`/admin/video/codes/${id}`),
-  
-  // Collections
-  getCollections: () => service.get('/admin/video/collections'),
-  getCollectionDetail: (id) => service.get(`/admin/video/collections/${id}`),
-  createCollection: (data) => service.post('/admin/video/collections', data),
-  updateCollection: (id, data) => service.put(`/admin/video/collections/${id}`, data),
-  deleteCollection: (id) => service.delete(`/admin/video/collections/${id}`),
-  addVideoToCollection: (data) => service.post('/admin/video/collections/add-video', data),
-  removeVideoFromCollection: (data) => service.post('/admin/video/collections/remove-video', data),
-  updateCollectionVideos: (data) => service.post('/admin/video/collections/update-videos', data),
-  generateCollectionCodes: (data) => service.post('/admin/video/collections/generate-codes', data),
   
   getFeedbacks: (params) => service.get('/admin/video/feedbacks', { params }),
-  parseBiliLink: (url) => service.get('/video/parse-bili', { params: { url } }),
-  batchImportVideos: (data) => service.post('/admin/video/batch-import', data),
+  parseBiliLink: (url) => service.post('/admin/video/parse-bili', { url }),
 }
 
 // Combine all into adminApi for default export (backward compatibility)
@@ -483,21 +338,12 @@ Object.assign(adminApi, {
 
   // Pan Resources
   getPanResources: (params) => service.get('/admin/pan-resources', { params }),
-  getPanCategories: (full) => service.get('/admin/pan-categories', { params: full ? { full: true } : {} }),
-  createPanCategory: (data) => service.post('/admin/pan-categories', data),
-  updatePanCategory: (id, data) => service.put(`/admin/pan-categories/${id}`, data),
-  deletePanCategory: (id) => service.delete(`/admin/pan-categories/${id}`),
+  getPanCategories: () => service.get('/admin/pan-categories'),
   createPanResource: (data) => service.post('/admin/pan-resources', data),
   updatePanResource: (id, data) => service.put(`/admin/pan-resources/${id}`, data),
   deletePanResource: (id) => service.delete(`/admin/pan-resources/${id}`),
-  batchDeletePanResources: (data) => service.post('/admin/pan-resources/batch-delete', data),
-  batchUpdatePanResources: (data) => service.post('/admin/pan-resources/batch-update', data),
   parsePanResources: (data) => service.post('/admin/pan-resources/parse', data),
-  importPanResources: (data) => service.post('/admin/pan-resources/import', data),
   batchDeletePanResources: (data) => service.post('/admin/pan-resources/batch-delete', data),
-  batchUpdatePanResourcesCategory: (data) => service.post('/admin/pan-resources/batch-update-category', data),
-  updatePanResourceTop: (id, data) => service.put(`/admin/pan-resources/${id}/top`, data),
-  updatePanResourceSort: (id, data) => service.put(`/admin/pan-resources/${id}/sort`, data),
 
   // Nav Management
   getNavSubjects: () => service.get('/admin/nav-subjects'),
@@ -508,16 +354,6 @@ Object.assign(adminApi, {
   createNavCategory: (data) => service.post('/admin/nav-categories', data),
   updateNavCategory: (id, data) => service.put(`/admin/nav-categories/${id}`, data),
   deleteNavCategory: (id) => service.delete(`/admin/nav-categories/${id}`),
-
-  // 图床管理
-  getImageList: (params) => service.get('/admin/images', { params }),
-  getImageDetail: (id) => service.get(`/admin/images/${id}`),
-  deleteImage: (id) => service.delete(`/admin/images/${id}`),
-  getImageStats: () => service.get('/admin/images/stats'),
-  replaceImage: (id, formData) => service.post(`/admin/images/${id}/replace`, formData, {
-    headers: { 'Content-Type': 'multipart/form-data' }
-  }),
 })
 
-export { service }
 export default adminApi
