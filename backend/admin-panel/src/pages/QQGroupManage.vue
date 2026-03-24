@@ -128,7 +128,7 @@ import { Plus, Search } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import axios from 'axios'
 
-const API_BASE_URL = 'http://localhost:3000/api'
+const API_BASE_URL = 'https://yizhancs.cn/api'
 
 const loading = ref(false)
 const submitting = ref(false)
