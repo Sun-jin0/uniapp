@@ -1,6 +1,8 @@
 const mysqlPool = require('../config/mysql');
 const { successResponse, errorResponse } = require('../utils/response');
 const crypto = require('crypto');
+const User = require('../models/User');
+const UserPaperRecord = require('../models/UserPaperRecord');
 
 const getSubjects = async (req, res) => {
   try {
@@ -400,9 +402,16 @@ const getQuestionsBatch = async (req, res) => {
 const generateSmartPaper = async (req, res) => {
   const connection = await mysqlPool.getConnection();
   try {
-    await connection.beginTransaction();
-    const { subjectId, scope, counts, title, mode, manualQuestions: manualInputQuestions } = req.body;
+    // 检查用户组卷权限
     const userId = req.userId;
+    const permission = await User.checkPaperPermission(userId);
+    
+    if (!permission.allowed) {
+      return res.status(403).json(errorResponse(permission.message));
+    }
+
+    await connection.beginTransaction();
+    const { subjectId, scope, knowledgePoints, counts, title, mode, manualQuestions: manualInputQuestions } = req.body;
 
     let selectedQuestions = [];
     const selectedIds = new Set();
@@ -441,9 +450,165 @@ const generateSmartPaper = async (req, res) => {
       });
     } else {
       // 智能组卷模式
-      if (!scope || scope.length === 0) {
+      // 检查是否有组卷范围（书籍/章节 或 考点）
+      const hasScope = (scope && scope.length > 0) || (knowledgePoints && knowledgePoints.length > 0);
+      if (!hasScope) {
         return res.status(400).json(errorResponse('请选择组卷范围'));
       }
+      
+      // 考点组卷模式
+      if (knowledgePoints && knowledgePoints.length > 0) {
+        console.log('考点组卷模式，考点数量:', knowledgePoints.length);
+        console.log('考点数据:', knowledgePoints);
+        console.log('全局题型数量设置:', counts);
+        
+        // 收集所有考点的题目池
+        let allQuestions = [];
+        
+        // 第一步：收集所有考点下的题目
+        for (const point of knowledgePoints) {
+          // 先获取考点名称（通过考点ID查询math_knowledge_categories表）
+          const [categories] = await connection.query(
+            'SELECT CategoryName, CategoryCode FROM math_knowledge_categories WHERE id = ? AND Description IN ("考点分类", "具体考点")',
+            [parseInt(point.id)]
+          );
+          
+          console.log(`处理考点: ${point.name} (ID: ${point.id})`);
+          console.log('查询结果:', categories);
+          
+          let kpNames = [];
+          if (categories.length > 0) {
+            const category = categories[0];
+            const level = category.CategoryCode.split('-').length;
+            
+            console.log(`考点层级: ${level}, CategoryCode: ${category.CategoryCode}, CategoryName: ${category.CategoryName}`);
+            
+            if (level === 4) {
+              // 4级，直接使用当前分类名称
+              kpNames = [category.CategoryName];
+              console.log('四级考点，使用名称:', kpNames);
+            } else if (level === 3) {
+              // 3级，包含当前分类名称和所有子级（4级）的分类名称
+              kpNames = [category.CategoryName];
+              const [childCategories] = await connection.query(
+                `SELECT CategoryName FROM math_knowledge_categories WHERE CategoryCode LIKE ?`,
+                [`${category.CategoryCode}-%`]
+              );
+              childCategories.forEach(c => kpNames.push(c.CategoryName));
+              console.log('三级考点，使用名称:', kpNames);
+            } else {
+              // 1-2级，找所有子级（3级和4级）
+              const [childCategories] = await connection.query(
+                `SELECT CategoryName, CategoryCode FROM math_knowledge_categories WHERE CategoryCode LIKE ?`,
+                [`${category.CategoryCode}%`]
+              );
+              kpNames = childCategories
+                .filter(c => {
+                  const childLevel = c.CategoryCode.split('-').length;
+                  return childLevel >= 3 && childLevel <= 4;
+                })
+                .map(c => c.CategoryName);
+            }
+          }
+          
+          if (kpNames.length === 0) continue;
+          
+          // 使用 LinkNames 字段精确查询题目（使用 FIND_IN_SET 精确匹配）
+          const conditions = kpNames.map(() => 'FIND_IN_SET(?, q.LinkNames) > 0').join(' OR ');
+          const params = [...kpNames];
+          
+          console.log('查询条件:', conditions);
+          console.log('查询参数:', [...params, subjectId]);
+          
+          const [questions] = await connection.query(
+            `SELECT DISTINCT q.QuestionID, q.QuestionType, q.Difficulty, q.LinkNames,
+                    bq.BookID, bq.BookChapter, 1 as LinksCount
+             FROM math_questions q
+             LEFT JOIN math_bookquestions bq ON q.QuestionID = bq.QuestionID
+             LEFT JOIN math_books b ON bq.BookID = b.BookID
+             WHERE (${conditions}) AND b.SubjectID = ?
+             ORDER BY q.Difficulty ASC`,
+            [...params, subjectId]
+          );
+          
+          console.log(`考点 ${point.name} 查询到题目数量:`, questions.length);
+          if (questions.length > 0) {
+            console.log('前3个题目:', questions.slice(0, 3).map(q => ({ id: q.QuestionID, type: q.QuestionType, linkNames: q.LinkNames })));
+          }
+          
+          // 标记题目来源，并计算考点数量（LinkNames中的逗号分隔数量）
+          questions.forEach(q => {
+            q.sourcePoint = point.name;
+            // 计算题目关联的考点数量（LinkNames用逗号分隔）
+            if (q.LinkNames) {
+              q.kpCount = q.LinkNames.split(',').filter(n => n.trim()).length;
+            } else {
+              q.kpCount = 1;
+            }
+          });
+          
+          allQuestions = allQuestions.concat(questions);
+        }
+        
+        // 去重（同一题目可能在多个考点中出现）
+        const uniqueQuestions = [];
+        const seenIds = new Set();
+        allQuestions.forEach(q => {
+          if (!seenIds.has(q.QuestionID)) {
+            seenIds.add(q.QuestionID);
+            uniqueQuestions.push(q);
+          }
+        });
+        
+        console.log('所有考点去重后题目总数:', uniqueQuestions.length);
+        
+        // 第二步：按全局数量从汇总池中选择题目
+        const targetCounts = {
+          choice: counts?.choice || 0,
+          fill: counts?.fill || 0,
+          analysis: counts?.analysis || 0
+        };
+        
+        const typeMap = {
+          '选择题': targetCounts.choice,
+          '填空题': targetCounts.fill,
+          '解答题': targetCounts.analysis
+        };
+        
+        for (const [type, count] of Object.entries(typeMap)) {
+          if (count <= 0) continue;
+          
+          let typePool = uniqueQuestions.filter(q => (q.QuestionType || '解答题') === type);
+          if (typePool.length === 0) continue;
+          
+          // 排序：优先选择考点数量少的题目，然后难度均衡 + 随机微调
+          typePool.sort((a, b) => {
+            // 首先按考点数量排序（少的优先）
+            const kpDiff = (a.kpCount || 1) - (b.kpCount || 1);
+            if (kpDiff !== 0) return kpDiff;
+            
+            // 考点数量相同，按难度排序
+            const scoreA = (a.LinksCount * 5) + (a.Difficulty * 2);
+            const scoreB = (b.LinksCount * 5) + (b.Difficulty * 2);
+            if (scoreB !== scoreA) return scoreB - scoreA;
+            return Math.random() - 0.5;
+          });
+          
+          const selected = typePool.slice(0, Math.min(count, typePool.length));
+          console.log(`${type} 选择了 ${selected.length} 题`);
+          selected.forEach(q => {
+            selectedIds.add(q.QuestionID);
+            selectedQuestions.push({
+              ...q,
+              paperType: q.QuestionType || type,
+              BookID: q.BookID || 0,
+              BookChapter: q.BookChapter || q.sourcePoint || '考点组卷'
+            });
+          });
+        }
+        
+        console.log('考点组卷完成，总题目数:', selectedQuestions.length);
+      } else {
 
       // 辅助函数：从特定池子中选择指定数量的题目
       const selectFromPool = (pool, targetCounts, forceCount = false) => {
@@ -550,6 +715,13 @@ const generateSmartPaper = async (req, res) => {
       if (selectedQuestions.length === 0) {
         selectFromPool(allPoolQuestions, { choice: 10, fill: 6, analysis: 6 });
       }
+      } // 结束书籍/章节模式
+    }
+
+    // 检查题目数量是否超过用户限制
+    const maxQuestions = permission.maxQuestions;
+    if (maxQuestions !== null && selectedQuestions.length > maxQuestions) {
+      return res.status(403).json(errorResponse(`题目数量超过限制，您最多可选择${maxQuestions}题`));
     }
 
     // 计算试卷平均难度
@@ -584,9 +756,25 @@ const generateSmartPaper = async (req, res) => {
       );
     }
 
+    // 记录组卷历史
+    await UserPaperRecord.create({
+      userId,
+      paperType: mode === 'manual' ? 'manual' : 'smart',
+      questionCount: selectedQuestions.length,
+      subjectId,
+      configJson: { scope, counts, title, mode }
+    });
+
     await new Promise(resolve => setTimeout(resolve, 1500));
     await connection.commit();
-    res.json(successResponse({ paperId, questionCount: selectedQuestions.length }));
+    res.json(successResponse({ 
+      paperId, 
+      questionCount: selectedQuestions.length,
+      permission: {
+        isSuperAdmin: permission.isSuperAdmin,
+        remaining: permission.isSuperAdmin ? null : permission.remaining - 1
+      }
+    }));
   } catch (error) {
     if (connection) await connection.rollback();
     console.error('智能组卷失败:', error);
@@ -600,7 +788,7 @@ const getGeneratedPaper = async (req, res) => {
   try {
     const { paperId } = req.params;
     const userId = req.userId;
-    const [papers] = await mysqlPool.query('SELECT PaperID, PrintToken, UserID, Title, SubjectID, Config, AverageDifficulty, CreatedAt FROM math_generated_papers WHERE PaperID = ? AND UserID = ?', [paperId, userId]);
+    const [papers] = await mysqlPool.query('SELECT PaperID, PrintToken, UserID, Title, SubjectID, Config, AverageDifficulty, CreatedAt, IsShared, IsWeeklyTest FROM math_generated_papers WHERE PaperID = ? AND UserID = ?', [paperId, userId]);
     if (papers.length === 0) return res.status(404).json(errorResponse('试卷不存在或无权查看'));
 
     const paper = papers[0];
@@ -669,10 +857,10 @@ const getPrintPaper = async (req, res) => {
       // 但为了安全性，建议引导用户使用包含 Token 的新链接
       return res.status(404).send('试卷不存在或链接已失效');
     }
-    paper = papers[0];
+    const paper = papers[0];
 
     const [questions] = await mysqlPool.query(
-      `SELECT gpq.SortOrder, q.*, bq.BookChapter, b.BookTitle
+      `SELECT gpq.SortOrder, q.*, bq.QuestionImg, bq.BookChapter, b.BookTitle
        FROM math_generated_paper_questions gpq
        JOIN math_questions q ON gpq.QuestionID = q.QuestionID
        LEFT JOIN math_bookquestions bq ON gpq.QuestionID = bq.QuestionID AND gpq.BookID = bq.BookID AND gpq.BookChapter = bq.BookChapter
@@ -688,6 +876,39 @@ const getPrintPaper = async (req, res) => {
          gpq.SortOrder ASC`,
       [paper.PaperID]
     );
+
+    // 为每个题目获取解析详情
+    for (let q of questions) {
+      const [details] = await mysqlPool.query(
+        'SELECT * FROM math_questiondetails WHERE QuestionID = ? ORDER BY Give ASC, ID ASC',
+        [q.QuestionID]
+      );
+      
+      // 优先从 details 中获取"题目详解"类型的内容
+      const analysisDetail = details.find(d =>
+        (d.Title || '').includes('题目详解') ||
+        (d.BusType || '').includes('详解') ||
+        (d.BusType || '').includes('分析')
+      );
+
+      if (analysisDetail && analysisDetail.Context && analysisDetail.Context.trim()) {
+        // 使用题目详解的内容
+        q.OriginalAnswerText = analysisDetail.Context;
+      } else if (details.length > 0) {
+        // 如果没有显式的"详解"，则合并所有 Context 有内容的 detail
+        q.OriginalAnswerText = details
+          .filter(d => d.Context && d.Context.trim())
+          .map(d => (d.Title ? `### ${d.Title}\n` : '') + d.Context)
+          .join('\n\n');
+      }
+
+      // 如果还是没有 OriginalAnswerText，尝试使用原始字段
+      if (!q.OriginalAnswerText || q.OriginalAnswerText.trim() === '') {
+        // 保持原值
+      }
+
+      q.details = details;
+    }
 
     let html = `
 <!DOCTYPE html>
@@ -730,13 +951,27 @@ const getPrintPaper = async (req, res) => {
                 box-shadow: none !important; 
                 border: none !important; 
                 page-break-after: always; 
+                break-after: page;
                 width: var(--page-width) !important;
-                height: var(--page-height) !important;
+                min-height: var(--page-height) !important;
+                height: auto !important;
             }
-            .printable-page:last-child { page-break-after: auto; }
+            .printable-page:last-child { 
+                page-break-after: auto; 
+                break-after: auto;
+            }
             @page { 
-                size: var(--page-width) var(--page-height); 
-                margin: 0; 
+                size: A4; 
+                margin: var(--page-margin-top) var(--page-margin-sides) var(--page-margin-bottom); 
+            }
+            /* 确保题目不会被分页截断 */
+            .question-item {
+                page-break-inside: avoid;
+                break-inside: avoid;
+            }
+            .section-header {
+                page-break-after: avoid;
+                break-after: avoid;
             }
         }
 
@@ -783,16 +1018,16 @@ const getPrintPaper = async (req, res) => {
         .section-header {
             font-size: 1.2em;
             font-weight: bold;
-            margin: 10px 0 15px 0;
+            margin: 5px 0 10px 0;
             border-bottom: 1px solid #333;
-            padding-bottom: 5px;
+            padding-bottom: 3px;
         }
 
         .paper-header {
             text-align: center;
-            margin-bottom: 15mm;
-            padding-bottom: 5mm;
+            padding-bottom: 2mm;
             border-bottom: 1px solid #e0e0e0;
+            flex-shrink: 0;
         }
 
         .header-logo-row {
@@ -825,9 +1060,27 @@ const getPrintPaper = async (req, res) => {
             color: #888;
         }
 
+        .page-inner-content {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            padding: var(--page-margin-top) var(--page-margin-sides) var(--page-margin-bottom);
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .questions-list {
+            flex: 1;
+            overflow: visible;
+        }
+
         .question-item {
             margin-bottom: var(--q-spacing-between);
             page-break-inside: avoid;
+            break-inside: avoid;
         }
 
         .question-header {
@@ -876,6 +1129,119 @@ const getPrintPaper = async (req, res) => {
             color: #888;
             margin-top: 2mm;
             text-align: right;
+        }
+
+        /* 解析样式 */
+        .question-analysis {
+            margin-top: 3mm;
+            padding: 3mm;
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            border-left: 3px solid #28a745;
+            border-radius: 0 4px 4px 0;
+            font-size: calc(var(--q-content-fontsize) * 0.95);
+            line-height: 1.7;
+            display: none;
+        }
+        .question-analysis.show {
+            display: block;
+        }
+        .question-analysis-header {
+            font-weight: bold;
+            color: #28a745;
+            margin-bottom: 2mm;
+            font-size: 1em;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .question-analysis-header::before {
+            content: "📝";
+        }
+        .question-analysis-content {
+            color: #495057;
+        }
+        .question-analysis-content p { margin: 0.3em 0; }
+        .question-analysis-content h3 { 
+            color: #007bff; 
+            font-size: 1em; 
+            margin: 0.5em 0 0.3em;
+            border-bottom: 1px dashed #dee2e6;
+            padding-bottom: 2px;
+        }
+        .question-analysis-content h4 { 
+            color: #6c757d; 
+            font-size: 0.95em; 
+            margin: 0.4em 0 0.2em;
+        }
+        .question-analysis-content code {
+            background: #e9ecef;
+            padding: 1px 4px;
+            border-radius: 3px;
+            font-size: 0.9em;
+            color: #c7254e;
+        }
+        .question-analysis-content pre {
+            background: #282c34;
+            color: #abb2bf;
+            padding: 8px;
+            border-radius: 4px;
+            overflow-x: auto;
+            font-size: 0.85em;
+            margin: 3mm 0;
+        }
+        .question-analysis-content pre code {
+            background: transparent;
+            color: inherit;
+            padding: 0;
+        }
+        .question-analysis-content ul, .question-analysis-content ol {
+            margin: 2mm 0;
+            padding-left: 5mm;
+        }
+        .question-analysis-content li {
+            margin: 1mm 0;
+        }
+        .question-analysis-content blockquote {
+            border-left: 3px solid #007bff;
+            margin: 3mm 0;
+            padding-left: 3mm;
+            color: #6c757d;
+            font-style: italic;
+        }
+        .question-analysis-content table {
+            border-collapse: collapse;
+            width: 100%;
+            margin: 3mm 0;
+            font-size: 0.9em;
+        }
+        .question-analysis-content th, .question-analysis-content td {
+            border: 1px solid #dee2e6;
+            padding: 2mm;
+            text-align: left;
+        }
+        .question-analysis-content th {
+            background: #e9ecef;
+            font-weight: bold;
+        }
+        .question-analysis-content .katex {
+            color: #d63384;
+        }
+        .analysis-toggle-btn {
+            margin-top: 2mm;
+            padding: 2px 8px;
+            font-size: 0.75em;
+            background: #28a745;
+            color: white;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .analysis-toggle-btn:hover {
+            background: #218838;
+        }
+        .analysis-toggle-btn.showing {
+            background: #6c757d;
         }
 
         /* Per-page controls */
@@ -961,17 +1327,14 @@ const getPrintPaper = async (req, res) => {
         .modal-footer button.primary { background: var(--primary-color); color: white; border-color: var(--primary-color); }
 
         .page-footer {
-            position: absolute;
-            bottom: 10mm;
-            left: 0;
-            right: 0;
-            padding: 0 var(--page-margin-sides);
             font-size: 0.8em;
             color: #999;
             display: flex;
             justify-content: center;
             align-items: center;
             gap: 20px;
+            flex-shrink: 0;
+            padding-top: 3mm;
         }
         .page-footer .footer-text {
             color: #666;
@@ -1091,6 +1454,15 @@ const getPrintPaper = async (req, res) => {
                     </div>
                 </div>
                 <div class="form-group">
+                    <label>题目显示方式</label>
+                    <select id="settingQuestionDisplayMode">
+                        <option value="auto">自动选择（优先题图）</option>
+                        <option value="text">仅题目文本</option>
+                        <option value="image">仅题图</option>
+                        <option value="both">两者都显示</option>
+                    </select>
+                </div>
+                <div class="form-group">
                     <label>每页题目数 (0表示自动分页)</label>
                     <input type="number" id="settingQuestionsPerPage" value="3">
                 </div>
@@ -1115,9 +1487,10 @@ const getPrintPaper = async (req, res) => {
             spacing: 30,
             labelSize: 11,
             contentSize: 11,
-            questionsPerPage: 3,
+            questionsPerPage: 0,  // 0 表示自动分页
             showSource: true,
             showId: false,
+            questionDisplayMode: 'auto',
             customHeader: '',
             headerAlign: 'center',
             headerSize: 10,
@@ -1139,12 +1512,12 @@ const getPrintPaper = async (req, res) => {
             let processedText = text.trim()
                 .replace(/＄/g, '$')           // 替换全角美元符号
                 .replace(/\.\$png/g, '.png')    // 修正图片扩展名
-                .replace(/\\r\\n/g, '\\n')       // 统一换行符
-                .replace(/\\n/g, '\\n');
+                .replace(/\\\\r\\\\n/g, '\\n')       // 统一换行符
+                .replace(/\\\\n/g, '\\n');
 
             // 避免在 LaTeX 公式内部进行 HTML 换行替换
             // 在 Node.js 模板字符串中，需要对反斜杠进行双重转义，以便浏览器接收到正确的 \$
-            const parts = processedText.split(/(\\\$\\\$[\\s\\S]*?\\\$\\\$|\\\$[\\s\\S]*?\\\$)/g);
+            const parts = processedText.split(/(\\$\\$[\\s\\S]*?\\$\\$|\\$[^\\$]+\\$)/g);
             
             return parts.map(part => {
                 if (!part) return '';
@@ -1152,14 +1525,65 @@ const getPrintPaper = async (req, res) => {
                 if (part.startsWith('$')) {
                     return part;
                 }
-                // 非公式部分进行换行和选项处理
+                // 非公式部分进行 Markdown 和换行处理
                 let content = part;
+                
+                // 处理图片 URL (支持 oss 图片链接，可能带有 _yjs 后缀)
+                content = content.replace(/(https?:\\/\\/[^\\s<>"]+?\\.(?:png|jpg|jpeg|gif|webp))(?:_[a-zA-Z0-9]+)?/gi, function(match, url) {
+                    // 移除可能的 _yjs 等后缀
+                    const cleanUrl = url;
+                    return '<div style="width:50%;"><img src="' + cleanUrl + '" style="max-width:100%;height:auto;display:block;margin:5px 0;" alt="题目图片" /></div>';
+                });
+                
+                // 处理 Markdown 标题 (### ## #)
+                content = content.replace(/^### (.+)$/gm, '<h3>$1</h3>');
+                content = content.replace(/^## (.+)$/gm, '<h3>$1</h3>');
+                content = content.replace(/^# (.+)$/gm, '<h3>$1</h3>');
+                
+                // 处理 Markdown 代码块
+                content = content.replace(/\\\`\\\`\\\`([\\s\\S]*?)\\\`\\\`\\\`/g, '<pre><code>$1</code></pre>');
+                
+                // 处理行内代码
+                content = content.replace(/\\\`([^\\\`]+)\\\`/g, '<code>$1</code>');
+                
+                // 处理 Markdown 粗体 **text**
+                content = content.replace(/\\*\\*([^*]+)\\*\\*/g, '<strong>$1</strong>');
+                
+                // 处理 Markdown 斜体 *text*
+                content = content.replace(/\\*([^*]+)\\*/g, '<em>$1</em>');
+                
+                // 处理 Markdown 无序列表
+                content = content.replace(/^- (.+)$/gm, '<li>$1</li>');
+                content = content.replace(/(<li>.*<\\/li>\\n?)+/g, '<ul>$&</ul>');
+                
+                // 处理 Markdown 有序列表
+                content = content.replace(/^\\d+\\. (.+)$/gm, '<li>$1</li>');
+                
+                // 处理 Markdown 引用
+                content = content.replace(/^> (.+)$/gm, '<blockquote>$1</blockquote>');
+                
                 // 处理换行符为 <br/>
                 content = content.replace(/\\n/g, '<br/>');
+                
                 // 处理选择题选项 (A) (B) 等，自动换行
                 content = content.replace(/([^>\\s])\\s*\\(([A-D])\\)/g, '$1<br/>($2)');
+                
                 // 修正开头多余的换行
                 content = content.replace(/^<br\\/>\\(A\\)/, '(A)');
+                
+                // 清理多余的 <br/>
+                content = content.replace(/<br\\/>\\s*<h3>/g, '<h3>');
+                content = content.replace(/<\\/h3>\\s*<br\\/>/g, '</h3>');
+                content = content.replace(/<br\\/>\\s*<pre>/g, '<pre>');
+                content = content.replace(/<\\/pre>\\s*<br\\/>/g, '</pre>');
+                content = content.replace(/<br\\/>\\s*<ul>/g, '<ul>');
+                content = content.replace(/<\\/ul>\\s*<br\\/>/g, '</ul>');
+                content = content.replace(/<br\\/>\\s*<blockquote>/g, '<blockquote>');
+                content = content.replace(/<\\/blockquote>\\s*<br\\/>/g, '</blockquote>');
+                content = content.replace(/<br\\/>\\s*<img/g, '<img');
+                content = content.replace(/<\\/img>\\s*<br\\/>/g, '</img>');
+                content = content.replace(/\\/>\\s*<br\\/>/g, '/>');
+                
                 return content;
             }).join('');
         }
@@ -1229,47 +1653,34 @@ const getPrintPaper = async (req, res) => {
 
             typeOrder.forEach((type, typeIndex) => {
                 let headerAddedForThisType = false;
+                let sectionHeader = null;
 
                 groups[type].forEach((q, qIndex) => {
                     try {
                         // 获取当前页的覆盖设置
                         const override = (currentSettings.pageOverrides && currentSettings.pageOverrides[currentPageIndex]) || {};
                         const qPerPage = override.questionsPerPage !== undefined ? override.questionsPerPage : currentSettings.questionsPerPage;
-                        
-                        // 检查是否需要分页 (在添加题型头部或题目之前)
-                        if (qPerPage > 0 && questionsInCurrentPage >= qPerPage) {
-                            currentPageIndex++;
-                            currentPage = createPage(currentPageIndex + 1, false);
-                            container.appendChild(currentPage);
-                            questionsInCurrentPage = 0;
-                        }
 
                         // 应用当前页的间距设置
                         const pageOverride = (currentSettings.pageOverrides && currentSettings.pageOverrides[currentPageIndex]) || {};
                         const pageSpacing = pageOverride.spacing !== undefined ? pageOverride.spacing : currentSettings.spacing;
                         currentPage.style.setProperty('--q-spacing-between', pageSpacing + 'mm');
 
-                        // 如果该题型还没添加头部，则在当前页添加
-                        if (!headerAddedForThisType) {
-                            const sectionHeader = document.createElement('div');
-                            sectionHeader.className = 'section-header';
-                            sectionHeader.textContent = \`\${chineseNums[typeIndex] || (typeIndex + 1)}、\${type}\`;
-                            currentPage.querySelector('.questions-list').appendChild(sectionHeader);
-                            headerAddedForThisType = true;
-                        }
-
+                        // 创建题目元素（先不添加到页面）
                         const qElement = document.createElement('div');
                         qElement.className = 'question-item';
+                        qElement.style.visibility = 'hidden';
+                        qElement.style.position = 'absolute';
+                        qElement.style.width = '100%';
+                        document.body.appendChild(qElement);
                         
                         const qHeader = document.createElement('div');
                         qHeader.className = 'question-header';
                         
                         const qLabel = document.createElement('span');
-                        // 使用全局连续编号
                         qLabel.textContent = \`\${globalQuestionIndex}.\`;
                         qHeader.appendChild(qLabel);
 
-                        // 显示 ID
                         if (currentSettings.showId) {
                             const qId = document.createElement('span');
                             qId.className = 'question-id';
@@ -1277,7 +1688,6 @@ const getPrintPaper = async (req, res) => {
                             qHeader.appendChild(qId);
                         }
 
-                        // 显示来源
                         if (currentSettings.showSource && (q.BookTitle || q.BookChapter)) {
                             const qSource = document.createElement('span');
                             qSource.className = 'question-source';
@@ -1285,13 +1695,108 @@ const getPrintPaper = async (req, res) => {
                             qHeader.appendChild(qSource);
                         }
                         
-                        const qBody = document.createElement('div');
-                        qBody.className = 'question-body';
-                        qBody.innerHTML = transformText(q.QuestionText);
-                        
                         qElement.appendChild(qHeader);
-                        qElement.appendChild(qBody);
 
+                        // 根据显示模式决定显示题目文本还是题图
+                        const displayMode = currentSettings.questionDisplayMode || 'auto';
+                        const hasQuestionImg = q.QuestionImg && q.QuestionImg.trim();
+                        const hasQuestionText = q.QuestionText && q.QuestionText.trim();
+                        
+                        if (displayMode === 'auto') {
+                            if (hasQuestionImg) {
+                                const qImg = document.createElement('div');
+                                qImg.className = 'question-image';
+                                qImg.innerHTML = transformText(q.QuestionImg);
+                                qElement.appendChild(qImg);
+                            } else if (hasQuestionText) {
+                                const qBody = document.createElement('div');
+                                qBody.className = 'question-body';
+                                qBody.innerHTML = transformText(q.QuestionText);
+                                qElement.appendChild(qBody);
+                            }
+                        } else if (displayMode === 'text') {
+                            if (hasQuestionText) {
+                                const qBody = document.createElement('div');
+                                qBody.className = 'question-body';
+                                qBody.innerHTML = transformText(q.QuestionText);
+                                qElement.appendChild(qBody);
+                            }
+                        } else if (displayMode === 'image') {
+                            if (hasQuestionImg) {
+                                const qImg = document.createElement('div');
+                                qImg.className = 'question-image';
+                                qImg.innerHTML = transformText(q.QuestionImg);
+                                qElement.appendChild(qImg);
+                            }
+                        } else if (displayMode === 'both') {
+                            if (hasQuestionText) {
+                                const qBody = document.createElement('div');
+                                qBody.className = 'question-body';
+                                qBody.innerHTML = transformText(q.QuestionText);
+                                qElement.appendChild(qBody);
+                            }
+                            if (hasQuestionImg) {
+                                const qImg = document.createElement('div');
+                                qImg.className = 'question-image';
+                                qImg.innerHTML = transformText(q.QuestionImg);
+                                qElement.appendChild(qImg);
+                            }
+                        }
+
+                        if (q.OriginalAnswerText && q.OriginalAnswerText.trim()) {
+                            const analysisBtn = document.createElement('button');
+                            analysisBtn.className = 'analysis-toggle-btn no-print';
+                            analysisBtn.textContent = '显示解析';
+                            analysisBtn.onclick = function() {
+                                const analysisDiv = this.nextElementSibling;
+                                if (analysisDiv.classList.contains('show')) {
+                                    analysisDiv.classList.remove('show');
+                                    this.textContent = '显示解析';
+                                    this.classList.remove('showing');
+                                } else {
+                                    analysisDiv.classList.add('show');
+                                    this.textContent = '隐藏解析';
+                                    this.classList.add('showing');
+                                }
+                                renderMath();
+                            };
+                            
+                            const analysisDiv = document.createElement('div');
+                            analysisDiv.className = 'question-analysis';
+                            analysisDiv.innerHTML = '<div class="question-analysis-header">解析</div><div class="question-analysis-content">' + transformText(q.OriginalAnswerText) + '</div>';
+                            
+                            qElement.appendChild(analysisBtn);
+                            qElement.appendChild(analysisDiv);
+                        }
+
+                        // 清理临时元素
+                        document.body.removeChild(qElement);
+                        qElement.style.visibility = '';
+                        qElement.style.position = '';
+                        qElement.style.width = '';
+
+                        // 检查是否需要分页
+                        // 简化逻辑：如果设置了每页题目数，按数量分页；否则使用默认的自动分页（浏览器处理）
+                        const needNewPage = qPerPage > 0 && questionsInCurrentPage >= qPerPage;
+
+                        if (needNewPage && questionsInCurrentPage > 0) {
+                            currentPageIndex++;
+                            currentPage = createPage(currentPageIndex + 1, false);
+                            container.appendChild(currentPage);
+                            questionsInCurrentPage = 0;
+                            headerAddedForThisType = false;
+                        }
+
+                        // 添加题型标题（只在第一页显示）
+                        if (!headerAddedForThisType && currentPageIndex === 0) {
+                            const sectionHeader = document.createElement('div');
+                            sectionHeader.className = 'section-header';
+                            sectionHeader.textContent = \`\${chineseNums[typeIndex] || (typeIndex + 1)}、\${type}\`;
+                            currentPage.querySelector('.questions-list').appendChild(sectionHeader);
+                            headerAddedForThisType = true;
+                        }
+
+                        // 添加题目到页面
                         currentPage.querySelector('.questions-list').appendChild(qElement);
                         questionsInCurrentPage++;
                         globalQuestionIndex++;
@@ -1362,7 +1867,7 @@ const getPrintPaper = async (req, res) => {
                 const showLogo = currentSettings.showLogo;
                 
                 let headerContent = \`
-                    <header class="paper-header" style="text-align: \${headerAlign}; margin-top: \${headerTop}mm;">
+                    <header class="paper-header" style="text-align: \${headerAlign}; margin-top: 0;">
                 \`;
                 
                 if (showLogo) {
@@ -1409,6 +1914,7 @@ const getPrintPaper = async (req, res) => {
                 \${footerHtml}
             \`;
             page.appendChild(content);
+            
             return page;
         }
 
@@ -1444,6 +1950,7 @@ const getPrintPaper = async (req, res) => {
             document.getElementById('settingQuestionsPerPage').value = currentSettings.questionsPerPage;
             document.getElementById('settingShowSource').checked = currentSettings.showSource;
             document.getElementById('settingShowId').checked = currentSettings.showId;
+            document.getElementById('settingQuestionDisplayMode').value = currentSettings.questionDisplayMode;
             document.getElementById('settingCustomHeader').value = currentSettings.customHeader;
             document.getElementById('settingHeaderAlign').value = currentSettings.headerAlign;
             document.getElementById('settingHeaderSize').value = currentSettings.headerSize;
@@ -1474,6 +1981,7 @@ const getPrintPaper = async (req, res) => {
                 questionsPerPage: parseInt(document.getElementById('settingQuestionsPerPage').value),
                 showSource: document.getElementById('settingShowSource').checked,
                 showId: document.getElementById('settingShowId').checked,
+                questionDisplayMode: document.getElementById('settingQuestionDisplayMode').value,
                 customHeader: document.getElementById('settingCustomHeader').value,
                 headerAlign: document.getElementById('settingHeaderAlign').value,
                 headerSize: parseInt(document.getElementById('settingHeaderSize').value),
@@ -1690,7 +2198,9 @@ const getUserGeneratedPapers = async (req, res) => {
 
     let query = `
       SELECT p.PaperID, p.PrintToken, p.UserID, p.Title, p.SubjectID, p.AverageDifficulty, p.CreatedAt,
-             (SELECT COUNT(*) FROM math_generated_paper_questions q WHERE q.PaperID = p.PaperID) as QuestionCount
+             p.IsShared, p.OriginalUserID, p.IsWeeklyTest,
+             (SELECT COUNT(*) FROM math_generated_paper_questions q WHERE q.PaperID = p.PaperID) as QuestionCount,
+             (SELECT u.nickname FROM users u WHERE u.id = p.OriginalUserID) as originalAuthor
       FROM math_generated_papers p 
       WHERE p.UserID = ?
     `;
@@ -1704,6 +2214,15 @@ const getUserGeneratedPapers = async (req, res) => {
     query += ` ORDER BY p.CreatedAt DESC`;
 
     const [papers] = await mysqlPool.query(query, params);
+    
+    // 调试日志
+    console.log('后端返回的试卷数据:', papers.map(p => ({
+      PaperID: p.PaperID,
+      Title: p.Title,
+      IsShared: p.IsShared,
+      IsWeeklyTest: p.IsWeeklyTest
+    })));
+    
     res.json(successResponse(papers));
   } catch (error) {
     console.error('获取用户组卷失败:', error);
@@ -1917,7 +2436,7 @@ const getFavorites = async (req, res) => {
     const { subjectId, categoryId } = req.query;
 
     let query = `
-      SELECT f.*, q.QuestionText, q.QuestionType, b.BookTitle, fc.Title as CategoryTitle
+      SELECT f.*, q.QuestionText, q.QuestionType, q.QuestionImg, b.BookTitle, fc.Title as CategoryTitle
       FROM math_favorites f
       JOIN math_questions q ON f.QuestionID = q.QuestionID
       LEFT JOIN math_books b ON f.BookID = b.BookID
@@ -2233,7 +2752,7 @@ const getRelatedQuestions = async (req, res) => {
   }
 };
 
-// 获取考点分类列表（三级结构：未命名 -> 未命名(章节) -> 考点）
+// 获取考点分类列表（三级结构：科目 -> 章节 -> 考点）
 const getKnowledgeCategories = async (req, res) => {
   try {
     const [categories] = await mysqlPool.query(`
@@ -2243,22 +2762,8 @@ const getKnowledgeCategories = async (req, res) => {
       ORDER BY CategoryCode ASC
     `);
 
-    // 获取所有三级考点的实际题目数量
-    const pointIds = categories
-      .filter(cat => cat.CategoryCode.split('-').length === 3)
-      .map(cat => cat.id);
-    
-    let questionCounts = {};
-    if (pointIds.length > 0) {
-      // 使用 FIND_IN_SET 查询每个考点的实际题目数量
-      for (const pointId of pointIds) {
-        const [result] = await mysqlPool.query(
-          'SELECT COUNT(*) as count FROM math_questions WHERE FIND_IN_SET(?, LinksCount)',
-          [pointId]
-        );
-        questionCounts[pointId] = result[0].count;
-      }
-    }
+    // 使用数据库中保存的 QuestionCount，不再实时计算
+    // 如果需要刷新题目数，请使用管理后台的刷新功能
 
     const result = {
       subjects: []
@@ -2300,7 +2805,7 @@ const getKnowledgeCategories = async (req, res) => {
               code: cat.CategoryCode,
               originalId: parseInt(parts[2]),
               name: cat.CategoryName,
-              questionCount: questionCounts[cat.id] || 0
+              questionCount: cat.QuestionCount || 0
             });
           }
         }
@@ -2335,7 +2840,7 @@ const getQuestionCountByKnowledgePoint = async (req, res) => {
   }
 };
 
-// 根据考点获取题目列表（使用LinksCount）
+// 根据考点获取题目列表（使用LinkNames，支持三级目录包含四级目录题目）
 const getQuestionsByKnowledgePoint = async (req, res) => {
   try {
     const { knowledgePointId, bookType } = req.query;
@@ -2344,26 +2849,217 @@ const getQuestionsByKnowledgePoint = async (req, res) => {
       return res.status(400).json(errorResponse('考点ID不能为空'));
     }
     
-    let sql = `
-      SELECT DISTINCT q.*, b.ContentType as bookType
-      FROM math_questions q
-      LEFT JOIN math_bookquestions bq ON q.QuestionID = bq.QuestionID
-      LEFT JOIN math_books b ON bq.BookID = b.BookID
-      WHERE FIND_IN_SET(?, q.LinksCount)
-    `;
-    const params = [knowledgePointId];
+    let categories = [];
     
-    if (bookType && bookType !== 'all') {
-      sql += ' AND b.ContentType = ?';
-      params.push(bookType);
+    // 首先尝试用 id 查询（只查询考点相关的分类）
+    const [categoriesById] = await mysqlPool.query(
+      'SELECT * FROM math_knowledge_categories WHERE id = ? AND Description IN ("考点分类", "具体考点")',
+      [knowledgePointId]
+    );
+    
+    if (categoriesById.length > 0) {
+      categories = categoriesById;
+    } else {
+      // 如果 id 查询不到，尝试用 CategoryCode 查询（支持 originalId 格式）
+      // 构建可能的 CategoryCode 模式（三级考点格式：x-x-{knowledgePointId}）
+      const [categoriesByCode] = await mysqlPool.query(
+        'SELECT * FROM math_knowledge_categories WHERE CategoryCode LIKE ?',
+ [`%-${knowledgePointId}`]
+      );
+      
+      if (categoriesByCode.length > 0) {
+        categories = categoriesByCode;
+      }
     }
     
-    sql += ' ORDER BY q.QuestionID ASC LIMIT 100';
+    if (categories.length === 0) {
+      return res.status(404).json(errorResponse('考点不存在'));
+    }
     
-    const [questions] = await mysqlPool.query(sql, params);
+    const category = categories[0];
+    const level = category.CategoryCode.split('-').length;
+    
+    // 获取科目前缀（CategoryCode的第一个部分）
+    const subjectPrefix = category.CategoryCode.split('-')[0];
+    
+    // 根据科目前缀确定科目ID
+    let subjectIds = [];
+    if (subjectPrefix === '10') {
+      // 高数 - 数学一、二、三都有高数
+      subjectIds = [1, 2, 3];
+    } else if (subjectPrefix === '11') {
+      // 线代 - 数学一、二、三都有线代
+      subjectIds = [1, 2, 3];
+    } else if (subjectPrefix === '12') {
+      // 概率论 - 只有数学一、三
+      subjectIds = [1, 3];
+    }
+    
+    let questions = [];
+    
+    // 第一步：查询四级考点（精确匹配）
+    if (level >= 3) {
+      // 获取所有四级子考点名称
+      let level4Names = [];
+      
+      if (level === 4) {
+        // 当前就是四级考点
+        level4Names = [category.CategoryName];
+      } else if (level === 3) {
+        // 查找所有四级子分类
+        const [childCategories] = await mysqlPool.query(
+          `SELECT CategoryName FROM math_knowledge_categories WHERE CategoryCode LIKE ?`,
+          [`${category.CategoryCode}-%`]
+        );
+        level4Names = childCategories.map(c => c.CategoryName);
+      }
+      
+      // 使用四级考点名称精确查询
+      if (level4Names.length > 0) {
+        const conditions = level4Names.map(() => 'FIND_IN_SET(?, q.LinkNames) > 0').join(' OR ');
+        const params = [...level4Names];
+        
+        let sql = `
+          SELECT DISTINCT q.*, b.ContentType as bookType
+          FROM math_questions q
+          INNER JOIN math_bookquestions bq ON q.QuestionID = bq.QuestionID
+          INNER JOIN math_books b ON bq.BookID = b.BookID
+          WHERE (${conditions})
+            AND b.SubjectID IN (${subjectIds.map(() => '?').join(',')})
+        `;
+        params.push(...subjectIds);
+        
+        if (bookType && bookType !== 'all') {
+          sql += ' AND b.ContentType = ?';
+          params.push(bookType);
+        }
+        
+        sql += ' ORDER BY q.QuestionID ASC LIMIT 100';
+        
+        const [level4Questions] = await mysqlPool.query(sql, params);
+        questions = level4Questions;
+      }
+    }
+    
+    // 第二步：如果四级考点没有查到题目，使用三级考点模糊查询
+    if (questions.length === 0 && level >= 3) {
+      // 获取三级考点名称
+      let level3Name;
+      if (level === 3) {
+        level3Name = category.CategoryName;
+      } else if (level === 4) {
+        // 从四级考点的CategoryCode获取三级考点
+        // 四级考点Code格式：x-x-x-x，取前三部分
+        const parts = category.CategoryCode.split('-');
+        const level3Code = parts.slice(0, 3).join('-');
+        const [level3Categories] = await mysqlPool.query(
+          'SELECT CategoryName FROM math_knowledge_categories WHERE CategoryCode = ?',
+          [level3Code]
+        );
+        if (level3Categories.length > 0) {
+          level3Name = level3Categories[0].CategoryName;
+        }
+      }
+      
+      if (level3Name) {
+        // 三级考点使用模糊匹配：LinkNames包含该考点名称即可
+        // 但不能过于模糊，需要是完整的词匹配
+        const params = [`%${level3Name}%`];
+        
+        let sql = `
+          SELECT DISTINCT q.*, b.ContentType as bookType
+          FROM math_questions q
+          INNER JOIN math_bookquestions bq ON q.QuestionID = bq.QuestionID
+          INNER JOIN math_books b ON bq.BookID = b.BookID
+          WHERE q.LinkNames LIKE ?
+            AND b.SubjectID IN (${subjectIds.map(() => '?').join(',')})
+        `;
+        params.push(...subjectIds);
+        
+        if (bookType && bookType !== 'all') {
+          sql += ' AND b.ContentType = ?';
+          params.push(bookType);
+        }
+        
+        sql += ' ORDER BY q.QuestionID ASC LIMIT 100';
+        
+        const [level3Questions] = await mysqlPool.query(sql, params);
+        questions = level3Questions;
+      }
+    }
+    
     res.json(successResponse(questions));
   } catch (error) {
     console.error('获取题目列表失败:', error);
+    res.status(500).json(errorResponse('服务器错误'));
+  }
+};
+
+// 获取四级考点目录（根据三级考点ID）
+const getKnowledgePointLevel4 = async (req, res) => {
+  try {
+    const { parentId } = req.query;
+    
+    if (!parentId) {
+      return res.status(400).json(errorResponse('父级考点ID不能为空'));
+    }
+    
+    let parentCategories = [];
+    
+    // 首先尝试用 id 查询
+    const [categoriesById] = await mysqlPool.query(
+      'SELECT CategoryCode FROM math_knowledge_categories WHERE id = ? AND Description IN ("考点分类", "具体考点")',
+      [parentId]
+    );
+    
+    if (categoriesById.length > 0) {
+      parentCategories = categoriesById;
+    } else {
+      // 如果 id 查询不到，尝试用 CategoryCode 查询（支持 originalId 格式）
+      // 三级考点Code格式：x-x-{parentId}，需要精确匹配
+      const [categoriesByCode] = await mysqlPool.query(
+        'SELECT CategoryCode FROM math_knowledge_categories WHERE CategoryCode LIKE ? AND Description IN ("考点分类", "具体考点")',
+        [`%-${parentId}`]
+      );
+      
+      // 过滤出真正的三级考点（CategoryCode格式为x-x-x）
+      const level3Categories = categoriesByCode.filter(cat => 
+        cat.CategoryCode.split('-').length === 3
+      );
+      
+      if (level3Categories.length > 0) {
+        parentCategories = level3Categories;
+      }
+    }
+    
+    if (parentCategories.length === 0) {
+      return res.status(404).json(errorResponse('父级考点不存在'));
+    }
+    
+    const parentCode = parentCategories[0].CategoryCode;
+    
+    // 获取所有四级子考点
+    const [level4Categories] = await mysqlPool.query(
+      `SELECT id, CategoryCode, CategoryName, QuestionCount 
+       FROM math_knowledge_categories 
+       WHERE CategoryCode LIKE ? AND CategoryCode != ?
+       ORDER BY CategoryCode ASC`,
+      [`${parentCode}-%`, parentCode]
+    );
+    
+    // 过滤出四级考点（CategoryCode 格式为 x-x-x-x）
+    const result = level4Categories
+      .filter(cat => cat.CategoryCode.split('-').length === 4)
+      .map(cat => ({
+        id: cat.id,
+        code: cat.CategoryCode,
+        name: cat.CategoryName,
+        questionCount: cat.QuestionCount || 0
+      }));
+    
+    res.json(successResponse(result));
+  } catch (error) {
+    console.error('获取四级考点目录失败:', error);
     res.status(500).json(errorResponse('服务器错误'));
   }
 };
@@ -2420,13 +3116,512 @@ const createKnowledgeCategory = async (req, res) => {
 const deleteKnowledgeCategory = async (req, res) => {
   try {
     const { id } = req.params;
-    
     await mysqlPool.query('DELETE FROM math_knowledge_categories WHERE id = ?', [id]);
-    
     res.json(successResponse(null, '删除成功'));
   } catch (error) {
     console.error('删除考点分类失败:', error);
     res.status(500).json(errorResponse('服务器错误'));
+  }
+};
+
+// 获取用户组卷权限信息
+const getUserPaperPermission = async (req, res) => {
+  try {
+    const userId = req.userId;
+    const permission = await User.checkPaperPermission(userId);
+    
+    res.json(successResponse({
+      allowed: permission.allowed,
+      isSuperAdmin: permission.isSuperAdmin,
+      maxQuestions: permission.maxQuestions,
+      message: permission.message
+    }));
+  } catch (error) {
+    console.error('获取组卷权限失败:', error);
+    res.status(500).json(errorResponse('获取权限信息失败'));
+  }
+};
+
+// 引入加密工具
+const { generatePrintToken, verifyPrintToken } = require('../utils/crypto');
+
+// 生成加密打印链接
+const generatePrintLink = async (req, res) => {
+  try {
+    const userId = req.userId;
+    const { paperId, allowAnalysis } = req.body;
+    
+    if (!paperId) {
+      return res.status(400).json(errorResponse('试卷ID不能为空'));
+    }
+    
+    // 检查用户打印权限
+    const printPermission = await User.checkPrintPermission(userId);
+    if (!printPermission.allowed) {
+      return res.status(403).json(errorResponse(printPermission.message || '没有打印权限'));
+    }
+    
+    // 获取试卷信息
+    const [papers] = await mysqlPool.query(
+      'SELECT * FROM math_generated_papers WHERE PaperID = ? AND UserID = ?',
+      [paperId, userId]
+    );
+    
+    if (papers.length === 0) {
+      return res.status(404).json(errorResponse('试卷不存在'));
+    }
+    
+    const paper = papers[0];
+    
+    // 如果需要打印解析，检查解析权限
+    let canPrintAnalysis = false;
+    if (allowAnalysis) {
+      const analysisPermission = await User.checkPrintAnalysisPermission(userId);
+      if (!analysisPermission.allowed) {
+        return res.status(403).json(errorResponse(analysisPermission.message || '没有打印解析权限'));
+      }
+      canPrintAnalysis = true;
+    }
+    
+    // 增加用户打印次数
+    await User.incrementPrintCount(userId);
+    
+    // 如果需要打印解析，增加解析次数
+    if (canPrintAnalysis) {
+      await User.incrementPrintAnalysisCount(userId);
+    }
+    
+    // 生成加密令牌
+    const tokenData = {
+      paperId: paper.PaperID,
+      paperToken: paper.PrintToken,
+      userId: userId,
+      allowAnalysis: canPrintAnalysis,
+      generatedAt: new Date().toISOString()
+    };
+    
+    const encryptedToken = generatePrintToken(tokenData);
+    
+    // 构建打印链接
+    const printUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/test-pdf-export.html?token=${encodeURIComponent(encryptedToken)}`;
+    
+    res.json(successResponse({
+      printUrl,
+      allowAnalysis: canPrintAnalysis,
+      message: '打印链接已生成，请注意：生成链接后将消耗打印次数，无法取消'
+    }));
+    
+  } catch (error) {
+    console.error('生成打印链接失败:', error);
+    res.status(500).json(errorResponse('生成打印链接失败'));
+  }
+};
+
+// 验证打印链接并返回试卷数据
+const verifyPrintLink = async (req, res) => {
+  try {
+    const { token } = req.query;
+    console.log('验证打印链接, token:', token ? token.substring(0, 20) + '...' : 'empty');
+    
+    if (!token) {
+      return res.status(400).json(errorResponse('打印令牌不能为空'));
+    }
+    
+    // 验证令牌
+    const tokenData = verifyPrintToken(token);
+    console.log('令牌验证结果:', tokenData ? '成功' : '失败');
+    if (!tokenData) {
+      return res.status(403).json(errorResponse('打印链接已过期或无效'));
+    }
+    
+    console.log('tokenData:', { paperId: tokenData.paperId, allowAnalysis: tokenData.allowAnalysis });
+    
+    // 获取试卷信息
+    console.log('查询试卷信息, paperId:', tokenData.paperId);
+    const [papers] = await mysqlPool.query(
+      'SELECT * FROM math_generated_papers WHERE PaperID = ?',
+      [tokenData.paperId]
+    );
+    
+    if (papers.length === 0) {
+      return res.status(404).json(errorResponse('试卷不存在'));
+    }
+    
+    const paper = papers[0];
+    console.log('找到试卷:', paper.Title);
+    
+    // 获取试卷题目
+    console.log('查询试卷题目...');
+    const [questions] = await mysqlPool.query(
+      `SELECT gpq.SortOrder, q.*, bq.QuestionImg, bq.BookChapter, b.BookTitle
+       FROM math_generated_paper_questions gpq
+       JOIN math_questions q ON gpq.QuestionID = q.QuestionID
+       LEFT JOIN math_bookquestions bq ON gpq.QuestionID = bq.QuestionID AND gpq.BookID = bq.BookID AND gpq.BookChapter = bq.BookChapter
+       LEFT JOIN math_books b ON gpq.BookID = b.BookID
+       WHERE gpq.PaperID = ?
+       ORDER BY 
+         CASE q.QuestionType 
+           WHEN '选择题' THEN 1 
+           WHEN '填空题' THEN 2 
+           WHEN '解答题' THEN 3 
+           ELSE 4 
+         END ASC, 
+         gpq.SortOrder ASC`,
+      [tokenData.paperId]
+    );
+    
+    console.log('找到题目数量:', questions.length);
+    
+    // 获取每个题目的详细解析（从 math_questiondetails 表）
+    const questionIds = questions.map(q => q.QuestionID);
+    console.log('题目ID列表:', questionIds);
+    let questionDetailsMap = new Map();
+    
+    if (questionIds.length > 0) {
+      console.log('查询题目解析详情...');
+      // 构建 IN 子句的占位符
+      const placeholders = questionIds.map(() => '?').join(',');
+      console.log('SQL占位符:', placeholders);
+      const [details] = await mysqlPool.query(
+        `SELECT QuestionID, BusType, Context 
+         FROM math_questiondetails 
+         WHERE QuestionID IN (${placeholders}) AND BusType IN ('题目详解', '一题多解')
+         ORDER BY QuestionID, 
+           CASE BusType 
+             WHEN '题目详解' THEN 1 
+             WHEN '一题多解' THEN 2 
+             ELSE 3 
+           END`,
+        questionIds
+      );
+      
+      console.log('找到解析详情数量:', details.length);
+      
+      // 按题目ID分组解析内容
+      details.forEach(detail => {
+        if (!questionDetailsMap.has(detail.QuestionID)) {
+          questionDetailsMap.set(detail.QuestionID, []);
+        }
+        questionDetailsMap.get(detail.QuestionID).push({
+          type: detail.BusType,
+          content: detail.Context
+        });
+      });
+    }
+    
+    // 将解析内容合并到题目数据中
+    const questionsWithDetails = questions.map(q => ({
+      ...q,
+      analysisDetails: questionDetailsMap.get(q.QuestionID) || []
+    }));
+    
+    res.json(successResponse({
+      paper: {
+        PaperID: paper.PaperID,
+        Title: paper.Title,
+        CreatedAt: paper.CreatedAt,
+        PrintToken: paper.PrintToken
+      },
+      questions: questionsWithDetails,
+      allowAnalysis: tokenData.allowAnalysis,
+      generatedAt: tokenData.generatedAt
+    }));
+    
+  } catch (error) {
+    console.error('验证打印链接失败:', error);
+    console.error('错误堆栈:', error.stack);
+    res.status(500).json(errorResponse('验证打印链接失败: ' + error.message));
+  }
+};
+
+// 生成7位唯一编码（大小写字母+数字）
+function generatePaperCode() {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  let code = '';
+  for (let i = 0; i < 7; i++) {
+    code += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return code;
+}
+
+// 获取或生成试卷分享编码
+const getOrGeneratePaperCode = async (req, res) => {
+  try {
+    const userId = req.userId;
+    const { paperId } = req.params;
+    const { isWeeklyTest } = req.body;
+    
+    if (!paperId) {
+      return res.status(400).json(errorResponse('试卷ID不能为空'));
+    }
+    
+    // 查询试卷
+    const [papers] = await mysqlPool.query(
+      'SELECT PaperID, code, IsWeeklyTest FROM math_generated_papers WHERE PaperID = ? AND UserID = ?',
+      [paperId, userId]
+    );
+    
+    if (papers.length === 0) {
+      return res.status(404).json(errorResponse('试卷不存在'));
+    }
+    
+    let code = papers[0].code;
+    
+    // 如果没有编码，生成一个
+    if (!code) {
+      let isUnique = false;
+      
+      while (!isUnique) {
+        code = generatePaperCode();
+        // 检查编码是否已存在
+        const [existing] = await mysqlPool.query(
+          'SELECT PaperID FROM math_generated_papers WHERE code = ?',
+          [code]
+        );
+        if (existing.length === 0) {
+          isUnique = true;
+        }
+      }
+      
+      // 保存编码和周测标记
+      await mysqlPool.query(
+        'UPDATE math_generated_papers SET code = ?, IsWeeklyTest = ? WHERE PaperID = ?',
+        [code, isWeeklyTest ? 1 : 0, paperId]
+      );
+    } else {
+      // 更新周测标记
+      await mysqlPool.query(
+        'UPDATE math_generated_papers SET IsWeeklyTest = ? WHERE PaperID = ?',
+        [isWeeklyTest ? 1 : 0, paperId]
+      );
+    }
+    
+    res.json(successResponse({
+      code,
+      paperId: parseInt(paperId),
+      isWeeklyTest: isWeeklyTest ? true : false
+    }));
+    
+  } catch (error) {
+    console.error('获取试卷编码失败:', error);
+    res.status(500).json(errorResponse('获取试卷编码失败'));
+  }
+};
+
+// 通过编码查找试卷
+const getPaperByCode = async (req, res) => {
+  try {
+    const { code } = req.params;
+    console.log('通过编码查找试卷, code:', code);
+    
+    if (!code) {
+      return res.status(400).json(errorResponse('编码不能为空'));
+    }
+    
+    const [papers] = await mysqlPool.query(
+      `SELECT p.*, u.nickname as authorName 
+       FROM math_generated_papers p
+       LEFT JOIN users u ON p.UserID = u.id
+       WHERE p.code = ?`,
+      [code]
+    );
+    
+    console.log('查询结果:', papers.length, '条记录');
+    
+    if (papers.length === 0) {
+      return res.status(404).json(errorResponse('试卷不存在'));
+    }
+    
+    const paper = papers[0];
+    
+    // 获取试卷题目
+    const [questions] = await mysqlPool.query(
+      `SELECT gpq.SortOrder, q.*, bq.QuestionImg, bq.BookChapter, b.BookTitle
+       FROM math_generated_paper_questions gpq
+       JOIN math_questions q ON gpq.QuestionID = q.QuestionID
+       LEFT JOIN math_bookquestions bq ON gpq.QuestionID = bq.QuestionID AND gpq.BookID = bq.BookID AND gpq.BookChapter = bq.BookChapter
+       LEFT JOIN math_books b ON gpq.BookID = b.BookID
+       WHERE gpq.PaperID = ?
+       ORDER BY 
+         CASE q.QuestionType 
+           WHEN '选择题' THEN 1 
+           WHEN '填空题' THEN 2 
+           WHEN '解答题' THEN 3 
+           ELSE 4 
+         END ASC, 
+         gpq.SortOrder ASC`,
+      [paper.PaperID]
+    );
+    
+    res.json(successResponse({
+      paper: {
+        PaperID: paper.PaperID,
+        Title: paper.Title,
+        code: paper.code,
+        authorName: paper.authorName,
+        CreatedAt: paper.CreatedAt,
+        Config: paper.Config ? (typeof paper.Config === 'string' ? JSON.parse(paper.Config) : paper.Config) : null
+      },
+      questions: questions
+    }));
+    
+  } catch (error) {
+    console.error('通过编码查找试卷失败:', error);
+    console.error('错误堆栈:', error.stack);
+    res.status(500).json(errorResponse('查找试卷失败: ' + error.message));
+  }
+};
+
+// 通过分享码获取并保存试卷（成为自己的试卷）
+const claimPaperByCode = async (req, res) => {
+  try {
+    const userId = req.userId;
+    const { code } = req.params;
+    
+    if (!code) {
+      return res.status(400).json(errorResponse('分享码不能为空'));
+    }
+    
+    // 查找原始试卷
+    const [papers] = await mysqlPool.query(
+      `SELECT p.*, u.nickname as authorName 
+       FROM math_generated_papers p
+       LEFT JOIN users u ON p.UserID = u.id
+       WHERE p.code = ?`,
+      [code]
+    );
+    
+    if (papers.length === 0) {
+      return res.status(404).json(errorResponse('试卷不存在'));
+    }
+    
+    const originalPaper = papers[0];
+    
+    // 检查是否是自己的试卷
+    if (originalPaper.UserID === userId) {
+      return res.status(400).json(errorResponse('这是您自己的试卷，无需获取'));
+    }
+    
+    // 检查是否已经获取过
+    const [existingPapers] = await mysqlPool.query(
+      `SELECT PaperID FROM math_generated_papers 
+       WHERE UserID = ? AND OriginalPaperID = ?`,
+      [userId, originalPaper.PaperID]
+    );
+    
+    if (existingPapers.length > 0) {
+      return res.status(400).json(errorResponse('您已经获取过这份试卷了'));
+    }
+    
+    // 获取原始试卷的题目
+    const [questions] = await mysqlPool.query(
+      `SELECT gpq.* FROM math_generated_paper_questions gpq
+       WHERE gpq.PaperID = ?`,
+      [originalPaper.PaperID]
+    );
+    
+    // 生成新的分享码
+    let newCode;
+    let isUnique = false;
+    while (!isUnique) {
+      newCode = generatePaperCode();
+      const [existing] = await mysqlPool.query(
+        'SELECT PaperID FROM math_generated_papers WHERE code = ?',
+        [newCode]
+      );
+      if (existing.length === 0) {
+        isUnique = true;
+      }
+    }
+    
+    // 处理 Config 字段 - 确保是字符串
+    let configValue = originalPaper.Config;
+    if (configValue && typeof configValue === 'object') {
+      configValue = JSON.stringify(configValue);
+    }
+    
+    // 创建新试卷记录 - 同时复制 SubjectID 和 IsWeeklyTest
+    const [result] = await mysqlPool.query(
+      `INSERT INTO math_generated_papers 
+       (UserID, Title, SubjectID, Config, code, OriginalPaperID, IsShared, OriginalUserID, IsWeeklyTest)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        userId,
+        originalPaper.Title,
+        originalPaper.SubjectID,
+        configValue,
+        newCode,
+        originalPaper.PaperID,
+        1, // IsShared
+        originalPaper.UserID,
+        originalPaper.IsWeeklyTest || 0 // 复制周测标记
+      ]
+    );
+    
+    const newPaperId = result.insertId;
+    
+    // 复制题目关联 - 表中没有CreatedAt字段
+    for (const q of questions) {
+      await mysqlPool.query(
+        `INSERT INTO math_generated_paper_questions 
+         (PaperID, QuestionID, BookID, BookChapter, SortOrder)
+         VALUES (?, ?, ?, ?, ?)`,
+        [newPaperId, q.QuestionID, q.BookID, q.BookChapter, q.SortOrder]
+      );
+    }
+    
+    // 增加原试卷的分享次数
+    await mysqlPool.query(
+      'UPDATE math_generated_papers SET ShareCount = ShareCount + 1 WHERE PaperID = ?',
+      [originalPaper.PaperID]
+    );
+    
+    res.json(successResponse({
+      paperId: newPaperId,
+      title: originalPaper.Title,
+      code: newCode,
+      originalAuthor: originalPaper.authorName,
+      questionCount: questions.length
+    }));
+    
+  } catch (error) {
+    console.error('获取试卷失败:', error);
+    console.error('错误详情:', error.sqlMessage || error.message);
+    console.error('SQL:', error.sql);
+    res.status(500).json(errorResponse('获取试卷失败: ' + (error.sqlMessage || error.message)));
+  }
+};
+
+// 获取用户打印权限信息
+const getUserPrintPermission = async (req, res) => {
+  try {
+    const userId = req.userId;
+    const printPermission = await User.checkPrintPermission(userId);
+    const analysisPermission = await User.checkPrintAnalysisPermission(userId);
+    
+    res.json(successResponse({
+      print: {
+        allowed: printPermission.allowed,
+        isSuperAdmin: printPermission.role === 1,
+        role: printPermission.role,
+        limit: printPermission.limit,
+        used: printPermission.used,
+        remaining: printPermission.remaining,
+        message: printPermission.message
+      },
+      analysis: {
+        allowed: analysisPermission.allowed,
+        isSuperAdmin: analysisPermission.role === 1,
+        role: analysisPermission.role,
+        limit: analysisPermission.limit,
+        used: analysisPermission.used,
+        remaining: analysisPermission.remaining,
+        message: analysisPermission.message
+      }
+    }));
+  } catch (error) {
+    console.error('获取打印权限失败:', error);
+    res.status(500).json(errorResponse('获取权限信息失败'));
   }
 };
 
@@ -2469,10 +3664,18 @@ module.exports = {
   deleteFavoriteCategory,
   getRelatedQuestions,
   getKnowledgeCategories,
+  getKnowledgePointLevel4,
   getQuestionCountByKnowledgePoint,
   getQuestionsByKnowledgePoint,
   getAdminKnowledgeCategories,
   updateKnowledgeCategory,
   createKnowledgeCategory,
-  deleteKnowledgeCategory
+  deleteKnowledgeCategory,
+  getUserPaperPermission,
+  getUserPrintPermission,
+  generatePrintLink,
+  verifyPrintLink,
+  getOrGeneratePaperCode,
+  getPaperByCode,
+  claimPaperByCode
 };

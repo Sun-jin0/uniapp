@@ -1,5 +1,37 @@
 <template>
   <view class="container" :class="{ 'dark-mode': isDarkMode }">
+    <!-- 隐私协议弹窗 -->
+    <view class="privacy-modal" v-if="showPrivacyModal">
+      <view class="privacy-content">
+        <view class="privacy-title">隐私保护指引</view>
+        <view class="privacy-body">
+          <text class="privacy-text">
+            在使用本小程序前，请您仔细阅读并同意{{ privacyContractName }}。
+          </text>
+          <view class="privacy-items">
+            <view class="privacy-item">
+              <text class="item-dot">•</text>
+              <text class="item-text">我们可能会收集您的微信昵称、头像，用于用户身份识别</text>
+            </view>
+            <view class="privacy-item">
+              <text class="item-dot">•</text>
+              <text class="item-text">我们可能会收集您的学习记录，用于提供学习进度跟踪服务</text>
+            </view>
+          </view>
+          <text class="privacy-link" @click="openPrivacyContract">查看完整隐私协议</text>
+        </view>
+        <view class="privacy-actions">
+          <button class="privacy-btn disagree" @click="handleDisagree">不同意</button>
+          <button 
+            class="privacy-btn agree" 
+            open-type="agreePrivacyAuthorization" 
+            @agreeprivacyauthorization="handleAgreePrivacy"
+            id="agree-btn"
+          >同意</button>
+        </view>
+      </view>
+    </view>
+
     <!-- 登录表单 -->
     <view class="login-form">
       <!-- 用户名登录 -->
@@ -16,7 +48,7 @@
           </view>
         </view>
         
-        <button class="login-btn" @click="usernameLogin" :disabled="!username || !password">登录</button>
+        <button class="login-btn" @click="usernameLogin" :disabled="!username || !password || !agreeAllPrivacy">登录</button>
       </view>
 
       <!-- 微信登录 -->
@@ -27,10 +59,23 @@
       </view>
 
       <view class="wechat-login-section">
-        <button class="wechat-btn" @click="handleWechatLogin">
+        <button class="wechat-btn" @click="handleWechatLogin" :disabled="!agreeAllPrivacy">
           <view class="wechat-icon-placeholder"></view>
           <text>微信一键登录</text>
         </button>
+      </view>
+
+      <!-- 隐私政策勾选 -->
+      <view class="privacy-checkbox-section">
+        <view class="checkbox-item">
+          <checkbox :checked="agreeAllPrivacy" @click="toggleAllPrivacy" color="#4a90e2" />
+          <text class="checkbox-text">
+            已阅读并同意
+            <text class="link-text" @click.stop="openAppPrivacy">《用户服务协议》</text>
+            和
+            <text class="link-text" @click.stop="openMiniProgramPrivacy">《研大师刷研题小程序隐私保护指引》</text>
+          </text>
+        </view>
       </view>
     </view>
   </view>
@@ -46,6 +91,88 @@ const isDarkMode = ref(false);
 
 const username = ref('');
 const password = ref('');
+const agreeAllPrivacy = ref(false);
+const showPrivacyModal = ref(false);
+const privacyContractName = ref('《小程序隐私保护指引》');
+const needPrivacyAuthorization = ref(false);
+
+// 切换隐私政策勾选（同时同意两个协议）
+const toggleAllPrivacy = () => {
+  agreeAllPrivacy.value = !agreeAllPrivacy.value;
+};
+
+// 打开官方隐私协议页面
+const openPrivacyContract = () => {
+  // #ifdef MP-WEIXIN
+  wx.openPrivacyContract({
+    success: () => {
+      console.log('打开隐私协议成功');
+    },
+    fail: (err) => {
+      console.error('打开隐私协议失败', err);
+    }
+  });
+  // #endif
+};
+
+// 打开研大师刷研题小程序隐私保护指引
+const openMiniProgramPrivacy = () => {
+  uni.navigateTo({
+    url: '/pages/privacy/mini-program-privacy'
+  });
+};
+
+// 打开用户服务协议
+const openAppPrivacy = () => {
+  uni.navigateTo({
+    url: '/pages/privacy/app-privacy'
+  });
+};
+
+// 检查隐私协议状态
+const checkPrivacySetting = () => {
+  // #ifdef MP-WEIXIN
+  if (wx.getPrivacySetting) {
+    wx.getPrivacySetting({
+      success: (res) => {
+        console.log('隐私协议状态:', res);
+        needPrivacyAuthorization.value = res.needAuthorization;
+        privacyContractName.value = res.privacyContractName || '《小程序隐私保护指引》';
+        if (res.needAuthorization) {
+          showPrivacyModal.value = true;
+        }
+      },
+      fail: (err) => {
+        console.error('获取隐私协议状态失败:', err);
+      }
+    });
+  }
+  // #endif
+};
+
+// 不同意隐私协议
+const handleDisagree = () => {
+  uni.showModal({
+    title: '提示',
+    content: '您需要同意隐私保护指引才能继续使用本小程序。',
+    showCancel: false,
+    confirmText: '知道了'
+  });
+};
+
+// 同意隐私协议
+const handleAgreePrivacy = () => {
+  console.log('用户同意隐私协议');
+  showPrivacyModal.value = false;
+  agreeAllPrivacy.value = true;
+};
+
+// 打开完整隐私政策
+const openPrivacyPolicy = () => {
+  uni.navigateTo({
+    url: '/pages/privacy/privacy'
+  });
+};
 
 // 页面加载时检查是否已登录
 onMounted(() => {
@@ -58,6 +185,9 @@ onMounted(() => {
     });
     return;
   }
+  
+  // 检查隐私协议状态
+  checkPrivacySetting();
   
   // 从本地存储获取当前主题模式，默认白天模式
   const currentTheme = uni.getStorageSync('themeMode') || 'light';
@@ -387,5 +517,160 @@ const handleLoginSuccess = (userData) => {
 
 .dark-mode .login-btn {
   background-color: #8888ff;
+}
+
+/* 隐私协议弹窗样式 */
+.privacy-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+}
+
+.privacy-content {
+  background: #fff;
+  border-radius: 16rpx;
+  width: 80%;
+  max-width: 600rpx;
+  padding: 40rpx;
+}
+
+.privacy-title {
+  font-size: 36rpx;
+  font-weight: 700;
+  text-align: center;
+  margin-bottom: 30rpx;
+  color: #333;
+}
+
+.privacy-body {
+  max-height: 600rpx;
+  overflow-y: auto;
+  margin-bottom: 30rpx;
+}
+
+.privacy-text {
+  font-size: 28rpx;
+  color: #666;
+  line-height: 1.6;
+  display: block;
+  margin-bottom: 20rpx;
+}
+
+.privacy-items {
+  margin-bottom: 20rpx;
+}
+
+.privacy-item {
+  display: flex;
+  margin-bottom: 16rpx;
+}
+
+.item-dot {
+  font-size: 28rpx;
+  color: #333;
+  margin-right: 10rpx;
+  flex-shrink: 0;
+}
+
+.item-text {
+  font-size: 28rpx;
+  color: #666;
+  line-height: 1.5;
+  flex: 1;
+}
+
+.privacy-link {
+  font-size: 28rpx;
+  color: #4a90e2;
+  text-decoration: underline;
+  display: block;
+  text-align: center;
+}
+
+.privacy-actions {
+  display: flex;
+  gap: 20rpx;
+}
+
+.privacy-btn {
+  flex: 1;
+  height: 80rpx;
+  border-radius: 40rpx;
+  font-size: 30rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+}
+
+.privacy-btn.disagree {
+  background: #f5f5f5;
+  color: #666;
+}
+
+.privacy-btn.agree {
+  background: #4a90e2;
+  color: #fff;
+}
+
+.dark-mode .privacy-content {
+  background: #2c2c2c;
+}
+
+.dark-mode .privacy-title {
+  color: #fff;
+}
+
+.dark-mode .privacy-text,
+.dark-mode .item-text {
+  color: #ccc;
+}
+
+.dark-mode .item-dot {
+  color: #fff;
+}
+
+.dark-mode .privacy-btn.disagree {
+  background: #444;
+  color: #ccc;
+}
+
+/* 隐私政策勾选区域 */
+.privacy-checkbox-section {
+  margin: 30rpx 0;
+  display: flex;
+  justify-content: center;
+}
+
+.checkbox-item {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.checkbox-text {
+  font-size: 26rpx;
+  color: #999;
+  margin-left: 10rpx;
+  line-height: 1.4;
+}
+
+.link-text {
+  color: #4a90e2;
+}
+
+.dark-mode .checkbox-text {
+  color: #999;
+}
+
+.dark-mode .link-text {
+  color: #6bb3ff;
 }
 </style>

@@ -23,39 +23,41 @@
       <!-- 智能工具入口 -->
       <section class="tools-section">
         <div class="tools-grid">
-          <navigator :url="`/pages/math/math-smart-paper-config?subjectId=${selectedSubjectId}`" class="tool-btn tool-test">
-            <div class="tool-btn-icon">
-              <SvgIcon name="edit" size="32" fill="#fff" />
+          <div class="tools-row">
+            <!-- 考点刷题 -->
+            <navigator url="/pages/math/math-knowledge-point-practice" class="tool-btn">
+              <view class="icon-box knowledge-bg">
+                <view class="inner-icon knowledge"></view>
+              </view>
+              <span class="tool-btn-text">考点</span>
+            </navigator>
+            <navigator :url="`/pages/math/math-smart-paper-config?subjectId=${selectedSubjectId}`" class="tool-btn">
+              <view class="icon-box test-bg">
+                <view class="inner-icon test"></view>
+              </view>
+              <span class="tool-btn-text">组卷</span>
+            </navigator>
+            <navigator :url="`/pages/math/math-practice?subjectId=${selectedSubjectId}`" class="tool-btn">
+              <view class="icon-box bank-bg">
+                <view class="inner-icon bank"></view>
+              </view>
+              <span class="tool-btn-text">试卷</span>
+            </navigator>
+            <!-- 搜题功能 -->
+            <div class="tool-btn" @click="openSearchModal">
+              <view class="icon-box search-bg">
+                <view class="inner-icon search"></view>
+              </view>
+              <span class="tool-btn-text">搜题</span>
             </div>
-            <span class="tool-btn-text">组卷</span>
-          </navigator>
-          <!-- 搜题功能 -->
-          <div class="tool-btn tool-search" @click="openSearchModal">
-            <div class="tool-btn-icon">
-              <SvgIcon name="settings" size="32" fill="#2196f3" />
-            </div>
-            <span class="tool-btn-text">搜题</span>
+            <!-- 我的收藏 -->
+            <navigator url="/pages/math/math-my-favorites" class="tool-btn">
+              <view class="icon-box favorites-bg">
+                <view class="inner-icon favorites"></view>
+              </view>
+              <span class="tool-btn-text">收藏</span>
+            </navigator>
           </div>
-          <navigator :url="`/pages/math/math-practice?subjectId=${selectedSubjectId}`" class="tool-btn tool-bank">
-            <div class="tool-btn-icon">
-              <SvgIcon name="books" size="32" fill="#fff" />
-            </div>
-            <span class="tool-btn-text">试卷</span>
-          </navigator>
-          <!-- 考点刷题 -->
-          <navigator url="/pages/math/math-knowledge-point-practice" class="tool-btn tool-knowledge">
-            <div class="tool-btn-icon">
-              <SvgIcon name="brain" size="32" fill="#fff" />
-            </div>
-            <span class="tool-btn-text">考点</span>
-          </navigator>
-          <!-- 我的收藏 -->
-          <navigator url="/pages/math/math-my-favorites" class="tool-btn tool-favorites">
-            <div class="tool-btn-icon">
-              <SvgIcon name="star" size="32" fill="#fff" />
-            </div>
-            <span class="tool-btn-text">收藏</span>
-          </navigator>
         </div>
       </section>
 
@@ -112,7 +114,9 @@
                 <view v-for="book in categorizedBooks.reals" :key="book.BookID" class="paper-item style-yellow" @click="goToBook(book)">
                   <view v-if="book.IsNew" class="new-banner">NEW</view>
                   <view class="paper-content">
-                    <view class="paper-icon">📜</view>
+                    <view class="icon-box paper-icon-box yellow-bg">
+                      <view class="inner-icon paper-scroll"></view>
+                    </view>
                     <view class="paper-info">
                       <view class="paper-title">{{ book.BookTitle }}</view>
                       <view class="paper-meta">
@@ -134,7 +138,9 @@
                 <view v-for="book in categorizedBooks.mocks" :key="book.BookID" class="paper-item style-blue" @click="goToBook(book)">
                   <view v-if="book.IsNew" class="new-banner">NEW</view>
                   <view class="paper-content">
-                    <view class="paper-icon">📝</view>
+                    <view class="icon-box paper-icon-box blue-bg">
+                      <view class="inner-icon paper-edit"></view>
+                    </view>
                     <view class="paper-info">
                       <view class="paper-title">{{ book.BookTitle }}</view>
                       <view class="paper-meta">
@@ -669,15 +675,21 @@ onMounted(async () => {
 
 .tools-grid {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 6px;
+  flex-direction: column;
+  gap: 0;
   background: #f5f5f5;
-  padding: 8px;
+  padding: 0;
   border-radius: 12px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
   width: 100%;
   box-sizing: border-box;
+}
+
+.tools-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
 }
 
 .tool-btn {
@@ -686,43 +698,11 @@ onMounted(async () => {
   align-items: center;
   justify-content: center;
   transition: transform 0.2s;
-  width: 70px;
-  height: 70px;
-  border-radius: 10px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  padding: 10px;
-  box-sizing: border-box;
-  background: #fff;
+  padding: 4px;
   text-align: center;
-}
-
-.navigator-wrap {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  height: 100%;
+  background: transparent;
+  box-shadow: none;
   text-decoration: none;
-  gap: 6px;
-}
-
-.tool-btn-icon {
-  width: 36px;
-  height: 36px;
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #fff;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  margin-bottom: 6px;
-  flex-shrink: 0;
-}
-
-.tool-btn-icon svg {
-  width: 18px;
-  height: 18px;
 }
 
 .tool-btn-text {
@@ -740,90 +720,61 @@ onMounted(async () => {
   height: 14px;
   display: flex;
   align-items: center;
+  text-decoration: none;
   justify-content: center;
 }
 
-/* 为每个按钮设置不同的背景色 */
-.tool-btn.tool-test {
-  background: #fff;
+/* icon-box 样式 - 参考 profile 页面 */
+.icon-box {
+  width: 72rpx;
+  height: 72rpx;
+  border-radius: 20rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 8rpx;
 }
 
-.tool-btn.tool-test .tool-btn-icon {
-  background: linear-gradient(135deg, #ff6b6b, #ee5a52);
+.inner-icon {
+  width: 36rpx;
+  height: 36rpx;
+  background-color: white;
+  mask-size: contain;
+  -webkit-mask-size: contain;
+  mask-repeat: no-repeat;
+  -webkit-mask-repeat: no-repeat;
+  mask-position: center;
+  -webkit-mask-position: center;
 }
 
-.tool-btn.tool-search {
-  background: #fff;
-}
+/* 组卷 - 红色系 */
+.test-bg { background: #fee2e2; }
+.test { background-color: #ef4444; mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>'); }
 
-.tool-btn.tool-search .tool-btn-icon {
-  background: linear-gradient(135deg, #4ecdc4, #45b7aa);
-}
+/* 搜题 - 青色系 */
+.search-bg { background: #ccfbf1; }
+.search { background-color: #14b8a6; mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>'); }
 
-.tool-btn.tool-bank {
-  background: #fff;
-}
+/* 试卷 - 蓝色系 */
+.bank-bg { background: #dbeafe; }
+.bank { background-color: #3b82f6; mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M18 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM6 4h5v8l-2.5-1.5L6 12V4z"/></svg>'); }
 
-.tool-btn.tool-bank .tool-btn-icon {
-  background: linear-gradient(135deg, #45b7d1, #2196f3);
-}
+/* 考点 - 紫色系 */
+.knowledge-bg { background: #f3e8ff; }
+.knowledge { background-color: #a855f7; mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 3L1 9l4 2.18v6L12 21l7-3.82v-6l2-1.09V17h2V9L12 3zm6.82 6L12 12.72 5.18 9 12 5.28 18.82 9zM17 15.99l-5 2.73-5-2.73v-3.72L12 15l5-2.73v3.72z"/></svg>'); }
 
-.tool-btn.tool-papers {
-  background: #fff;
-}
-
-.tool-btn.tool-papers .tool-btn-icon {
-  background: linear-gradient(135deg, #ffbe0b, #fb5607);
-}
-
-.tool-btn.tool-favorites {
-  background: #fff;
-}
-
-.tool-btn.tool-favorites .tool-btn-icon {
-  background: linear-gradient(135deg, #8338ec, #3a86ff);
-}
-
-.tool-btn.tool-knowledge {
-  background: #fff;
-}
-
-.tool-btn.tool-knowledge .tool-btn-icon {
-  background: linear-gradient(135deg, #9c27b0, #e91e63);
-}
+/* 收藏 - 橙色系 */
+.favorites-bg { background: #ffedd5; }
+.favorites { background-color: #f97316; mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>'); }
 
 .tool-btn:active {
   transform: scale(0.95);
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
-}
-
-/* 确保uni-navigator与普通按钮样式一致 */
-uni-navigator.tool-btn {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  transition: transform 0.2s;
-  width: 70px;
-  height: 70px;
-  border-radius: 10px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  padding: 10px;
-  box-sizing: border-box;
-  background: #fff;
-  margin: 0;
-  text-align: center;
-}
-
-uni-navigator.tool-btn:active {
-  transform: scale(0.95);
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
 }
 
 .main-content {
   flex-grow: 1;
-  padding: 5px 8px;
-  padding-bottom: 80px;
+  padding: 0 8px;
+  padding-bottom: 20px;
   background-color: #f8f9fa;
   overflow: visible;
   min-height: calc(100vh - 200px);
@@ -1371,25 +1322,23 @@ uni-navigator.tool-btn:active {
   min-width: 0;
 }
 
-.paper-icon {
-  width: 40px;
-  height: 40px;
-  border-radius: 10px;
+/* 试卷列表图标样式 */
+.paper-icon-box {
+  width: 72rpx;
+  height: 72rpx;
+  border-radius: 20rpx;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 16px;
   margin-right: 12px;
   flex-shrink: 0;
 }
 
-.style-blue .paper-icon {
-  background: linear-gradient(135deg, #e0e7ff 0%, #c7d2fe 100%);
-}
+.yellow-bg { background: #fef3c7; }
+.paper-scroll { background-color: #f59e0b; mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>'); }
 
-.style-yellow .paper-icon {
-  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
-}
+.blue-bg { background: #e0e7ff; }
+.paper-edit { background-color: #6366f1; mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>'); }
 
 .paper-info {
   flex: 1;

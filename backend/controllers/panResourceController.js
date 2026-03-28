@@ -72,11 +72,27 @@ exports.updatePanCategory = async (req, res) => {
   try {
     const { id } = req.params;
     const { name, sortOrder } = req.body;
-    const success = await PanResource.updateCategory(id, name, sortOrder);
-    if (success) {
-      res.json(successResponse(null, '更新成功'));
+    
+    // 如果只更新排序，先获取当前分类信息
+    if (name === undefined || name === null) {
+      const categories = await PanResource.findAllCategories();
+      const category = categories.find(c => c.CategoryID == id);
+      if (!category) {
+        return res.status(404).json(errorResponse('分类不存在'));
+      }
+      const success = await PanResource.updateCategory(id, category.CategoryName, sortOrder);
+      if (success) {
+        res.json(successResponse(null, '更新成功'));
+      } else {
+        res.status(404).json(errorResponse('分类不存在'));
+      }
     } else {
-      res.status(404).json(errorResponse('分类不存在'));
+      const success = await PanResource.updateCategory(id, name, sortOrder);
+      if (success) {
+        res.json(successResponse(null, '更新成功'));
+      } else {
+        res.status(404).json(errorResponse('分类不存在'));
+      }
     }
   } catch (error) {
     console.error('更新分类失败:', error);

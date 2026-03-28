@@ -1715,12 +1715,35 @@ CREATE TABLE `users`  (
   `last_study_time` datetime NULL DEFAULT NULL,
   `study_days` int NULL DEFAULT 0,
   `level` int NOT NULL DEFAULT 1 COMMENT '用户等级',
+  `paper_limit_daily` int NULL DEFAULT 1 COMMENT '每日组卷次数限制，默认1次',
+  `paper_max_questions` int NULL DEFAULT 22 COMMENT '每次组卷最大题目数，默认22题',
+  `paper_used_today` int NULL DEFAULT 0 COMMENT '今日已使用组卷次数',
+  `paper_last_date` date NULL DEFAULT NULL COMMENT '最后组卷日期',
+  `is_super_admin` tinyint NULL DEFAULT 0 COMMENT '是否超级管理员，0否1是，超级管理员不受组卷限制',
   PRIMARY KEY (`id`) USING BTREE,
   UNIQUE INDEX `username`(`username` ASC) USING BTREE,
   UNIQUE INDEX `studentId`(`studentId` ASC) USING BTREE,
   UNIQUE INDEX `phone`(`phone` ASC) USING BTREE,
   UNIQUE INDEX `openid`(`openid` ASC) USING BTREE
 ) ENGINE = InnoDB AUTO_INCREMENT = 11 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci ROW_FORMAT = Dynamic;
+
+-- ----------------------------
+-- Table structure for user_paper_records
+-- ----------------------------
+DROP TABLE IF EXISTS `user_paper_records`;
+CREATE TABLE `user_paper_records`  (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `user_id` int NOT NULL,
+  `paper_type` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT 'smart' COMMENT '组卷类型：smart智能组卷，knowledge考点组卷',
+  `question_count` int NULL DEFAULT 0 COMMENT '题目数量',
+  `subject_id` int NULL DEFAULT NULL COMMENT '科目ID',
+  `config_json` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL COMMENT '组卷配置JSON',
+  `created_at` datetime NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`) USING BTREE,
+  INDEX `user_id`(`user_id` ASC) USING BTREE,
+  INDEX `created_at`(`created_at` ASC) USING BTREE,
+  CONSTRAINT `user_paper_records_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE RESTRICT
+) ENGINE = InnoDB AUTO_INCREMENT = 1 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci ROW_FORMAT = Dynamic COMMENT = '用户组卷记录表';
 
 -- ----------------------------
 -- Table structure for video_feedback

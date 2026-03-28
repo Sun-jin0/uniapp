@@ -128,7 +128,17 @@ import { Plus, Search } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import axios from 'axios'
 
-const API_BASE_URL = 'https://yizhancs.cn/api'
+const API_BASE_URL = 'http://localhost:3000/api/qq-group/admin'
+
+// 创建带认证的 axios 实例
+const authAxios = axios.create()
+authAxios.interceptors.request.use(config => {
+  const token = localStorage.getItem('admin_token')
+  if (token) {
+    config.headers['Authorization'] = `Bearer ${token}`
+  }
+  return config
+})
 
 const loading = ref(false)
 const submitting = ref(false)
@@ -161,21 +171,26 @@ const rules = {
   org_name: [{ required: true, message: '请输入所属机构', trigger: 'blur' }]
 }
 
-// 解析标签JSON
+// 解析标签
 const parseTags = (tags) => {
   if (!tags) return []
-  try {
-    return JSON.parse(tags)
-  } catch {
-    return tags.split(',').filter(t => t.trim())
+  if (Array.isArray(tags)) return tags
+  if (typeof tags === 'string') {
+    try {
+      const parsed = JSON.parse(tags)
+      return Array.isArray(parsed) ? parsed : [tags]
+    } catch {
+      return tags.split(',').filter(t => t.trim())
+    }
   }
+  return []
 }
 
 // 获取QQ群列表
 const fetchQQGroups = async () => {
   loading.value = true
   try {
-    const response = await axios.get(`${API_BASE_URL}/qq-groups`)
+    const response = await authAxios.get(`${API_BASE_URL}/list`)
     if (response.data.code === 0) {
       qqGroups.value = response.data.data || []
       // 提取机构选项
@@ -261,7 +276,7 @@ const handleDelete = (row) => {
     type: 'warning'
   }).then(async () => {
     try {
-      const response = await axios.delete(`${API_BASE_URL}/qq-groups/${row.id}`)
+      const response = await authAxios.delete(`${API_BASE_URL}/${row.id}`)
       if (response.data.code === 0) {
         ElMessage.success('删除成功')
         fetchQQGroups()
@@ -278,7 +293,7 @@ const handleDelete = (row) => {
 // 置顶切换
 const handlePinnedChange = async (row, val) => {
   try {
-    const response = await axios.put(`${API_BASE_URL}/qq-groups/${row.id}`, {
+    const response = await authAxios.put(`${API_BASE_URL}/${row.id}`, {
       ...row,
       is_pinned: val
     })
@@ -299,7 +314,7 @@ const handlePinnedChange = async (row, val) => {
 // 状态切换
 const handleStatusChange = async (row, val) => {
   try {
-    const response = await axios.put(`${API_BASE_URL}/qq-groups/${row.id}`, {
+    const response = await authAxios.put(`${API_BASE_URL}/${row.id}`, {
       ...row,
       is_active: val
     })
@@ -332,9 +347,9 @@ const handleSubmit = async () => {
       
       let response
       if (isEdit.value) {
-        response = await axios.put(`${API_BASE_URL}/qq-groups/${form.value.id}`, submitData)
+        response = await authAxios.put(`${API_BASE_URL}/${form.value.id}`, submitData)
       } else {
-        response = await axios.post(`${API_BASE_URL}/qq-groups`, submitData)
+        response = await authAxios.post(`${API_BASE_URL}`, submitData)
       }
       
       if (response.data.code === 0) {

@@ -339,11 +339,15 @@ const categoryList = ref([]) // 完整的分类对象列表（包含id）
 // 加载分类列表
 const fetchCategories = async () => {
   try {
-    const res = await adminApi.getNoticeCategories()
+    const res = await adminApi.getPanCategories(true)
     if (res.code === 0 && res.data) {
-      categoryList.value = res.data
-      // 提取分类名称并添加"全部资料"选项
-      const categoryNames = res.data.map(c => c.name)
+      // 后端返回完整对象数组（包含CategoryID, CategoryName, SortOrder）
+      categoryList.value = res.data.map(c => ({
+        id: c.CategoryID || c.id,
+        name: c.CategoryName || c.name,
+        sortOrder: c.SortOrder || c.sortOrder || 0
+      }))
+      const categoryNames = categoryList.value.map(c => c.name)
       categories.value = ['全部资料', ...categoryNames]
     }
   } catch (error) {
@@ -551,7 +555,8 @@ const parsedImportList = computed(() => {
       // 查找包含链接的行
       let quarkUrl = ''
       for (const line of lines) {
-        const linkMatch = line.match(/链接[：:]\s*(https?:\/\/[^\s]+)/)
+        // 支持多种格式：链接：URL、`链接：URL`、链接：`URL` 等
+        const linkMatch = line.match(/链接[：:]\s*`?(https?:\/\/[^\s`]+)`?/)
         if (linkMatch) {
           quarkUrl = linkMatch[1].trim()
           break
@@ -610,7 +615,7 @@ const addCategory = async () => {
   }
   
   try {
-    const res = await adminApi.createCategory({
+    const res = await adminApi.createPanCategory({
       name: newCategory.value.trim(),
       sortOrder: editableCategories.value.length
     })
@@ -635,7 +640,7 @@ const removeCategory = async (index) => {
   if (!category) return
   
   try {
-    const res = await adminApi.deleteCategory(category.id)
+    const res = await adminApi.deletePanCategory(category.id)
     if (res.code === 0) {
       editableCategories.value.splice(index, 1)
       ElMessage.success('删除成功')
@@ -664,19 +669,62 @@ const handleDrop = (e, dropIndex) => {
   dragIndex = null
 }
 
-// 保存分类（更新排序）
+// 保存分类（更新名称和排序）
 const saveCategories = async () => {
   try {
-    // 更新每个分类的排序
+    // 获取原始分类列表用于对比
+    const originalCategories = categoryList.value
+    
+    // 收集需要更新分类名称的资源
+    const resourcesToUpdate = []
+    
+    // 更新每个分类
     for (let i = 0; i < editableCategories.value.length; i++) {
       const cat = editableCategories.value[i]
-      if (cat.sortOrder !== i) {
-        await adminApi.updateCategory(cat.id, { sortOrder: i })
+      const originalCat = originalCategories.find(c => c.id === cat.id)
+      
+      // 检查名称或排序是否有变化
+      const nameChanged = originalCat && originalCat.name !== cat.name
+      const sortChanged = cat.sortOrder !== i
+      
+      if (nameChanged || sortChanged) {
+        await adminApi.updatePanCategory(cat.id, { 
+          name: cat.name,
+          sortOrder: i 
+        })
+        
+        // 如果名称改变了，记录需要更新资源分类
+        if (nameChanged && originalCat) {
+          resourcesToUpdate.push({
+            oldName: originalCat.name,
+            newName: cat.name
+          })
+        }
       }
     }
     
-    // 重新加载分类列表
+    // 更新所有使用该分类的资源
+    if (resourcesToUpdate.length > 0) {
+      // 获取所有网盘资源
+      const allRes = await adminApi.getNotices({ noticeType: 'pan_resource', size: 1000 })
+      const allResources = allRes.data.list || allRes.data || []
+      
+      // 更新每个资源的分类
+      for (const item of resourcesToUpdate) {
+        const resourcesWithOldCategory = allResources.filter(r => r.category === item.oldName)
+        
+        for (const resource of resourcesWithOldCategory) {
+          await adminApi.updateNotice(resource._id || resource.id, {
+            ...resource,
+            category: item.newName
+          })
+        }
+      }
+    }
+    
+    // 重新加载分类列表和资源列表
     await fetchCategories()
+    await fetchResources()
     showCategoryManage.value = false
     ElMessage.success('分类保存成功')
   } catch (error) {
@@ -699,7 +747,7 @@ const handleBatchImport = async () => {
     let failCount = 0
     
     // 获取所有现有资源用于检查重复
-    const allRes = await adminApi.getNotices({ noticeType: 'pan_resource', size: 10000 })
+    const allRes = await adminApi.getNotices({ noticeType: 'pan_resource', size: 1000 })
     const existingResources = allRes.data.list || allRes.data || []
     
     for (const item of parsedImportList.value) {
@@ -944,7 +992,7 @@ const handleBatchRefreshContent = async () => {
   refreshLoading.value = true
   try {
     // 获取所有网盘资源
-    const res = await adminApi.getNotices({ noticeType: 'pan_resource', page: 1, size: 1000 })
+    const res = await adminApi.getNotices({ noticeType: 'pan_resource', page: 1, size: 100 })
     const list = res.data.list || res.data || []
     let updatedCount = 0
 

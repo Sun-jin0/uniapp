@@ -83,7 +83,7 @@
                 "Type": "知识库",
                 "BusType": null,
                 "BusID": 0,
-                "Content": "![16522549381.$png](http://ysj-question.oss-cn-hangzhou.aliyuncs.com/Yjs/202205/60a391be-5d06-4866-93ff-20b6af929e71.png_yjs)\n【注】使用以上等价无穷小是在 $x\\to0$的前提下.",
+                "Content": "![16522549381.png](http://ysj-question.oss-cn-hangzhou.aliyuncs.com/Yjs/202205/60a391be-5d06-4866-93ff-20b6af929e71.png_yjs)\n【注】使用以上等价无穷小是在 $x\\to0$的前提下.",
                 "Text": null,
                 "Notes": "利用等价无穷小计算极限,零比零型,无穷乘零型",
                 "OutlineType": "掌握",

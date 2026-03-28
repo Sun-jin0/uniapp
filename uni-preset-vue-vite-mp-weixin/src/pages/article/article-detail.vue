@@ -116,6 +116,7 @@
 
 <script setup>
 import { ref, onMounted, computed, getCurrentInstance } from 'vue';
+import { copyToClipboard } from '@/utils/clipboard.js';
 
 const { proxy } = getCurrentInstance();
 
@@ -176,23 +177,21 @@ const extractArticleLinks = (content) => {
 };
 
 // 处理 rich-text 点击事件（小程序）
-const handleRichTextClick = (e) => {
+const handleRichTextClick = async (e) => {
   const { href, src } = e.detail || {};
-  
+
   // 处理链接点击 - 复制链接
   if (href) {
     // 排除锚点链接（#开头）
     if (href.startsWith('#')) return;
-    
-    uni.setClipboardData({
-      data: href,
-      success: () => {
-        uni.showToast({ title: '链接已复制', icon: 'success', duration: 2000 });
-      }
+
+    await copyToClipboard(href, {
+      successMsg: '链接已复制',
+      showModal: false
     });
     return;
   }
-  
+
   // 处理图片点击 - 预览图片（微信会自动支持长按识别二维码）
   if (src) {
     uni.previewImage({
@@ -203,12 +202,10 @@ const handleRichTextClick = (e) => {
 };
 
 // 复制链接（小程序端链接列表用）
-const copyLink = (href) => {
-  uni.setClipboardData({
-    data: href,
-    success: () => {
-      uni.showToast({ title: '链接已复制', icon: 'success', duration: 2000 });
-    }
+const copyLink = async (href) => {
+  await copyToClipboard(href, {
+    successMsg: '链接已复制',
+    showModal: false
   });
 };
 
@@ -237,11 +234,9 @@ const handleContentClick = (e) => {
     const href = target.dataset ? target.dataset.href : null;
     if (href) {
       e.preventDefault();
-      uni.setClipboardData({
-        data: href,
-        success: () => {
-          uni.showToast({ title: '链接已复制', icon: 'success', duration: 2000 });
-        }
+      copyToClipboard(href, {
+        successMsg: '链接已复制',
+        showModal: false
       });
     }
   }
@@ -352,22 +347,17 @@ const extractPanLinks = (content) => {
 };
 
 // 复制网盘链接
-const copyPanLink = (url) => {
-  uni.setClipboardData({
-    data: url,
-    success: () => {
-      uni.showToast({
-        title: '链接已复制',
-        icon: 'success'
-      });
-    },
-    fail: () => {
-      uni.showToast({
-        title: '复制失败',
-        icon: 'none'
-      });
-    }
+const copyPanLink = async (url) => {
+  const success = await copyToClipboard(url, {
+    successMsg: '链接已复制',
+    showModal: false
   });
+  if (!success) {
+    uni.showToast({
+      title: '复制失败',
+      icon: 'none'
+    });
+  }
 };
 
 // 打开网盘链接
@@ -601,11 +591,9 @@ const handleShare = () => {
   // H5环境下复制链接
   const articleId = getArticleId();
   const shareUrl = window.location.origin + '/#/pages/article/article-detail?id=' + articleId;
-  uni.setClipboardData({
-    data: shareUrl,
-    success: () => {
-      uni.showToast({ title: '链接已复制', icon: 'success' });
-    }
+  copyToClipboard(shareUrl, {
+    successMsg: '链接已复制',
+    showModal: false
   });
   // #endif
 };

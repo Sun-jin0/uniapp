@@ -153,27 +153,21 @@
       <template v-else-if="currentMode === 'smart'">
         <scroll-view class="smart-tools-container" scroll-y>
           <view class="tools-grid">
-            <view @click="navigateTo('/pages/computer/computer-question-list?majorId=' + activeSubjectId + '&mode=random&title=乱序刷题')" class="tool-card random-practice">
-              <view class="tool-icon-wrap gradient-bg">
-                <SvgIcon name="fire" size="36" fill="#fff" />
-              </view>
-              <text class="tool-name">乱序刷题</text>
-            </view>
-            <view @click="navigateTo('/pages/computer/computer-test?subjectId=' + activeSubjectId)" class="tool-card full-test">
-              <view class="tool-icon-wrap circle-bg">
-                <SvgIcon name="edit" size="32" fill="#fff" />
+            <view @click="navigateTo('/pages/computer/computer-test?subjectId=' + activeSubjectId)" class="tool-card">
+              <view class="icon-box edit-bg">
+                <view class="inner-icon edit"></view>
               </view>
               <text class="tool-name">试卷</text>
             </view>
-            <view @click="navigateTo('/pages/computer/computer-wrong-book')" class="tool-card wrong-book">
-              <view class="tool-icon-wrap rounded-bg">
-                <SvgIcon name="error" size="36" fill="#fff" />
+            <view @click="navigateTo('/pages/computer/computer-wrong-book')" class="tool-card">
+              <view class="icon-box error-bg">
+                <view class="inner-icon error"></view>
               </view>
               <text class="tool-name">错题本</text>
             </view>
-            <view @click="navigateTo('/pages/computer/computer-online-exam')" class="tool-card online-exam">
-              <view class="tool-icon-wrap square-bg">
-                <SvgIcon name="trophy" size="36" fill="#fff" />
+            <view @click="navigateTo('/pages/computer/computer-online-exam')" class="tool-card">
+              <view class="icon-box trophy-bg">
+                <view class="inner-icon trophy"></view>
               </view>
               <text class="tool-name">在线考试</text>
             </view>
@@ -194,8 +188,8 @@
                 class="collection-card"
                 @click="goToCollection(collection)"
               >
-                <view class="collection-cover">
-                  <SvgIcon name="books" size="28" fill="#fff" />
+                <view class="icon-box collection-bg">
+                  <view class="inner-icon collection"></view>
                 </view>
                 <view class="collection-info">
                   <view class="collection-title-row">
@@ -940,41 +934,6 @@ const closeCollectionPopup = () => {
 
   &:active {
     transform: scale(0.98);
-    box-shadow: 0 4rpx 16rpx rgba(0, 0, 0, 0.1);
-  }
-
-  .tool-icon-wrap {
-    width: 56rpx;
-    height: 56rpx;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    margin-bottom: 12rpx;
-    flex-shrink: 0;
-    
-    &.gradient-bg {
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      border-radius: 14rpx;
-      box-shadow: 0 4rpx 12rpx rgba(102, 126, 234, 0.4);
-    }
-    
-    &.circle-bg {
-      background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-      border-radius: 50%;
-      box-shadow: 0 4rpx 12rpx rgba(245, 87, 108, 0.4);
-    }
-    
-    &.rounded-bg {
-      background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%);
-      border-radius: 14rpx;
-      box-shadow: 0 4rpx 12rpx rgba(255, 107, 107, 0.4);
-    }
-    
-    &.square-bg {
-      background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
-      border-radius: 12rpx;
-      box-shadow: 0 4rpx 12rpx rgba(79, 172, 254, 0.4);
-    }
   }
 
   .tool-name {
@@ -985,43 +944,43 @@ const closeCollectionPopup = () => {
     overflow: hidden;
     text-overflow: ellipsis;
   }
-
-  &.random-practice {
-    .tool-name {
-      color: #667eea;
-    }
-    .tool-icon-wrap.gradient-bg {
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    }
-  }
-
-  &.full-test {
-    .tool-name {
-      color: #f5576c;
-    }
-    .tool-icon-wrap.circle-bg {
-      background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-    }
-  }
-
-  &.wrong-book {
-    .tool-name {
-      color: #f5576c;
-    }
-    .tool-icon-wrap.rounded-bg {
-      background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%);
-    }
-  }
-
-  &.online-exam {
-    .tool-name {
-      color: #4facfe;
-    }
-    .tool-icon-wrap.square-bg {
-      background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
-    }
-  }
 }
+
+/* icon-box 样式 - 参考 profile 页面 */
+.icon-box {
+  width: 72rpx;
+  height: 72rpx;
+  border-radius: 20rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 12rpx;
+  flex-shrink: 0;
+}
+
+.inner-icon {
+  width: 36rpx;
+  height: 36rpx;
+  background-color: white;
+  mask-size: contain;
+  -webkit-mask-size: contain;
+  mask-repeat: no-repeat;
+  -webkit-mask-repeat: no-repeat;
+  mask-position: center;
+  -webkit-mask-position: center;
+}
+
+/* 试卷 - 粉色系 */
+.edit-bg { background: #fce7f3; }
+.edit { background-color: #ec4899; mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>'); }
+
+/* 错题本 - 红色系 */
+.error-bg { background: #fee2e2; }
+.error { background-color: #ef4444; mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>'); }
+
+/* 在线考试 - 蓝色系 */
+.trophy-bg { background: #dbeafe; }
+.trophy { background-color: #3b82f6; mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 5h-2V3H7v2H5c-1.1 0-2 .9-2 2v1c0 2.55 1.92 4.63 4.39 4.94.63 1.5 1.98 2.63 3.61 2.96V19H7v2h10v-2h-4v-3.1c1.63-.33 2.98-1.46 3.61-2.96C19.08 12.63 21 10.55 21 8V7c0-1.1-.9-2-2-2zM5 8V7h2v3.82C5.84 10.4 5 9.3 5 8zm14 0c0 1.3-.84 2.4-2 2.82V7h2v1z"/></svg>'); }
 
 .loading-state, .empty-state {
   display: flex;
@@ -1064,17 +1023,9 @@ const closeCollectionPopup = () => {
       background-color: #f9f9f9;
     }
 
-    .collection-cover {
-      width: 44rpx;
-      height: 44rpx;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      border-radius: 8rpx;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      margin-right: 12rpx;
-      flex-shrink: 0;
-    }
+    /* 题集图标样式 */
+    .collection-bg { background: #ede9fe; }
+    .collection { background-color: #8b5cf6; mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M18 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM6 4h5v8l-2.5-1.5L6 12V4z"/></svg>'); }
 
     .collection-info {
       flex: 1;

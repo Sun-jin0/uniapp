@@ -1251,11 +1251,32 @@ const displayQuestionText = computed(() => {
     return `<img src="${cleanUrl}" style="max-width:100%;height:auto;display:block;margin:10px 0;" />`;
   });
   
-  // 处理换行符
-  text = text.replace(/\\n/g, '<br>');
-  text = text.replace(/\\t/g, ' ');
+  // 保护 LaTeX 公式
+  const formulas = [];
+  text = text.replace(/\$\$[\s\S]*?\$\$|\$[^\$]*?\$/g, (match) => {
+    formulas.push(match);
+    return `<!--FORMULA_${formulas.length - 1}-->`;
+  });
+
+  // 处理换行符和转义字符（在公式保护后执行，避免影响 LaTeX 命令如 \ne, \tan, \times 等）
+  text = text.replace(/\\n/g, '<br>');  // 换行
+  text = text.replace(/\\t/g, ' ');     // 制表符（注意：\tan 等命令在公式内已被保护）
+  text = text.replace(/\\x/g, '');      // 清除 \x（避免影响 \xi 等，但公式内已保护）
+  text = text.replace(/\\b/g, '');      // 清除 \b（避免影响 \beta 等，但公式内已保护）
+  text = text.replace(/\\f/g, '');      // 清除 \f（避免影响 \frac 等，但公式内已保护）
+  text = text.replace(/\\r/g, '');      // 清除 \r
+  text = text.replace(/\\v/g, '');      // 清除 \v（避免影响 \vec 等，但公式内已保护）
+  // 同时处理实际的换行符和制表符
   text = text.replace(/\n/g, '<br>');
   text = text.replace(/\t/g, ' ');
+
+  // 还原公式，并将公式中的 < > \lt \gt 替换为带空格的形式
+  text = text.replace(/<!--FORMULA_(\d+)-->/g, (match, index) => {
+    const formula = formulas[parseInt(index)] || match;
+    // 将公式中的 < > \lt \gt 替换为带空格的形式，防止被解析为 HTML 标签
+    return formula.replace(/</g, ' < ').replace(/>/g, ' > ').replace(/\\lt/g, ' < ').replace(/\\gt/g, ' > ');
+  });
+
   return text;
 });
 
@@ -1265,20 +1286,32 @@ const preprocessContent = (content) => {
 
   let text = content;
 
+  // 先保护 Markdown 格式图片 ![alt](url) 中的 URL
+  // 使用更宽松的正则，匹配 URL 直到 .png/.jpg 等扩展名及后续参数
+  const mdImages = [];
+  text = text.replace(/!\[([^\]]*)\]\((https?:\/\/[^\s]+?\.(?:png|jpg|jpeg|gif|webp|svg|bmp)[^\)]*)\)/gi, (match, alt, url) => {
+    mdImages.push({ alt, url });
+    return `<!--MD_IMG_${mdImages.length - 1}-->`;
+  });
+
   // 处理裸图片 URL（不在 Markdown 格式中的图片链接）
-  // 使用负向前瞻，避免匹配 Markdown 格式中的 URL
-  text = text.replace(/(https?:\/\/[^\s<>"]+\.(?:png|jpg|jpeg|gif|webp|svg|bmp))(?:_yjs|_thumb|_small|_medium|_large)?(?!["'])(?!\))/gi, (match, url) => {
+  // 使用负向前瞻确保不匹配到 HTML 标签内的 URL
+  text = text.replace(/(https?:\/\/[^\s<>"]+\.(?:png|jpg|jpeg|gif|webp|svg|bmp))(?:_yjs|_thumb|_small|_medium|_large)?(?!["'])(?![^<]*>)/gi, (match, url) => {
     let cleanUrl = url.replace(/(_yjs|_thumb|_small|_medium|_large)$/i, '');
-    cleanUrl = cleanUrl.replace(/^http:\/\//i, 'https://');
     return `<img src="${cleanUrl}" style="max-width:100%;height:auto;display:block;margin:10px 0;" />`;
   });
 
-  // 处理换行符
-  text = text.replace(/\\n/g, '<br>');
-  text = text.replace(/\\t/g, ' ');
-  text = text.replace(/\n/g, '<br>');
-  text = text.replace(/\t/g, ' ');
+  // 还原 Markdown 图片（移除 _yjs 后缀）
+  text = text.replace(/<!--MD_IMG_(\d+)-->/g, (match, index) => {
+    const img = mdImages[parseInt(index)];
+    if (img) {
+      let cleanUrl = img.url.replace(/(_yjs|_thumb|_small|_medium|_large)$/i, '');
+      return `<img src="${cleanUrl}" alt="${img.alt}" style="max-width:100%;height:auto;display:block;margin:10px 0;" />`;
+    }
+    return match;
+  });
 
+  // 不处理 <br>，让 mp-html/markdown 统一处理换行
   return text;
 };
 

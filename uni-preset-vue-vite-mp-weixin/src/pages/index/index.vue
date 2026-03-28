@@ -1,5 +1,18 @@
 <template>
   <view class="container" :class="{ 'dark-mode': isDarkMode }">
+    <!-- 版本更新弹窗 -->
+    <view class="update-modal" v-if="showUpdateModal">
+      <view class="update-content">
+        <view class="update-title">版本更新</view>
+        <view class="update-body">
+          <text class="update-text">检测到小程序新版本，重启即可体验新功能～</text>
+        </view>
+        <view class="update-actions">
+          <button class="update-btn cancel" @click="handleRefuseUpdate" v-if="!forceUpdate">暂不更新</button>
+          <button class="update-btn confirm" @click="handleUpdate">立即更新</button>
+        </view>
+      </view>
+    </view>
     
     <!-- 轮播图 -->
     <swiper v-if="bannerList.length > 0" class="banner" :indicator-dots="true" :indicator-color="'rgba(255, 255, 255, 0.5)'" :indicator-active-color="'#ffffff'" autoplay="true" circular="true">
@@ -23,7 +36,11 @@
               <view @click="handleArticleClick(article)" class="text-carousel-item">
                 <view class="carousel-content">
                   <view v-if="article.category === '系统通知'" class="article-tag-svg">
-                    <svg width="24" height="24" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M36.2144 34.3118C33.3387 36.7029 29.7365 38 26.0002 38C25.7667 38 25.5332 37.9957 25.3083 37.9784C21.2996 37.8054 17.5287 36.1494 14.6876 33.3087C13.1611 31.7825 11.9762 30.0011 11.1719 28.0165C10.3935 26.1011 10 24.0732 10 21.9978C10 19.9224 10.3935 17.8946 11.1719 15.9792C11.9762 13.9946 13.1611 12.2132 14.6876 10.6869C16.2141 9.16065 17.9958 7.97595 19.9807 7.17173C21.8964 6.39346 23.9245 6 26.0002 6C28.0759 6 30.104 6.39346 32.0197 7.17173C34.0046 7.97595 35.7863 9.16065 37.3128 10.6869C39.0944 12.464 40.3961 14.5697 41.1831 16.9391C41.9355 19.2004 42.1734 21.6476 41.875 24.017C41.7409 25.059 41.5074 26.0924 41.1745 27.0869C40.1497 30.107 38.8113 32.1526 36.2144 34.3118Z" stroke="#f34d4d" stroke-width="3" stroke-linecap="round" stroke-linejoin="miter"/><path d="M22.1049 19.4889C22.2386 17.5847 23.8979 16.1398 25.8079 16.2735C26.9155 16.3486 27.9227 16.8497 28.65 17.6891C29.3772 18.5285 29.7366 19.5933 29.6572 20.6999C29.5653 22.0321 28.9593 23.2431 27.952 24.12C26.9447 24.9928 25.6575 25.4229 24.3242 25.331C20.9932 25.0972 18.4687 22.1991 18.7028 18.8667C18.987 14.8077 22.5228 11.7342 26.5853 12.0182C28.9927 12.1852 31.1953 13.2835 32.7793 15.1042C34.3675 16.9249 35.1449 19.2551 34.9777 21.6646C34.7687 24.6253 33.4188 27.3271 31.1786 29.2731C29.139 31.0479 26.5811 32 23.9021 32C23.6388 32 23.3755 31.9916 23.1038 31.9749C20.3161 31.7829 17.6775 31.2372 15.5 29.5C13.3726 27.8046 11.8275 25.5807 11 23" stroke="#f34d4d" stroke-width="3" stroke-linecap="round" stroke-linejoin="miter"/><path d="M14 34L5.99909 42.4853" stroke="#f34d4d" stroke-width="3" stroke-linecap="round" stroke-linejoin="miter"/></svg>
+                    <view class="speaker-icon">
+                      <view class="speaker-body"></view>
+                      <view class="speaker-cone"></view>
+                      <view class="speaker-sound"></view>
+                    </view>
                   </view>
                   <view v-else class="article-tag">{{ article.category }}</view>
                   <view class="article-title">{{ article.title }}</view>
@@ -333,6 +350,11 @@ import { onShow } from '@dcloudio/uni-app';
 import SvgIcon from '@/components/SvgIcon/SvgIcon.vue';
 
 const instance = getCurrentInstance();
+
+// 版本更新相关
+const showUpdateModal = ref(false);
+const forceUpdate = ref(false);
+let updateManager = null;
 
 // 倒计时配置
 const countdownConfig = ref(null);
@@ -1396,6 +1418,9 @@ const getDarkerColor = (color) => {
 
 // 初始化状态
 onMounted(async () => {
+  // 检查版本更新
+  checkUpdate();
+  
   // 获取系统信息
   const systemInfo = uni.getSystemInfoSync();
   statusBarHeight.value = systemInfo.statusBarHeight || 0;
@@ -1505,6 +1530,54 @@ onShow(() => {
   // 刷新首页卡片数据
   initHomepageCards();
 });
+
+// 检查版本更新
+const checkUpdate = () => {
+  // #ifdef MP-WEIXIN
+  if (wx.getUpdateManager) {
+    updateManager = wx.getUpdateManager();
+    
+    // 监听版本检查结果
+    updateManager.onCheckForUpdate((res) => {
+      console.log('版本检查结果：', res);
+      // res.hasUpdate 为 true 表示有新版本
+    });
+    
+    // 监听新版本下载完成
+    updateManager.onUpdateReady(() => {
+      console.log('新版本下载完成');
+      showUpdateModal.value = true;
+    });
+    
+    // 监听新版本下载失败
+    updateManager.onUpdateFailed(() => {
+      console.log('新版本下载失败');
+      uni.showToast({
+        title: '新版本下载失败，请稍后重试',
+        icon: 'none'
+      });
+    });
+  } else {
+    // 低版本微信客户端提示
+    uni.showToast({
+      title: '当前微信版本过低，无法检查更新',
+      icon: 'none'
+    });
+  }
+  // #endif
+};
+
+// 暂不更新
+const handleRefuseUpdate = () => {
+  showUpdateModal.value = false;
+};
+
+// 立即更新
+const handleUpdate = () => {
+  if (updateManager) {
+    updateManager.applyUpdate();
+  }
+};
 
 // 初始化公告数据
 const initNotices = () => {
@@ -2054,6 +2127,46 @@ page {
   justify-content: center;
   margin-right: 8rpx;
   flex-shrink: 0;
+}
+
+/* 喇叭图标 */
+.speaker-icon {
+  width: 28rpx;
+  height: 20rpx;
+  position: relative;
+  display: flex;
+  align-items: center;
+  margin-right: 8rpx;
+}
+
+/* 喇叭握柄 */
+.speaker-body {
+  width: 8rpx;
+  height: 10rpx;
+  background: #f34d4d;
+  border-radius: 2rpx;
+}
+
+/* 喇叭口 */
+.speaker-cone {
+  position: absolute;
+  left: 6rpx;
+  width: 0;
+  height: 0;
+  border-top: 10rpx solid transparent;
+  border-bottom: 10rpx solid transparent;
+  border-left: 14rpx solid #f34d4d;
+}
+
+/* 声音波纹 */
+.speaker-sound {
+  position: absolute;
+  right: 0;
+  width: 6rpx;
+  height: 14rpx;
+  border: 2rpx solid #f34d4d;
+  border-left: none;
+  border-radius: 0 50% 50% 0;
 }
 
 .article-tag {
@@ -3305,5 +3418,90 @@ page {
 
 .dark-mode .notice-footer {
   border-top-color: rgba(255, 255, 255, 0.1);
+}
+
+/* 版本更新弹窗样式 */
+.update-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+}
+
+.update-content {
+  background: #fff;
+  border-radius: 16rpx;
+  width: 80%;
+  max-width: 600rpx;
+  padding: 40rpx;
+}
+
+.update-title {
+  font-size: 36rpx;
+  font-weight: 700;
+  text-align: center;
+  margin-bottom: 30rpx;
+  color: #333;
+}
+
+.update-body {
+  margin-bottom: 40rpx;
+}
+
+.update-text {
+  font-size: 30rpx;
+  color: #666;
+  line-height: 1.6;
+  display: block;
+  text-align: center;
+}
+
+.update-actions {
+  display: flex;
+  gap: 20rpx;
+}
+
+.update-btn {
+  flex: 1;
+  height: 80rpx;
+  border-radius: 40rpx;
+  font-size: 30rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+}
+
+.update-btn.cancel {
+  background: #f5f5f5;
+  color: #666;
+}
+
+.update-btn.confirm {
+  background: #4a90e2;
+  color: #fff;
+}
+
+.dark-mode .update-content {
+  background: #2c2c2c;
+}
+
+.dark-mode .update-title {
+  color: #fff;
+}
+
+.dark-mode .update-text {
+  color: #ccc;
+}
+
+.dark-mode .update-btn.cancel {
+  background: #444;
+  color: #ccc;
 }
 </style>

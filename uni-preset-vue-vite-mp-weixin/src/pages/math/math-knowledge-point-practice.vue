@@ -27,7 +27,6 @@
           <view class="subject-header" @tap="toggleSubject(subject.id)">
             <view class="arrow" :class="{ expanded: expandedSubjects.has(subject.id) }"></view>
             <text class="subject-name">{{ subject.name }}</text>
-            <text class="subject-count">{{ getSubjectCount(subject) }}</text>
           </view>
           
           <view v-show="expandedSubjects.has(subject.id)" class="chapter-list">
@@ -35,7 +34,6 @@
               <view class="chapter-header" @tap="toggleChapter(chapter.id)">
                 <view class="arrow" :class="{ expanded: expandedChapters.has(chapter.id) }"></view>
                 <text class="chapter-name">{{ chapter.name }}</text>
-                <text class="chapter-count">{{ chapter.points?.reduce((sum, p) => sum + (p.questionCount || 0), 0) || 0 }}</text>
               </view>
               
               <view v-show="expandedChapters.has(chapter.id)" class="point-list">
@@ -103,16 +101,6 @@ const filteredTree = computed(() => {
   }).filter(s => s.chapters?.length > 0);
 });
 
-const getSubjectCount = (subject) => {
-  let count = 0;
-  subject.chapters?.forEach(c => {
-    c.points?.forEach(p => {
-      count += p.questionCount || 0;
-    });
-  });
-  return count;
-};
-
 const toggleSubject = (id) => {
   if (expandedSubjects.value.has(id)) {
     expandedSubjects.value.delete(id);
@@ -146,7 +134,7 @@ const clearSearch = () => {
 
 const goToQuestions = (point) => {
   uni.navigateTo({
-    url: `/pages/math/math-knowledge-questions?pointId=${point.originalId}&pointName=${encodeURIComponent(point.name)}`
+    url: `/pages/math/math-knowledge-questions?pointId=${point.id}&pointName=${encodeURIComponent(point.name)}`
   });
 };
 
@@ -290,15 +278,6 @@ onMounted(() => {
   color: #fff;
 }
 
-.subject-count {
-  font-size: 26rpx;
-  color: rgba(255, 255, 255, 0.9);
-  background: rgba(255, 255, 255, 0.2);
-  padding: 6rpx 16rpx;
-  border-radius: 20rpx;
-  margin-left: 16rpx;
-}
-
 /* 章节列表样式 */
 .chapter-list {
   padding: 0 20rpx;
@@ -343,12 +322,6 @@ onMounted(() => {
   font-size: 30rpx;
   color: #333;
   font-weight: 500;
-}
-
-.chapter-count {
-  font-size: 24rpx;
-  color: #999;
-  margin-right: 16rpx;
 }
 
 /* 考点列表样式 */

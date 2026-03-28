@@ -1,140 +1,133 @@
 <template>
   <div class="math-manage">
     <el-tabs v-model="activeTab" type="border-card">
-      <!-- 纠错反馈 -->
-      <el-tab-pane label="纠错反馈" name="corrections">
-        <div class="filter-bar mb-20">
-          <el-radio-group v-model="correctionFilter.status" @change="fetchCorrections">
-            <el-radio-button :label="0">待处理</el-radio-button>
-            <el-radio-button :label="1">已处理</el-radio-button>
-            <el-radio-button label="">全部</el-radio-button>
-          </el-radio-group>
-          <el-button class="ml-10" @click="fetchCorrections">刷新</el-button>
-        </div>
+      <!-- 考点分类管理 -->
+      <el-tab-pane label="考点分类" name="knowledgeCategories">
+        <div class="knowledge-categories-container">
+          <div class="filter-bar mb-20">
+            <el-button type="primary" @click="openCreateSubjectModal">+ 添加科目</el-button>
+            <el-button @click="fetchKnowledgeCategories">刷新分类</el-button>
+            <el-button type="success" @click="refreshKnowledgeCategoriesCount" :loading="loadingKnowledgeCategories">
+              <Refresh style="width: 14px; height: 14px; margin-right: 4px;" /> 刷新题目数
+            </el-button>
+            <el-button type="warning" @click="fixKnowledgePointLinks" :loading="fixingLinks">
+              <Connection style="width: 14px; height: 14px; margin-right: 4px;" /> 修复题目关联
+            </el-button>
+            <el-tag type="info" size="large" v-if="totalCategoryQuestionCount > 0">
+              总题目数: {{ totalCategoryQuestionCount }}
+            </el-tag>
+            <el-input
+              v-model="categorySearchKeyword"
+              placeholder="搜索考点名称"
+              clearable
+              style="width: 200px; margin-left: 10px;"
+              @keyup.enter="searchCategory"
+            >
+              <template #append>
+                <el-button @click="searchCategory">
+                  <Search style="width: 14px; height: 14px;" />
+                </el-button>
+              </template>
+            </el-input>
+          </div>
 
-        <el-table :data="corrections" v-loading="loadingCorrections" border stripe>
-          <el-table-column prop="ID" label="ID" width="80" align="center" />
-          <el-table-column prop="Type" label="类型" width="100" align="center" />
-          <el-table-column prop="Content" label="反馈内容" min-width="200" show-overflow-tooltip />
-          <el-table-column prop="QuestionID" label="题目ID" width="100" align="center" />
-          <el-table-column prop="Status" label="状态" width="100" align="center">
-            <template #default="{ row }">
-              <el-tag :type="row.Status === 1 ? 'success' : 'danger'">
-                {{ row.Status === 1 ? '已处理' : '待处理' }}
-              </el-tag>
-            </template>
-          </el-table-column>
-          <el-table-column prop="CreatedAt" label="提交时间" width="160" align="center">
-            <template #default="{ row }">
-              {{ formatDate(row.CreatedAt) }}
-            </template>
-          </el-table-column>
-          <el-table-column label="操作" width="180" align="center" fixed="right">
-            <template #default="{ row }">
-              <el-button size="small" type="primary" @click="handleCorrection(row)">处理</el-button>
-              <el-button size="small" @click="openEditModal(row.QuestionID)">编辑题目</el-button>
-            </template>
-          </el-table-column>
-        </el-table>
+          <!-- 调试信息 -->
+          <el-alert v-if="debugInfo" type="info" :closable="false" class="mb-10">
+            <pre style="margin: 0; font-size: 12px;">{{ debugInfo }}</pre>
+          </el-alert>
 
-        <div class="pagination-container mt-20">
-          <el-pagination
-            v-model:current-page="correctionFilter.page"
-            v-model:page-size="correctionFilter.pageSize"
-            :total="correctionTotal"
-            layout="total, prev, pager, next"
-            @current-change="fetchCorrections"
-          />
-        </div>
-      </el-tab-pane>
-
-      <!-- 题目管理 -->
-      <el-tab-pane label="题目管理" name="questions">
-        <div class="filter-card mb-20">
-          <el-row :gutter="20" align="middle">
-            <el-col :span="4">
-              <el-button type="primary" @click="openCreateQuestionModal">+ 创建题目</el-button>
-            </el-col>
-            <el-col :span="8">
-              <el-input
-                v-model="questionFilter.keyword"
-                placeholder="搜索题目内容或ID..."
-                clearable
-                @keyup.enter="searchQuestions"
-              >
-                <template #append>
-                  <el-button @click="searchQuestions">
-                    <el-icon><Search /></el-icon>
+          <el-tree
+            ref="categoryTreeRef"
+            :data="knowledgeCategoryTree"
+            :props="treeProps"
+            node-key="id"
+            :default-expanded-keys="defaultExpandedKeys"
+            highlight-current
+          >
+            <template #default="{ node, data }">
+              <div class="custom-tree-node">
+                <span class="node-name">
+                  <el-tag v-if="getCategoryLevel(data) === 1" size="small" type="danger">科目</el-tag>
+                  <el-tag v-else-if="getCategoryLevel(data) === 2" size="small" type="warning">章节</el-tag>
+                  <el-tag v-else-if="getCategoryLevel(data) === 3" size="small" type="info">考点分类</el-tag>
+                  <el-tag v-else-if="getCategoryLevel(data) === 4" size="small" type="success">具体考点</el-tag>
+                  {{ node.label }}
+                </span>
+                <span class="node-info">
+                  <el-tag size="small" type="info">{{ data.CategoryCode }}</el-tag>
+                  <el-tag size="small" :type="data.QuestionCount > 0 ? 'primary' : 'info'" effect="dark">
+                    {{ data.QuestionCount || 0 }}题
+                  </el-tag>
+                  <el-tag :type="data.IsActive === 1 ? 'success' : 'danger'" size="small">
+                    {{ data.IsActive === 1 ? '启用' : '禁用' }}
+                  </el-tag>
+                </span>
+                <span class="node-actions">
+                  <el-button size="small" type="info" @click="handleCategoryNodeClick(data)">查看</el-button>
+                  <el-button size="small" @click="openEditKnowledgeCategoryModal(data)">编辑</el-button>
+                  <el-button v-if="getCategoryLevel(data) < 4" size="small" type="primary" @click="openAddChildCategoryModal(data)">
+                    {{ getCategoryLevel(data) === 1 ? '添加章节' : (getCategoryLevel(data) === 2 ? '添加考点分类' : '添加具体考点') }}
                   </el-button>
+                  <el-button v-if="getCategoryLevel(data) >= 3" size="small" type="warning" @click="openMovePointModal(data)">移动</el-button>
+                  <el-button size="small" type="danger" @click="deleteKnowledgeCategory(data.id)">删除</el-button>
+                </span>
+              </div>
+            </template>
+          </el-tree>
+
+          <!-- 未分类考点列表 -->
+          <div class="uncategorized-kp-section mt-30">
+            <div class="section-header">
+              <h3>未分类（题目关联）</h3>
+              <div>
+                <el-button v-if="!uncategorizedKPsLoaded" type="primary" size="small" @click="loadUncategorizedKPs">
+                  <FolderOpened style="width: 14px; height: 14px; margin-right: 4px;" />
+                  加载未分类考点
+                </el-button>
+                <template v-else>
+                  <el-input v-model="kpSearchKeyword" placeholder="搜索考点" size="small" style="width: 200px; margin-right: 10px;" clearable @clear="kpSearchKeyword = ''" @keyup.enter="handleKPSearch" />
+                  <el-button size="small" @click="handleKPSearch">搜索</el-button>
+                  <el-button v-if="selectedUncategorizedKPs.length > 0" type="primary" size="small" @click="openBatchAddToCategoryModal">
+                    批量添加到分类 ({{ selectedUncategorizedKPs.length }})
+                  </el-button>
+                  <el-button type="warning" size="small" @click="openAIAutoClassifyModal" :loading="aiClassifying">
+                    <MagicStick style="width: 14px; height: 14px; margin-right: 4px;" />
+                    AI 自动分类
+                  </el-button>
+                  <el-button size="small" @click="fetchAllKnowledgePoints">刷新</el-button>
                 </template>
-              </el-input>
-            </el-col>
-            <el-col :span="6">
-              <el-select v-model="questionFilter.subjectId" placeholder="所属科目" clearable @change="searchQuestions" style="width: 100%">
-                <el-option v-for="s in subjects" :key="s.SubjectID" :label="s.SubjectName" :value="s.SubjectID" />
-              </el-select>
-            </el-col>
-            <el-col :span="6">
-              <el-select v-model="questionFilter.questionType" placeholder="题型" clearable @change="searchQuestions" style="width: 100%">
-                <el-option label="单选题" value="单选题" />
-                <el-option label="多选题" value="多选题" />
-                <el-option label="填空题" value="填空题" />
-                <el-option label="解答题" value="解答题" />
-                <el-option label="判断题" value="判断题" />
-              </el-select>
-            </el-col>
-          </el-row>
+              </div>
+            </div>
+            <el-table 
+              v-if="uncategorizedKPsLoaded"
+              :data="uncategorizedKPList" 
+              v-loading="loadingUncategorizedKPs" 
+              border 
+              stripe 
+              size="small"
+              @selection-change="handleUncategorizedKPSelectionChange"
+            >
+              <el-table-column type="selection" width="55" align="center" />
+              <el-table-column prop="KnowledgePointID" label="ID" width="80" align="center" />
+              <el-table-column prop="KPTitle" label="考点标题" min-width="200" show-overflow-tooltip />
+              <el-table-column prop="KPType" label="类型" width="100" align="center" />
+              <el-table-column prop="KPCode" label="代码" width="120" show-overflow-tooltip />
+              <el-table-column label="题目数" width="100" align="center">
+                <template #default="{ row }">
+                  <el-tag :type="row.QuestionCount > 0 ? 'primary' : 'info'" effect="dark" size="small">
+                    {{ row.QuestionCount || 0 }}题
+                  </el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column label="操作" width="150" align="center" fixed="right">
+                <template #default="{ row }">
+                  <el-button size="small" type="primary" @click="editUncategorizedKP(row)">编辑</el-button>
+                  <el-button size="small" @click="openAddToCategoryModal(row)">添加到分类</el-button>
+                </template>
+              </el-table-column>
+            </el-table>
+          </div>
         </div>
-
-        <el-table :data="questions" v-loading="loadingQuestions" border stripe>
-          <el-table-column prop="QuestionID" label="题目ID" width="100" align="center" />
-          <el-table-column prop="QuestionType" label="题型" width="100" align="center" />
-          <el-table-column prop="QuestionText" label="题干摘要" min-width="300" show-overflow-tooltip>
-            <template #default="{ row }">
-              <div v-html="stripHtml(row.QuestionText)"></div>
-            </template>
-          </el-table-column>
-          <el-table-column prop="Difficulty" label="难度" width="100" align="center">
-            <template #default="{ row }">
-              <el-rate v-model="row.Difficulty" :max="5" disabled show-score />
-            </template>
-          </el-table-column>
-          <el-table-column label="操作" width="150" align="center" fixed="right">
-            <template #default="{ row }">
-              <el-button size="small" @click="openEditModal(row.QuestionID)">编辑</el-button>
-              <el-button size="small" type="danger" @click="deleteQuestion(row.QuestionID)">删除</el-button>
-            </template>
-          </el-table-column>
-        </el-table>
-
-        <div class="pagination-container mt-20">
-          <el-pagination
-            v-model:current-page="questionFilter.page"
-            v-model:page-size="questionFilter.pageSize"
-            :total="questionTotal"
-            layout="total, prev, pager, next"
-            @current-change="searchQuestions"
-          />
-        </div>
-      </el-tab-pane>
-
-      <!-- 科目管理 -->
-      <el-tab-pane label="科目管理" name="subjects">
-        <div class="filter-card mb-20">
-          <el-button type="primary" @click="openSubjectModal">+ 创建科目</el-button>
-        </div>
-
-        <el-table :data="subjects" v-loading="loadingSubjects" border stripe>
-          <el-table-column prop="SubjectID" label="ID" width="80" align="center" />
-          <el-table-column prop="SubjectName" label="科目名称" min-width="200" />
-          <el-table-column prop="description" label="描述" min-width="300" show-overflow-tooltip />
-          <el-table-column label="操作" width="180" align="center" fixed="right">
-            <template #default="{ row }">
-              <el-button size="small" @click="openSubjectModal(row)">编辑</el-button>
-              <el-button size="small" type="danger" @click="deleteSubject(row.SubjectID)">删除</el-button>
-            </template>
-          </el-table-column>
-        </el-table>
       </el-tab-pane>
 
       <!-- 书籍管理 -->
@@ -216,6 +209,144 @@
           />
         </div>
       </el-tab-pane>
+
+      <!-- 题目管理 -->
+      <el-tab-pane label="题目管理" name="questions">
+        <div class="filter-card mb-20">
+          <el-row :gutter="20" align="middle">
+            <el-col :span="4">
+              <el-button type="primary" @click="openCreateQuestionModal">+ 创建题目</el-button>
+            </el-col>
+            <el-col :span="8">
+              <el-input
+                v-model="questionFilter.keyword"
+                placeholder="搜索题目内容或ID..."
+                clearable
+                @keyup.enter="searchQuestions"
+              >
+                <template #append>
+                  <el-button @click="searchQuestions">
+                    <el-icon><Search /></el-icon>
+                  </el-button>
+                </template>
+              </el-input>
+            </el-col>
+            <el-col :span="6">
+              <el-select v-model="questionFilter.subjectId" placeholder="所属科目" clearable @change="searchQuestions" style="width: 100%">
+                <el-option v-for="s in subjects" :key="s.SubjectID" :label="s.SubjectName" :value="s.SubjectID" />
+              </el-select>
+            </el-col>
+            <el-col :span="6">
+              <el-select v-model="questionFilter.questionType" placeholder="题型" clearable @change="searchQuestions" style="width: 100%">
+                <el-option label="单选题" value="单选题" />
+                <el-option label="多选题" value="多选题" />
+                <el-option label="填空题" value="填空题" />
+                <el-option label="解答题" value="解答题" />
+                <el-option label="判断题" value="判断题" />
+              </el-select>
+            </el-col>
+          </el-row>
+        </div>
+
+        <el-table :data="questions" v-loading="loadingQuestions" border stripe>
+          <el-table-column prop="QuestionID" label="题目ID" width="100" align="center" />
+          <el-table-column prop="QuestionType" label="题型" width="100" align="center" />
+          <el-table-column prop="QuestionText" label="题干摘要" min-width="300" show-overflow-tooltip>
+            <template #default="{ row }">
+              <div v-html="stripHtml(row.QuestionText)"></div>
+            </template>
+          </el-table-column>
+          <el-table-column prop="Difficulty" label="难度" width="100" align="center">
+            <template #default="{ row }">
+              <el-rate v-model="row.Difficulty" :max="5" disabled show-score />
+            </template>
+          </el-table-column>
+          <el-table-column label="操作" width="150" align="center" fixed="right">
+            <template #default="{ row }">
+              <el-button size="small" @click="openEditModal(row.QuestionID)">编辑</el-button>
+              <el-button size="small" type="danger" @click="deleteQuestion(row.QuestionID)">删除</el-button>
+            </template>
+          </el-table-column>
+        </el-table>
+
+        <div class="pagination-container mt-20">
+          <el-pagination
+            v-model:current-page="questionFilter.page"
+            v-model:page-size="questionFilter.pageSize"
+            :total="questionTotal"
+            layout="total, prev, pager, next"
+            @current-change="searchQuestions"
+          />
+        </div>
+      </el-tab-pane>
+      
+      <!-- 纠错反馈 -->
+      <el-tab-pane label="纠错反馈" name="corrections">
+        <div class="filter-bar mb-20">
+          <el-radio-group v-model="correctionFilter.status" @change="fetchCorrections">
+            <el-radio-button :label="0">待处理</el-radio-button>
+            <el-radio-button :label="1">已处理</el-radio-button>
+            <el-radio-button label="">全部</el-radio-button>
+          </el-radio-group>
+          <el-button class="ml-10" @click="fetchCorrections">刷新</el-button>
+        </div>
+
+        <el-table :data="corrections" v-loading="loadingCorrections" border stripe>
+          <el-table-column prop="ID" label="ID" width="80" align="center" />
+          <el-table-column prop="Type" label="类型" width="100" align="center" />
+          <el-table-column prop="Content" label="反馈内容" min-width="200" show-overflow-tooltip />
+          <el-table-column prop="QuestionID" label="题目ID" width="100" align="center" />
+          <el-table-column prop="Status" label="状态" width="100" align="center">
+            <template #default="{ row }">
+              <el-tag :type="row.Status === 1 ? 'success' : 'danger'">
+                {{ row.Status === 1 ? '已处理' : '待处理' }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column prop="CreatedAt" label="提交时间" width="160" align="center">
+            <template #default="{ row }">
+              {{ formatDate(row.CreatedAt) }}
+            </template>
+          </el-table-column>
+          <el-table-column label="操作" width="180" align="center" fixed="right">
+            <template #default="{ row }">
+              <el-button size="small" type="primary" @click="handleCorrection(row)">处理</el-button>
+              <el-button size="small" @click="openEditModal(row.QuestionID)">编辑题目</el-button>
+            </template>
+          </el-table-column>
+        </el-table>
+
+        <div class="pagination-container mt-20">
+          <el-pagination
+            v-model:current-page="correctionFilter.page"
+            v-model:page-size="correctionFilter.pageSize"
+            :total="correctionTotal"
+            layout="total, prev, pager, next"
+            @current-change="fetchCorrections"
+          />
+        </div>
+      </el-tab-pane>
+
+
+      <!-- 科目管理 -->
+      <el-tab-pane label="科目管理" name="subjects">
+        <div class="filter-card mb-20">
+          <el-button type="primary" @click="openSubjectModal">+ 创建科目</el-button>
+        </div>
+
+        <el-table :data="subjects" v-loading="loadingSubjects" border stripe>
+          <el-table-column prop="SubjectID" label="ID" width="80" align="center" />
+          <el-table-column prop="SubjectName" label="科目名称" min-width="200" />
+          <el-table-column prop="description" label="描述" min-width="300" show-overflow-tooltip />
+          <el-table-column label="操作" width="180" align="center" fixed="right">
+            <template #default="{ row }">
+              <el-button size="small" @click="openSubjectModal(row)">编辑</el-button>
+              <el-button size="small" type="danger" @click="deleteSubject(row.SubjectID)">删除</el-button>
+            </template>
+          </el-table-column>
+        </el-table>
+      </el-tab-pane>
+
 
       <!-- 录入试题 -->
       <el-tab-pane label="录入试题" name="entry">
@@ -799,124 +930,7 @@
         </div>
       </el-tab-pane>
 
-      <!-- 考点分类管理 -->
-      <el-tab-pane label="考点分类" name="knowledgeCategories">
-        <div class="knowledge-categories-container">
-          <div class="filter-bar mb-20">
-            <el-button type="primary" @click="openCreateSubjectModal">+ 添加科目</el-button>
-            <el-button @click="fetchKnowledgeCategories">刷新</el-button>
-          </div>
-
-          <el-tree
-            :data="knowledgeCategoryTree"
-            :props="treeProps"
-            node-key="id"
-            default-expand-all
-            highlight-current
-            @node-click="handleCategoryNodeClick"
-          >
-            <template #default="{ node, data }">
-              <div class="custom-tree-node">
-                <span class="node-name">
-                  <el-tag v-if="getCategoryLevel(data) === 1" size="small" type="danger">科目</el-tag>
-                  <el-tag v-else-if="getCategoryLevel(data) === 2" size="small" type="warning">章节</el-tag>
-                  {{ node.label }}
-                </span>
-                <span class="node-info">
-                  <el-tag size="small" type="info">{{ data.CategoryCode }}</el-tag>
-                  <el-tag v-if="data.QuestionCount" size="small">{{ data.QuestionCount }}题</el-tag>
-                  <el-tag :type="data.IsActive === 1 ? 'success' : 'danger'" size="small">
-                    {{ data.IsActive === 1 ? '启用' : '禁用' }}
-                  </el-tag>
-                </span>
-                <span class="node-actions">
-                  <el-button size="small" @click="openEditKnowledgeCategoryModal(data)">编辑</el-button>
-                  <el-button v-if="getCategoryLevel(data) !== 3" size="small" type="primary" @click="openAddChildCategoryModal(data)">
-                    {{ getCategoryLevel(data) === 1 ? '添加章节' : '添加考点' }}
-                  </el-button>
-                  <el-button v-if="getCategoryLevel(data) === 3" size="small" type="warning" @click="openMovePointModal(data)">移动</el-button>
-                  <el-button size="small" type="danger" @click="deleteKnowledgeCategory(data.id)">删除</el-button>
-                </span>
-              </div>
-            </template>
-          </el-tree>
-
-          <!-- 选中分类的题目列表 -->
-          <div v-if="selectedCategoryNode" class="category-questions-section mt-30">
-            <div class="section-header">
-              <h3>{{ selectedCategoryNode.CategoryName }} - 关联题目</h3>
-              <div>
-                <el-tag type="info" size="small">{{ categoryQuestions.length }} 题</el-tag>
-                <el-button size="small" @click="fetchCategoryQuestions" :loading="loadingCategoryQuestions">刷新</el-button>
-              </div>
-            </div>
-            <el-table 
-              :data="categoryQuestions" 
-              v-loading="loadingCategoryQuestions" 
-              border 
-              stripe 
-              size="small"
-              max-height="400"
-            >
-              <el-table-column prop="QuestionID" label="ID" width="80" align="center" />
-              <el-table-column prop="QuestionText" label="题干" min-width="300" show-overflow-tooltip>
-                <template #default="{ row }">
-                  <div class="question-text-preview" v-html="renderLatex(row.QuestionText?.substring(0, 100) + (row.QuestionText?.length > 100 ? '...' : ''))"></div>
-                </template>
-              </el-table-column>
-              <el-table-column prop="QuestionType" label="题型" width="100" align="center" />
-              <el-table-column prop="Difficulty" label="难度" width="80" align="center">
-                <template #default="{ row }">
-                  <el-rate v-model="row.Difficulty" disabled :max="5" />
-                </template>
-              </el-table-column>
-              <el-table-column label="操作" width="150" align="center" fixed="right">
-                <template #default="{ row }">
-                  <el-button size="small" type="primary" @click="openEditModal(row.QuestionID)">编辑</el-button>
-                  <el-button size="small" @click="removeQuestionFromCategory(row.QuestionID)">移除</el-button>
-                </template>
-              </el-table-column>
-            </el-table>
-          </div>
-
-          <!-- 未分类考点列表 -->
-          <div class="uncategorized-kp-section mt-30">
-            <div class="section-header">
-              <h3>未分类（题目关联）</h3>
-              <div>
-                <el-button v-if="selectedUncategorizedKPs.length > 0" type="primary" size="small" @click="openBatchAddToCategoryModal">
-                  批量添加到分类 ({{ selectedUncategorizedKPs.length }})
-                </el-button>
-                <el-button type="warning" size="small" @click="openAIAutoClassifyModal" :loading="aiClassifying">
-                  <el-icon><MagicStick /></el-icon>
-                  AI 自动分类
-                </el-button>
-                <el-button size="small" @click="fetchAllKnowledgePoints">刷新</el-button>
-              </div>
-            </div>
-            <el-table 
-              :data="uncategorizedKPList" 
-              v-loading="loadingUncategorizedKPs" 
-              border 
-              stripe 
-              size="small"
-              @selection-change="handleUncategorizedKPSelectionChange"
-            >
-              <el-table-column type="selection" width="55" align="center" />
-              <el-table-column prop="KnowledgePointID" label="ID" width="80" align="center" />
-              <el-table-column prop="KPTitle" label="考点标题" min-width="200" show-overflow-tooltip />
-              <el-table-column prop="KPType" label="类型" width="100" align="center" />
-              <el-table-column prop="KPCode" label="代码" width="120" show-overflow-tooltip />
-              <el-table-column label="操作" width="150" align="center" fixed="right">
-                <template #default="{ row }">
-                  <el-button size="small" type="primary" @click="editUncategorizedKP(row)">编辑</el-button>
-                  <el-button size="small" @click="openAddToCategoryModal(row)">添加到分类</el-button>
-                </template>
-              </el-table-column>
-            </el-table>
-          </div>
-        </div>
-      </el-tab-pane>
+      
     </el-tabs>
 
     <!-- 添加到分类对话框 -->
@@ -1591,7 +1605,7 @@
     <!-- 考点分类编辑对话框 -->
     <el-dialog
       v-model="knowledgeCategoryModalVisible"
-      :title="isEditingKnowledgeCategory ? '编辑' : (addingSubject ? '添加科目' : (addingChild ? (getCategoryLevel({ CategoryCode: selectedParentCategory }) === 1 ? '添加章节' : '添加考点') : ''))"
+      :title="isEditingKnowledgeCategory ? '编辑' : (addingSubject ? '添加科目' : (addingChild ? (getCategoryLevel({ CategoryCode: selectedParentCategory }) === 1 ? '添加章节' : (getCategoryLevel({ CategoryCode: selectedParentCategory }) === 2 ? '添加考点分类' : '添加具体考点')) : ''))"
       width="600px"
     >
       <el-form :model="knowledgeCategoryForm" label-width="100px">
@@ -1617,33 +1631,108 @@
       </template>
     </el-dialog>
 
+    <!-- 分类题目详情弹窗 -->
+    <el-dialog
+      v-model="categoryQuestionsModalVisible"
+      :title="selectedCategoryNode?.CategoryName + ' - 关联题目'"
+      width="90%"
+      top="2vh"
+      destroy-on-close
+    >
+      <div class="category-questions-modal">
+        <div class="modal-header mb-10 flex-wrap">
+          <el-tag type="info" size="large">{{ filteredCategoryQuestions.length }} 题</el-tag>
+          <div class="filter-group">
+            <el-select v-model="questionFilterSubject" placeholder="选择科目" clearable style="width: 120px; margin-right: 10px;">
+              <el-option label="数学一" value="数学一" />
+              <el-option label="数学二" value="数学二" />
+              <el-option label="数学三" value="数学三" />
+            </el-select>
+            <el-select v-model="questionFilterBookType" placeholder="书籍类型" clearable style="width: 120px; margin-right: 10px;">
+              <el-option label="书籍" value="book" />
+              <el-option label="真题卷" value="real" />
+              <el-option label="模拟卷" value="mock" />
+            </el-select>
+            <el-button size="small" @click="resetQuestionFilters">重置</el-button>
+            <el-button size="small" type="primary" @click="fetchCategoryQuestions" :loading="loadingCategoryQuestions">刷新</el-button>
+          </div>
+        </div>
+        <el-table
+          :data="filteredCategoryQuestions"
+          v-loading="loadingCategoryQuestions"
+          border
+          stripe
+          max-height="500"
+        >
+          <el-table-column prop="QuestionID" label="ID" width="80" align="center" />
+          <el-table-column prop="SubjectName" label="科目" width="100" show-overflow-tooltip />
+          <el-table-column prop="BookTitle" label="所属书籍" min-width="120" show-overflow-tooltip>
+            <template #default="{ row }">
+              {{ row.BookTitle || '-' }}
+            </template>
+          </el-table-column>
+          <el-table-column prop="BookChapter" label="章节" width="120" show-overflow-tooltip />
+          <el-table-column prop="QuestionPage" label="页码" width="60" align="center" />
+          <el-table-column prop="QuestionText" label="题干" min-width="200" show-overflow-tooltip>
+            <template #default="{ row }">
+              <div v-html="renderLatex(row.QuestionText?.substring(0, 80) + (row.QuestionText?.length > 80 ? '...' : ''))"></div>
+            </template>
+          </el-table-column>
+          <el-table-column prop="QuestionType" label="题型" width="80" align="center" />
+          <el-table-column prop="Difficulty" label="难度" width="80" align="center">
+            <template #default="{ row }">
+              <el-rate v-model="row.Difficulty" disabled :max="5" />
+            </template>
+          </el-table-column>
+          <el-table-column label="操作" width="180" align="center" fixed="right">
+            <template #default="{ row }">
+              <el-button size="small" type="info" @click="viewQuestionDetail(row)">查看</el-button>
+              <el-button size="small" type="primary" @click="openEditModal(row.QuestionID)">编辑</el-button>
+            </template>
+          </el-table-column>
+        </el-table>
+      </div>
+    </el-dialog>
+
     <!-- 移动考点对话框 -->
     <el-dialog
       v-model="movePointModalVisible"
       title="移动考点"
       width="500px"
+      :key="movePointModalVisible ? 'open' : 'close'"
     >
       <el-form label-width="100px">
         <el-form-item label="当前考点">
           <el-tag>{{ movingPoint?.CategoryName }}</el-tag>
+          <el-tag size="small" type="info" class="ml-10">{{ movingPoint?.CategoryCode }}</el-tag>
         </el-form-item>
         <el-form-item label="目标科目">
           <el-select v-model="moveTargetSubject" placeholder="请选择目标科目" style="width: 100%" @change="onSubjectChange">
-            <el-option 
-              v-for="level1 in knowledgeCategoryTree" 
-              :key="level1.id" 
-              :label="level1.CategoryName" 
+            <el-option
+              v-for="level1 in knowledgeCategoryTree"
+              :key="level1.id"
+              :label="level1.CategoryName"
               :value="level1"
             />
           </el-select>
         </el-form-item>
         <el-form-item label="目标章节" v-if="moveTargetSubject">
-          <el-select v-model="moveTargetChapter" placeholder="请选择目标章节" style="width: 100%">
-            <el-option 
-              v-for="level2 in moveTargetSubject.children" 
-              :key="level2.id" 
-              :label="level2.CategoryName" 
-              :value="level2"
+          <el-select v-model="moveTargetChapterId" placeholder="请选择目标章节" style="width: 100%" @change="onChapterChange">
+            <el-option
+              v-for="level2 in moveTargetSubject.children"
+              :key="level2.id"
+              :label="level2.CategoryName"
+              :value="level2.id"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="目标考点" v-if="moveTargetChapterId">
+          <el-select v-model="moveTargetPointId" placeholder="请选择目标考点（可选，不选则移动到章节下）" clearable style="width: 100%">
+            <el-option
+              v-for="level3 in moveTargetChapter?.children || []"
+              :key="level3.id"
+              :label="level3.CategoryName"
+              :value="level3.id"
             />
           </el-select>
         </el-form-item>
@@ -1660,12 +1749,12 @@
 <script setup>
 import { ref, reactive, onMounted, nextTick, computed, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Search, ArrowUp, ArrowDown, Delete, Document, Memo, Link, Edit, InfoFilled, CircleCheck, Plus, UploadFilled, Connection, FolderOpened, MagicStick } from '@element-plus/icons-vue'
+import { Search, ArrowUp, ArrowDown, Delete, Document, Memo, Link, Edit, InfoFilled, CircleCheck, Plus, UploadFilled, Connection, FolderOpened, MagicStick, Refresh } from '@element-plus/icons-vue'
 import { adminApi } from '../api'
 import katex from 'katex'
 import 'katex/dist/katex.min.css'
 
-const activeTab = ref('corrections')
+const activeTab = ref('knowledgeCategories')
 
 // 编辑题目导航
 const activeSection = ref('basic')
@@ -1755,6 +1844,7 @@ const saving = ref(false)
 const linkedKnowledgePoints = ref([])
 const expandedKPs = ref([]) // 展开的考点
 const editBookChapters = ref([]) // 编辑弹窗中的章节列表
+const originalEditForm = ref(null) // 保存原始数据用于比较
 const editForm = reactive({
   questionText: '',
   answerText: '',
@@ -2729,13 +2819,27 @@ const openEditModal = async (questionId) => {
       editForm.answerText = res.data.question.OriginalAnswerText || ''
       editForm.questionType = res.data.question.QuestionType || ''
       editForm.difficulty = res.data.question.Difficulty || 3
-      
+
       // 初始化书籍章节相关信息
       editForm.bookId = res.data.question.LegacyOriginalBookID || ''
       editForm.bookChapter = res.data.question.BookChapter || ''
       editForm.questionPage = res.data.question.QuestionPage || ''
       editForm.questionSort = res.data.question.QuestionSort || ''
       editForm.chapterSort = res.data.question.ChapterSort || ''
+
+      // 保存原始数据用于比较
+      originalEditForm.value = {
+        questionText: editForm.questionText,
+        answerText: editForm.answerText,
+        questionType: editForm.questionType,
+        difficulty: editForm.difficulty,
+        bookId: editForm.bookId,
+        bookChapter: editForm.bookChapter,
+        questionPage: editForm.questionPage,
+        questionSort: editForm.questionSort,
+        chapterSort: editForm.chapterSort,
+        details: JSON.parse(JSON.stringify(res.data.details || []))
+      }
       
       // 如果有关联书籍，加载章节列表
       if (editForm.bookId) {
@@ -2972,30 +3076,71 @@ const saveQuestion = async () => {
     ElMessage.warning('请输入题干')
     return
   }
-  
+
   saving.value = true
   try {
-    const data = {
-      questionText: editForm.questionText,
-      answerText: editForm.answerText,
-      questionType: editForm.questionType,
-      difficulty: editForm.difficulty,
-      bookId: editForm.bookId,
-      bookChapter: editForm.bookChapter,
-      questionPage: editForm.questionPage,
-      questionSort: editForm.questionSort,
-      chapterSort: editForm.chapterSort,
-      details: editForm.details.map(d => ({
-        ID: d.ID,
-        BusType: d.BusType,
-        Title: d.Title,
-        Context: d.Context,
-        Notes: d.Notes,
-        Give: d.Give,
-        LinkedKnowledgePointID: d.LinkedKnowledgePointID ? Number(d.LinkedKnowledgePointID) : null
-      }))
+    const data = {}
+    const original = originalEditForm.value
+
+    // 只收集有变化的字段
+    if (!original || editForm.questionText !== original.questionText) {
+      data.questionText = editForm.questionText
     }
-    
+    if (!original || editForm.answerText !== original.answerText) {
+      data.answerText = editForm.answerText
+    }
+    if (!original || editForm.questionType !== original.questionType) {
+      data.questionType = editForm.questionType
+    }
+    if (!original || editForm.difficulty !== original.difficulty) {
+      data.difficulty = editForm.difficulty
+    }
+    if (!original || editForm.bookId !== original.bookId) {
+      data.bookId = editForm.bookId
+    }
+    if (!original || editForm.bookChapter !== original.bookChapter) {
+      data.bookChapter = editForm.bookChapter
+    }
+    if (!original || editForm.questionPage !== original.questionPage) {
+      data.questionPage = editForm.questionPage
+    }
+    if (!original || editForm.questionSort !== original.questionSort) {
+      data.questionSort = editForm.questionSort
+    }
+    if (!original || editForm.chapterSort !== original.chapterSort) {
+      data.chapterSort = editForm.chapterSort
+    }
+
+    // 比较详情是否有变化
+    const currentDetails = editForm.details.map(d => ({
+      ID: d.ID,
+      BusType: d.BusType,
+      Title: d.Title,
+      Context: d.Context,
+      Notes: d.Notes,
+      Give: d.Give,
+      LinkedKnowledgePointID: d.LinkedKnowledgePointID ? Number(d.LinkedKnowledgePointID) : null
+    }))
+    const originalDetails = (original?.details || []).map(d => ({
+      ID: d.ID,
+      BusType: d.BusType,
+      Title: d.Title,
+      Context: d.Context,
+      Notes: d.Notes,
+      Give: d.Give,
+      LinkedKnowledgePointID: d.LinkedKnowledgePointID ? Number(d.LinkedKnowledgePointID) : null
+    }))
+    if (!original || JSON.stringify(currentDetails) !== JSON.stringify(originalDetails)) {
+      data.details = currentDetails
+    }
+
+    // 如果没有变化，提示用户
+    if (Object.keys(data).length === 0) {
+      ElMessage.info('没有需要保存的更改')
+      saving.value = false
+      return
+    }
+
     await adminApi.updateMathQuestion(selectedQuestion.value.QuestionID, data)
     ElMessage.success('保存成功')
     editModalVisible.value = false
@@ -3204,7 +3349,7 @@ const fetchBookChapters = async (bookId) => {
 const fetchBookAllQuestions = async (bookId) => {
   loadingChapterQuestions.value = true
   try {
-    const res = await adminApi.getMathBookAllQuestions(bookId)
+    const res = await adminApi.getMathBookQuestions(bookId)
     chapterQuestions.value = res.data || []
   } catch (error) {
     console.error('获取书籍题目失败:', error)
@@ -3844,12 +3989,49 @@ const parseImportSourceCode = () => {
 // 考点分类管理
 const knowledgeCategories = ref([])
 const loadingKnowledgeCategories = ref(false)
+const fixingLinks = ref(false)
+const debugInfo = ref('')
 const uncategorizedKPs = ref([])
 const loadingUncategorizedKPs = ref(false)
+const uncategorizedKPsLoaded = ref(false)
 const selectedUncategorizedKPs = ref([])
 const selectedCategoryNode = ref(null)
 const categoryQuestions = ref([])
 const loadingCategoryQuestions = ref(false)
+
+// 弹窗内题目筛选
+const questionFilterSubject = ref('')
+const questionFilterBookType = ref('')
+
+// 筛选后的题目列表
+const filteredCategoryQuestions = computed(() => {
+  return categoryQuestions.value.filter(q => {
+    // 科目筛选
+    if (questionFilterSubject.value && q.SubjectName !== questionFilterSubject.value) {
+      return false
+    }
+    // 书籍类型筛选（根据书籍标题判断）
+    if (questionFilterBookType.value) {
+      const bookTitle = q.BookTitle || ''
+      if (questionFilterBookType.value === 'real' && !bookTitle.includes('真题')) {
+        return false
+      }
+      if (questionFilterBookType.value === 'mock' && !bookTitle.includes('模拟')) {
+        return false
+      }
+      if (questionFilterBookType.value === 'book' && (bookTitle.includes('真题') || bookTitle.includes('模拟'))) {
+        return false
+      }
+    }
+    return true
+  })
+})
+
+// 重置题目筛选
+const resetQuestionFilters = () => {
+  questionFilterSubject.value = ''
+  questionFilterBookType.value = ''
+}
 const addToCategoryModalVisible = ref(false)
 const addingToCategory = ref(false)
 const addToCategoryForm = reactive({
@@ -3867,6 +4049,7 @@ const aiCurrentKPIndex = ref(0)
 const aiClassifyResults = ref([])
 const applyingAIResults = ref(false)
 const knowledgeCategoryModalVisible = ref(false)
+const categoryQuestionsModalVisible = ref(false)
 const movePointModalVisible = ref(false)
 const isEditingKnowledgeCategory = ref(false)
 const addingChild = ref(false)
@@ -3876,11 +4059,44 @@ const movingPointLoading = ref(false)
 const selectedParentCategory = ref('0')
 const movingPoint = ref(null)
 const moveTargetSubject = ref(null)
-const moveTargetChapter = ref(null)
+const moveTargetChapterId = ref(null)
+const moveTargetPointId = ref(null)
+const categoryTreeRef = ref(null)
+
+// 根据ID获取章节对象
+const moveTargetChapter = computed(() => {
+  if (!moveTargetSubject.value || !moveTargetChapterId.value) return null
+  return moveTargetSubject.value.children?.find(c => c.id === moveTargetChapterId.value) || null
+})
+
+// 根据ID获取考点对象
+const moveTargetPoint = computed(() => {
+  if (!moveTargetChapter.value || !moveTargetPointId.value) return null
+  return moveTargetChapter.value.children?.find(c => c.id === moveTargetPointId.value) || null
+})
+
 const treeProps = {
   children: 'children',
   label: 'CategoryName'
 }
+
+// 默认展开前三级
+const defaultExpandedKeys = computed(() => {
+  const keys = []
+  const traverse = (nodes, level = 1) => {
+    if (!nodes || level > 3) return
+    nodes.forEach(node => {
+      if (level < 4) {
+        keys.push(node.id)
+        if (node.children) {
+          traverse(node.children, level + 1)
+        }
+      }
+    })
+  }
+  traverse(knowledgeCategoryTree.value)
+  return keys
+})
 
 const knowledgeCategoryForm = reactive({
   id: null,
@@ -3903,49 +4119,180 @@ const addToCategoryChapters = computed(() => {
   return subject?.children || []
 })
 
-// 过滤掉已分类的考点，只显示未分类的
+const kpSearchKeyword = ref('')
+const kpSearchResults = ref([])
+const isSearchingKP = ref(false)
+
+// 已分类考点搜索
+const categorySearchKeyword = ref('')
+
+// 过滤掉已分类的考点和题目数为0的考点，只显示未分类的
 const uncategorizedKPList = computed(() => {
-  // 获取已分类的考点名称集合
+  if (kpSearchKeyword.value.trim() && kpSearchResults.value.length > 0) {
+    return kpSearchResults.value.filter(kp => kp.QuestionCount > 0)
+  }
   const categorizedNames = new Set(knowledgeCategories.value.map(cat => cat.CategoryName))
-  // 过滤掉已分类的考点
-  return uncategorizedKPs.value.filter(kp => !categorizedNames.has(kp.KPTitle))
+  return uncategorizedKPs.value.filter(kp => !categorizedNames.has(kp.KPTitle) && kp.QuestionCount > 0)
 })
+
+// 搜索考点
+const handleKPSearch = async () => {
+  if (!kpSearchKeyword.value.trim()) {
+    kpSearchResults.value = []
+    return
+  }
+  isSearchingKP.value = true
+  try {
+    const res = await adminApi.searchKnowledgePoints(kpSearchKeyword.value.trim())
+    if (res.code === 0) {
+      kpSearchResults.value = res.data || []
+      if (kpSearchResults.value.length > 0) {
+        const titles = kpSearchResults.value.map(kp => kp.KPTitle)
+        const countsRes = await adminApi.getKnowledgePointQuestionCountsBatch(titles)
+        if (countsRes.code === 0) {
+          kpSearchResults.value.forEach(kp => {
+            kp.QuestionCount = countsRes.data[kp.KPTitle] || 0
+          })
+        }
+      }
+    }
+  } catch (error) {
+    console.error('搜索考点失败:', error)
+  } finally {
+    isSearchingKP.value = false
+  }
+}
+
+// 搜索已分类考点 - 展开并高亮匹配的节点
+const searchCategory = () => {
+  const keyword = categorySearchKeyword.value.trim()
+  if (!keyword) {
+    // 清空搜索，恢复默认展开
+    expandTreeToLevel3()
+    return
+  }
+
+  // 查找匹配的考点
+  const matchedNodes = []
+  const findMatches = (nodes, parentPath = []) => {
+    nodes.forEach(node => {
+      const currentPath = [...parentPath, node]
+      if (node.CategoryName && node.CategoryName.includes(keyword)) {
+        matchedNodes.push({ node, path: currentPath })
+      }
+      if (node.children) {
+        findMatches(node.children, currentPath)
+      }
+    })
+  }
+  findMatches(knowledgeCategoryTree.value)
+
+  if (matchedNodes.length === 0) {
+    ElMessage.info('未找到匹配的考点')
+    return
+  }
+
+  // 展开所有匹配节点的父级
+  nextTick(() => {
+    if (!categoryTreeRef.value) return
+
+    const tree = categoryTreeRef.value
+    // 先折叠所有
+    tree.store._getAllNodes().forEach(node => {
+      node.expanded = false
+    })
+
+    // 展开匹配节点的路径
+    matchedNodes.forEach(({ path }) => {
+      path.forEach((node, index) => {
+        if (index < path.length - 1) { // 不展开最后一级（匹配节点本身）
+          const treeNode = tree.store._getAllNodes().find(n => n.data.id === node.id)
+          if (treeNode) {
+            treeNode.expanded = true
+          }
+        }
+      })
+    })
+
+    // 高亮第一个匹配节点
+    const firstMatch = matchedNodes[0].node
+    tree.setCurrentKey(firstMatch.id)
+
+    ElMessage.success(`找到 ${matchedNodes.length} 个匹配的考点`)
+  })
+}
 
 const knowledgeCategoryTree = computed(() => {
   const categories = knowledgeCategories.value
   const tree = []
-  
+
   const level1Cats = categories.filter(cat => {
     const parts = cat.CategoryCode.split('-')
     return parts.length === 1 && parts[0] !== '0'
   })
-  
+
   level1Cats.forEach(level1 => {
     const node = { ...level1, children: [] }
-    
+    let level1QuestionCount = 0
+
     const level2Cats = categories.filter(cat => {
       const parts = cat.CategoryCode.split('-')
       return parts.length === 2 && parts[0] === level1.CategoryCode
     })
-    
+
     level2Cats.forEach(level2 => {
       const level2Node = { ...level2, children: [] }
-      
+      let level2QuestionCount = 0
+
       const level2Parts = level2.CategoryCode.split('-')
-      
+
       const level3Cats = categories.filter(cat => {
         const parts = cat.CategoryCode.split('-')
         return parts.length === 3 && parts[0] === level1.CategoryCode && parts[1] === level2Parts[1]
       })
-      
-      level2Node.children = level3Cats
+
+      level3Cats.forEach(level3 => {
+        const level3Node = { ...level3, children: [] }
+        let level3QuestionCount = 0
+
+        const level4Cats = categories.filter(cat => {
+          const parts = cat.CategoryCode.split('-')
+          return parts.length === 4 && parts[0] === level1.CategoryCode && parts[1] === level2Parts[1] && parts[2] === level3.CategoryCode.split('-')[2]
+        })
+
+        level4Cats.forEach(level4 => {
+          level3QuestionCount += level4.QuestionCount || 0
+        })
+
+        level3Node.children = level4Cats
+        level3Node.QuestionCount = level3QuestionCount
+        level2Node.children.push(level3Node)
+
+        level2QuestionCount += level3QuestionCount
+      })
+
+      level2Node.QuestionCount = level2QuestionCount
       node.children.push(level2Node)
+
+      level1QuestionCount += level2QuestionCount
     })
-    
+
+    node.QuestionCount = level1QuestionCount
     tree.push(node)
   })
-  
+
   return tree
+})
+
+// 计算总题目数
+const totalCategoryQuestionCount = computed(() => {
+  return knowledgeCategories.value.reduce((sum, cat) => {
+    const parts = cat.CategoryCode.split('-')
+    if (parts.length === 4) {
+      return sum + (cat.QuestionCount || 0)
+    }
+    return sum
+  }, 0)
 })
 
 const fetchKnowledgeCategories = async () => {
@@ -3953,6 +4300,15 @@ const fetchKnowledgeCategories = async () => {
   try {
     const res = await adminApi.getMathKnowledgeCategories()
     knowledgeCategories.value = [...(res.data || [])]
+
+    // 使用 requestIdleCallback 在空闲时展开，避免阻塞
+    if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+      requestIdleCallback(() => {
+        expandTreeToLevel3()
+      }, { timeout: 500 })
+    } else {
+      setTimeout(expandTreeToLevel3, 50)
+    }
   } catch (error) {
     console.error('获取考点分类失败:', error)
     ElMessage.error('获取考点分类失败')
@@ -3961,12 +4317,111 @@ const fetchKnowledgeCategories = async () => {
   }
 }
 
+// 展开树到前三级
+const expandTreeToLevel3 = () => {
+  nextTick(() => {
+    if (!categoryTreeRef.value) return
+    
+    const tree = categoryTreeRef.value
+    // 默认全部折叠
+    tree.store._getAllNodes().forEach(node => {
+      node.expanded = false
+    })
+  })
+}
+
+const refreshKnowledgeCategoriesCount = async () => {
+  loadingKnowledgeCategories.value = true
+  try {
+    const res = await adminApi.getMathKnowledgeCategories()
+    knowledgeCategories.value = [...(res.data || [])]
+
+    const level4Categories = knowledgeCategories.value.filter(cat => {
+      const level = cat.CategoryCode?.split('-').length || 0
+      return level === 4
+    })
+
+    if (level4Categories.length > 0) {
+      const batchSize = 20
+      for (let i = 0; i < level4Categories.length; i += batchSize) {
+        const batch = level4Categories.slice(i, i + batchSize)
+        const kpTitles = batch.map(cat => cat.CategoryName)
+
+        try {
+          const countRes = await adminApi.getKnowledgePointQuestionCountsBatch(kpTitles)
+          const counts = countRes.data || {}
+
+          for (const cat of batch) {
+            cat.QuestionCount = counts[cat.CategoryName] || 0
+            try {
+              await adminApi.updateKnowledgeCategory(cat.id, { QuestionCount: cat.QuestionCount })
+            } catch (err) {
+              console.error(`保存题目数量失败 [${cat.CategoryCode}]:`, err)
+            }
+          }
+        } catch (err) {
+          console.error('获取题目数量失败:', err)
+        }
+      }
+
+      knowledgeCategories.value.forEach(category => {
+        const categoryCode = category.CategoryCode
+        const level = categoryCode?.split('-').length || 0
+
+        if (level < 4) {
+          let totalCount = 0
+          knowledgeCategories.value.forEach(child => {
+            const childCode = child.CategoryCode
+            if (childCode?.startsWith(categoryCode + '-') && childCode !== categoryCode) {
+              totalCount += child.QuestionCount || 0
+            }
+          })
+          category.QuestionCount = totalCount
+        }
+      })
+    }
+    ElMessage.success('题目数量已刷新并保存')
+  } catch (error) {
+    console.error('刷新题目数量失败:', error)
+    ElMessage.error('刷新题目数量失败')
+  } finally {
+    loadingKnowledgeCategories.value = false
+  }
+}
+
+// 加载未分类考点（点击加载按钮时调用）
+const loadUncategorizedKPs = async () => {
+  uncategorizedKPsLoaded.value = true
+  await fetchAllKnowledgePoints()
+}
+
 // 获取所有未分类考点
 const fetchAllKnowledgePoints = async () => {
   loadingUncategorizedKPs.value = true
   try {
     const res = await adminApi.getAllMathKnowledgePoints()
     uncategorizedKPs.value = res.data || []
+
+    // 分批获取题目数量
+    if (uncategorizedKPs.value.length > 0) {
+      const batchSize = 20
+      for (let i = 0; i < uncategorizedKPs.value.length; i += batchSize) {
+        const batch = uncategorizedKPs.value.slice(i, i + batchSize)
+        const kpTitles = batch.map(kp => kp.KPTitle)
+
+        try {
+          const countRes = await adminApi.getKnowledgePointQuestionCountsBatch(kpTitles)
+          const counts = countRes.data || {}
+
+          // 更新考点的题目数量
+          batch.forEach(kp => {
+            kp.QuestionCount = counts[kp.KPTitle] || 0
+          })
+        } catch (err) {
+          console.error('获取未分类考点题目数量失败:', err)
+        }
+      }
+    }
   } catch (error) {
     console.error('获取未分类考点失败:', error)
     ElMessage.error('获取未分类考点失败')
@@ -3975,9 +4430,56 @@ const fetchAllKnowledgePoints = async () => {
   }
 }
 
+// 修复题目考点关联
+const fixKnowledgePointLinks = async () => {
+  fixingLinks.value = true
+  debugInfo.value = '正在分析数据...'
+  try {
+    // 先预览
+    const previewRes = await adminApi.fixMathKnowledgePointLinks(true)
+    const previewData = previewRes.data
+    
+    debugInfo.value = `总题目详情数: ${previewData.totalDetails}\n可修复记录: ${previewData.matchedCount}\n示例: ${JSON.stringify(previewData.fixes?.slice(0, 3), null, 2)}`
+    
+    if (previewData.matchedCount === 0) {
+      ElMessage.info('没有找到需要修复的关联，请检查调试信息')
+      fixingLinks.value = false
+      return
+    }
+    
+    // 确认修复
+    const confirm = await ElMessageBox.confirm(
+      `找到 ${previewData.matchedCount} 条可修复的记录，是否执行修复？`,
+      '确认修复',
+      {
+        confirmButtonText: '执行修复',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }
+    )
+    
+    if (confirm) {
+      const res = await adminApi.fixMathKnowledgePointLinks(false)
+      ElMessage.success(`成功修复 ${res.data.fixedCount} 条记录`)
+      debugInfo.value += `\n\n已修复: ${res.data.fixedCount} 条`
+      // 刷新分类数据
+      await fetchKnowledgeCategories()
+    }
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('修复题目考点关联失败:', error)
+      ElMessage.error('修复失败: ' + (error.message || '未知错误'))
+      debugInfo.value = '错误: ' + (error.message || '未知错误')
+    }
+  } finally {
+    fixingLinks.value = false
+  }
+}
+
 // 处理分类节点点击
 const handleCategoryNodeClick = (data) => {
   selectedCategoryNode.value = data
+  categoryQuestionsModalVisible.value = true
   fetchCategoryQuestions()
 }
 
@@ -3994,6 +4496,39 @@ const fetchCategoryQuestions = async () => {
     ElMessage.error('获取分类题目失败')
   } finally {
     loadingCategoryQuestions.value = false
+  }
+}
+
+// 查看题目详情
+const viewQuestionDetail = async (question) => {
+  try {
+    const res = await adminApi.getMathQuestionDetail(question.QuestionID)
+    if (res.code === 0) {
+      selectedQuestion.value = res.data.question
+
+      editForm.questionText = res.data.question.QuestionText || ''
+      editForm.answerText = res.data.question.OriginalAnswerText || ''
+      editForm.questionType = res.data.question.QuestionType || ''
+      editForm.difficulty = res.data.question.Difficulty || 3
+      editForm.bookId = res.data.question.LegacyOriginalBookID || ''
+      editForm.bookChapter = res.data.question.BookChapter || ''
+      editForm.questionPage = res.data.question.QuestionPage || ''
+      editForm.questionSort = res.data.question.QuestionSort || ''
+      editForm.chapterSort = res.data.question.ChapterSort || ''
+      editForm.details = (res.data.details || []).map(d => ({
+        ...d,
+        _expanded: false,
+        _tmpId: d.ID || Date.now() + Math.random()
+      }))
+      linkedKnowledgePoints.value = res.data.knowledgePoints || []
+
+      editModalVisible.value = true
+    } else {
+      ElMessage.error('获取题目详情失败')
+    }
+  } catch (error) {
+    console.error('获取题目详情失败:', error)
+    ElMessage.error('获取题目详情失败')
   }
 }
 
@@ -4099,7 +4634,7 @@ const confirmAddToCategory = async () => {
       }
       
       // 创建新的考点分类
-      await adminApi.createMathKnowledgeCategory({
+      await adminApi.createKnowledgeCategory({
         CategoryCode: newCategoryCode,
         CategoryName: kp.KPTitle,
         Description: kp.KPContent || '',
@@ -4307,18 +4842,19 @@ const applyAIClassifyResults = async () => {
       }
       
       // 创建新的考点分类
-      await adminApi.createMathKnowledgeCategory({
+      await adminApi.createKnowledgeCategory({
         CategoryCode: newCategoryCode,
         CategoryName: result.kpTitle,
-        Description: result.kpContent || '',
+        Description: '具体考点',
         SortOrder: 0,
         IsActive: 1
       })
-      
+
       // 添加到本地列表
       knowledgeCategories.value.push({
         CategoryCode: newCategoryCode,
-        CategoryName: result.kpTitle
+        CategoryName: result.kpTitle,
+        Description: '具体考点'
       })
       
       successCount++
@@ -4330,12 +4866,14 @@ const applyAIClassifyResults = async () => {
   
   applyingAIResults.value = false
   aiAutoClassifyModalVisible.value = false
-  
+
   // 刷新数据
   await fetchKnowledgeCategories()
   await fetchAllKnowledgePoints()
   selectedUncategorizedKPs.value = []
-  
+  kpSearchKeyword.value = ''
+  kpSearchResults.value = []
+
   ElMessage.success(`分类完成: 成功 ${successCount} 个, 失败 ${failCount} 个`)
 }
 
@@ -4344,17 +4882,17 @@ const openCreateSubjectModal = () => {
   addingChild.value = false
   addingSubject.value = true
   selectedParentCategory.value = '0'
-  
+
   const maxId = Math.max(0, ...knowledgeCategories.value
     .filter(c => c.CategoryCode.split('-').length === 1)
     .map(c => parseInt(c.CategoryCode) || 0)
   )
-  
+
   Object.assign(knowledgeCategoryForm, {
     id: null,
     CategoryCode: String(maxId + 1),
     CategoryName: '',
-    Description: '',
+    Description: '科目分类',
     SortOrder: 0,
     IsActive: 1
   })
@@ -4382,30 +4920,40 @@ const openAddChildCategoryModal = (parent) => {
   addingChild.value = true
   addingSubject.value = false
   selectedParentCategory.value = parent.CategoryCode
-  
+
   let newCode = ''
+  let description = ''
   const parentLevel = getCategoryLevel(parent)
   const parts = parent.CategoryCode.split('-')
-  
+
   if (parentLevel === 1) {
     const maxId = Math.max(0, ...knowledgeCategories.value
       .filter(c => c.CategoryCode.startsWith(parent.CategoryCode + '-') && c.CategoryCode.split('-').length === 2)
       .map(c => parseInt(c.CategoryCode.split('-')[1]) || 0)
     )
     newCode = `${parent.CategoryCode}-${maxId + 1}`
+    description = '章节'
   } else if (parentLevel === 2) {
     const maxId = Math.max(0, ...knowledgeCategories.value
       .filter(c => c.CategoryCode.startsWith(parent.CategoryCode + '-') && c.CategoryCode.split('-').length === 3)
       .map(c => parseInt(c.CategoryCode.split('-')[2]) || 0)
     )
     newCode = `${parent.CategoryCode}-${maxId + 1}`
+    description = '考点分类'
+  } else if (parentLevel === 3) {
+    const maxId = Math.max(0, ...knowledgeCategories.value
+      .filter(c => c.CategoryCode.startsWith(parent.CategoryCode + '-') && c.CategoryCode.split('-').length === 4)
+      .map(c => parseInt(c.CategoryCode.split('-')[3]) || 0)
+    )
+    newCode = `${parent.CategoryCode}-${String(maxId + 1).padStart(3, '0')}`
+    description = '具体考点'
   }
-  
+
   Object.assign(knowledgeCategoryForm, {
     id: null,
     CategoryCode: newCode,
     CategoryName: '',
-    Description: '',
+    Description: description,
     SortOrder: 0,
     IsActive: 1
   })
@@ -4430,12 +4978,18 @@ const openEditKnowledgeCategoryModal = (row) => {
 const openMovePointModal = (point) => {
   movingPoint.value = point
   moveTargetSubject.value = null
-  moveTargetChapter.value = null
+  moveTargetChapterId.value = null
+  moveTargetPointId.value = null
   movePointModalVisible.value = true
 }
 
 const onSubjectChange = () => {
-  moveTargetChapter.value = null
+  moveTargetChapterId.value = null
+  moveTargetPointId.value = null
+}
+
+const onChapterChange = () => {
+  moveTargetPointId.value = null
 }
 
 const confirmMovePoint = async () => {
@@ -4443,25 +4997,41 @@ const confirmMovePoint = async () => {
     ElMessage.warning('请选择目标科目和章节')
     return
   }
-  
+
   movingPointLoading.value = true
   try {
-    const parts = movingPoint.value.CategoryCode.split('-')
-    const pointId = parts[2]
-    const newCode = `${moveTargetChapter.value.CategoryCode}-${pointId}`
-    
-    await adminApi.updateMathKnowledgeCategory(movingPoint.value.id, {
+    const currentLevel = getCategoryLevel(movingPoint.value)
+    // 确定目标父级：如果选择了目标考点，则使用目标考点，否则使用目标章节
+    const targetParent = moveTargetPoint.value || moveTargetChapter.value
+    const targetParentLevel = getCategoryLevel(targetParent)
+
+    let newCode
+    if (currentLevel === 4) {
+      // 4级移动：保持4级结构
+      const parts = movingPoint.value.CategoryCode.split('-')
+      const pointId = parts[3] || parts[2]
+      newCode = `${targetParent.CategoryCode}-${pointId}`
+    } else {
+      // 3级移动：在目标父级下创建新的子级
+      const existingCodes = knowledgeCategories.value
+        .filter(c => c.CategoryCode.startsWith(targetParent.CategoryCode + '-'))
+        .map(c => parseInt(c.CategoryCode.split('-').pop()) || 0)
+      const maxCode = Math.max(0, ...existingCodes)
+      newCode = `${targetParent.CategoryCode}-${maxCode + 1}`
+    }
+
+    await adminApi.updateKnowledgeCategory(movingPoint.value.id, {
       CategoryCode: newCode,
       CategoryName: movingPoint.value.CategoryName,
       Description: movingPoint.value.Description,
       SortOrder: movingPoint.value.SortOrder,
       IsActive: movingPoint.value.IsActive
     })
-    
+
     ElMessage.success('移动成功')
     movePointModalVisible.value = false
     await fetchKnowledgeCategories()
-    
+
   } catch (error) {
     console.error('移动失败:', error)
     ElMessage.error('移动失败')
@@ -4479,10 +5049,10 @@ const saveKnowledgeCategory = async () => {
   savingKnowledgeCategory.value = true
   try {
     if (isEditingKnowledgeCategory.value) {
-      await adminApi.updateMathKnowledgeCategory(knowledgeCategoryForm.id, knowledgeCategoryForm)
+      await adminApi.updateKnowledgeCategory(knowledgeCategoryForm.id, knowledgeCategoryForm)
       ElMessage.success('更新成功')
     } else {
-      await adminApi.createMathKnowledgeCategory(knowledgeCategoryForm)
+      await adminApi.createKnowledgeCategory(knowledgeCategoryForm)
       ElMessage.success('创建成功')
     }
     knowledgeCategoryModalVisible.value = false
@@ -4519,7 +5089,7 @@ onMounted(() => {
   searchQuestions()
   fetchBooks()
   fetchKnowledgeCategories()
-  fetchAllKnowledgePoints()
+  // 未分类考点改为点击加载，不在初始化时自动加载
 })
 </script>
 

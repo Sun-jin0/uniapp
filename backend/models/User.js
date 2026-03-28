@@ -151,10 +151,207 @@ class User {
     return {
       ...user,
       _id: user.id, // 保持兼容性
+      paperLimitDaily: user.paper_limit_daily || 1,
+      paperMaxQuestions: user.paper_max_questions || 22,
+      paperUsedToday: user.paper_used_today || 0,
+      paperLastDate: user.paper_last_date,
+      isSuperAdmin: user.is_super_admin === 1,
       comparePassword: async (candidatePassword) => {
         return candidatePassword === user.password;
       }
     };
+  }
+
+  // 检查用户组卷权限（只限制题目数量，不限制次数）
+  // role: 0=普通用户, 1=超级管理员, 2,3,4...=其他管理员
+  static async checkPaperPermission(userId) {
+    const user = await this.findById(userId);
+    if (!user) {
+      return { allowed: false, message: '用户不存在' };
+    }
+
+    const role = user.role || 0;
+
+    // 超级管理员(role=1)不受限制
+    if (role === 1) {
+      return { 
+        allowed: true, 
+        role: role,
+        maxQuestions: null  // null 表示无限制
+      };
+    }
+
+    const maxQuestions = user.paper_max_questions !== null ? user.paper_max_questions : 22;
+
+    return { 
+      allowed: true, 
+      role: role,
+      maxQuestions: maxQuestions === -1 ? null : maxQuestions  // -1 也表示无限制
+    };
+  }
+
+  // 检查用户打印权限（每日限制）
+  static async checkPrintPermission(userId) {
+    const user = await this.findById(userId);
+    if (!user) {
+      return { allowed: false, message: '用户不存在' };
+    }
+
+    const role = user.role || 0;
+
+    // 超级管理员(role=1)不受限制
+    if (role === 1) {
+      return { 
+        allowed: true, 
+        role: role,
+        limit: null,
+        used: 0,
+        remaining: null
+      };
+    }
+
+    const today = new Date().toISOString().split('T')[0];
+    
+    // 如果不是今天，重置计数
+    if (user.print_last_date !== today) {
+      await pool.query(
+        'UPDATE users SET print_used_today = 0, print_last_date = ? WHERE id = ?',
+        [today, userId]
+      );
+      user.print_used_today = 0;
+    }
+
+    const limit = user.print_limit_daily !== null ? user.print_limit_daily : 1;
+    const used = user.print_used_today || 0;
+    
+    // -1 表示无限制
+    if (limit === -1) {
+      return { 
+        allowed: true, 
+        role: role,
+        limit: null,
+        used,
+        remaining: null
+      };
+    }
+
+    const remaining = limit - used;
+
+    if (remaining <= 0) {
+      return { 
+        allowed: false, 
+        message: `今日打印次数已用完（每日限制${limit}次）`,
+        role: role,
+        limit,
+        used,
+        remaining: 0
+      };
+    }
+
+    return { 
+      allowed: true, 
+      role: role,
+      limit,
+      used,
+      remaining
+    };
+  }
+
+  // 增加用户今日打印次数
+  static async incrementPrintCount(userId) {
+    const today = new Date().toISOString().split('T')[0];
+    await pool.query(
+      'UPDATE users SET print_used_today = print_used_today + 1, print_last_date = ? WHERE id = ?',
+      [today, userId]
+    );
+  }
+
+  // 检查用户打印解析权限（总次数限制）
+  static async checkPrintAnalysisPermission(userId) {
+    const user = await this.findById(userId);
+    if (!user) {
+      return { allowed: false, message: '用户不存在' };
+    }
+
+    const role = user.role || 0;
+
+    // 超级管理员(role=1)不受限制
+    if (role === 1) {
+      return { 
+        allowed: true, 
+        role: role,
+        limit: null,
+        used: 0,
+        remaining: null
+      };
+    }
+
+    const limit = user.print_analysis_limit !== null ? user.print_analysis_limit : 1;
+    const used = user.print_analysis_used || 0;
+    
+    // -1 表示无限制
+    if (limit === -1) {
+      return { 
+        allowed: true, 
+        role: role,
+        limit: null,
+        used,
+        remaining: null
+      };
+    }
+
+    const remaining = limit - used;
+
+    if (remaining <= 0) {
+      return { 
+        allowed: false, 
+        message: `打印解析次数已用完（共限制${limit}次）`,
+        role: role,
+        limit,
+        used,
+        remaining: 0
+      };
+    }
+
+    return { 
+      allowed: true, 
+      role: role,
+      limit,
+      used,
+      remaining
+    };
+  }
+
+  // 增加用户打印解析次数
+  static async incrementPrintAnalysisCount(userId) {
+    await pool.query(
+      'UPDATE users SET print_analysis_used = print_analysis_used + 1 WHERE id = ?',
+      [userId]
+    );
+  }
+
+  // 更新用户限制设置（管理员使用）
+  static async updateUserLimits(userId, { paperMaxQuestions, printLimitDaily, printAnalysisLimit }) {
+    const fields = [];
+    const params = [];
+    
+    if (paperMaxQuestions !== undefined) {
+      fields.push('paper_max_questions = ?');
+      params.push(paperMaxQuestions);
+    }
+    if (printLimitDaily !== undefined) {
+      fields.push('print_limit_daily = ?');
+      params.push(printLimitDaily);
+    }
+    if (printAnalysisLimit !== undefined) {
+      fields.push('print_analysis_limit = ?');
+      params.push(printAnalysisLimit);
+    }
+    
+    if (fields.length === 0) return;
+    
+    params.push(userId);
+    await pool.query(`UPDATE users SET ${fields.join(', ')} WHERE id = ?`, params);
   }
 }
 

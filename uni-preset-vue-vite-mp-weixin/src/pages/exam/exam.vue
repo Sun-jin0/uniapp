@@ -103,11 +103,12 @@
         <text class="empty-text">暂无相关资料</text>
       </view>
     </scroll-view>
+
   </view>
 </template>
 
 <script setup>
-import { ref, onMounted, getCurrentInstance, onUnmounted, computed } from 'vue';
+import { ref, computed, onMounted, getCurrentInstance, onUnmounted } from 'vue';
 
 const { proxy } = getCurrentInstance();
 const $api = proxy?.$api;
@@ -280,7 +281,7 @@ const goToDetail = (item) => {
     // #ifdef H5
     window.location.href = item.linkUrl;
     // #endif
-    
+
     // #ifndef H5
     uni.navigateTo({
       url: `/pages/webview/webview?url=${encodeURIComponent(item.linkUrl || '')}&title=${encodeURIComponent(item.title || '')}`

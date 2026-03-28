@@ -21,6 +21,7 @@ router.post('/math/questions/batch', mathController.getQuestionsBatch);
 
 // 考点刷题相关（简化版）- 必须放在 /math/questions/:questionId 之前
 router.get('/math/knowledge-categories', mathController.getKnowledgeCategories);
+router.get('/math/knowledge-point-level4', mathController.getKnowledgePointLevel4);
 router.get('/math/questions/count-by-knowledge-point', mathController.getQuestionCountByKnowledgePoint);
 router.get('/math/questions/by-knowledge-point', mathController.getQuestionsByKnowledgePoint);
 
@@ -47,6 +48,13 @@ router.post('/math/bookshelf/batch-add', auth, mathController.batchAddToBookshel
 router.post('/math/bookshelf/remove', auth, mathController.removeFromBookshelf);
 
 // 智能组卷相关
+router.get('/math/paper-permission', auth, mathController.getUserPaperPermission);
+router.get('/math/print-permission', auth, mathController.getUserPrintPermission);
+router.post('/math/generate-print-link', auth, mathController.generatePrintLink);
+router.get('/math/verify-print-link', mathController.verifyPrintLink);
+router.post('/math/paper/:paperId/share-code', auth, mathController.getOrGeneratePaperCode);
+router.get('/math/paper-by-code/:code', mathController.getPaperByCode);
+router.post('/math/claim-paper/:code', auth, mathController.claimPaperByCode);
 router.post('/math/smart-paper/generate', auth, mathController.generateSmartPaper);
 router.get('/math/smart-papers', auth, mathController.getUserGeneratedPapers);
 router.get('/math/smart-paper/:paperId', auth, mathController.getGeneratedPaper);

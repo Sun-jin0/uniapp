@@ -19,6 +19,7 @@
   "license": "ISC",
   "dependencies": {
     "@aws-sdk/client-s3": "^3.450.0",
+    "@n-teddy/md-pdf": "^0.2.0",
     "@wangeditor/editor": "^5.1.23",
     "@wangeditor/editor-for-vue": "^5.1.12",
     "axios": "^1.13.2",

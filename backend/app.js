@@ -65,6 +65,10 @@ app.use('/admin-panel', express.static(path.join(__dirname, 'public/admin')));
 // 测试页面
 app.use('/test-upload.html', express.static(path.join(__dirname, 'public/test-upload.html')));
 app.use('/test-image-manage.html', express.static(path.join(__dirname, 'public/test-image-manage.html')));
+app.use('/test-pdf-export.html', express.static(path.join(__dirname, 'public/test-pdf-export.html')));
+
+// PDF 导出路由
+app.use('/api/pdf', require('./routes/pdfRoutes'));
 
 app.use(notFound);
 app.use(errorHandler);

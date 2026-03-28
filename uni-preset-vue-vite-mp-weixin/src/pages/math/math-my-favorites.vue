@@ -7,26 +7,26 @@
           <view 
             class="category-tab" 
             :class="{ active: currentCategoryId === null }"
-            @click="selectCategory(null)"
+            @tap="selectCategory(null)"
           >全部</view>
           <view 
             class="category-tab" 
             v-for="cat in categories" 
             :key="cat.CategoryID"
             :class="{ active: currentCategoryId === cat.CategoryID }"
-            @click="selectCategory(cat.CategoryID)"
+            @tap="selectCategory(cat.CategoryID)"
           >
             <text>{{ cat.Title }}</text>
-            <view class="remove-tag" @click.stop="confirmDeleteCategory(cat)">✕</view>
+            <view class="remove-tag" @tap.stop="confirmDeleteCategory(cat)">✕</view>
           </view>
-          <view class="add-category-tab" @click="showAddCategoryModal = true">＋</view>
+          <view class="add-category-tab" @tap="showAddCategoryModal = true">＋</view>
         </view>
       </scroll-view>
     </view>
 
     <!-- 添加分类弹窗 -->
-    <view class="modal-overlay" v-if="showAddCategoryModal" @click="showAddCategoryModal = false">
-      <view class="modal-content" @click.stop>
+    <view class="modal-overlay" v-if="showAddCategoryModal" @tap="showAddCategoryModal = false">
+      <view class="modal-content" @tap.stop>
         <view class="modal-header">
           <text class="modal-title">新建收藏分类</text>
         </view>
@@ -40,8 +40,8 @@
           />
         </view>
         <view class="modal-footer">
-          <button class="modal-btn cancel" @click="showAddCategoryModal = false">取消</button>
-          <button class="modal-btn confirm" @click="handleAddCategory">确认</button>
+          <button class="modal-btn cancel" @tap="showAddCategoryModal = false">取消</button>
+          <button class="modal-btn confirm" @tap="handleAddCategory">确认</button>
         </view>
       </view>
     </view>
@@ -50,7 +50,7 @@
       <section class="favorites-section">
         <div class="favorites-list" v-if="favorites.length > 0">
           <div v-for="(group, bookTitle) in groupedFavorites" :key="bookTitle" class="favorite-group">
-            <div class="group-header" @click="toggleGroup(bookTitle)">
+            <div class="group-header" @tap="toggleGroup(bookTitle)">
               <div class="group-icon">
                 <SvgIcon name="books" size="24" fill="#666" />
               </div>
@@ -62,25 +62,28 @@
                 </div>
               </div>
             </div>
-            <div v-show="!collapsedGroups[bookTitle]">
-              <div v-for="item in group" :key="item.FavoriteID" class="favorite-item" @click="goToQuestion(item.QuestionID)">
-                <div class="remove-fav-btn" @click.stop="removeFromFavorites(item.QuestionID)">
-                  <SvgIcon name="close" size="24" fill="#ccc" />
-                </div>
-                <div class="fav-header">
-                  <span class="fav-kptitle" v-if="item.KPTitle">{{ item.KPTitle }}</span>
-                  <span class="fav-id">ID: {{ item.QuestionID }}</span>
-                </div>
+            <!-- 瀑布流题目网格 -->
+            <div v-if="!collapsedGroups[bookTitle]" class="fav-grid">
+              <div 
+                v-for="(item, idx) in group" 
+                :key="item.FavoriteID" 
+                class="fav-item" 
+                @tap="goToQuestion(item.QuestionID)"
+              >
                 <!-- #ifdef H5 -->
-                <div class="fav-preview latex-content" v-html="item.QuestionText"></div>
+                <img v-if="item.QuestionImg" :src="item.QuestionImg" class="fav-thumb" mode="widthFix" />
+                <div v-else class="fav-no-thumb">
+                  <span class="fav-type-tag">{{ item.QuestionType || '题' }}</span>
+                </div>
                 <!-- #endif -->
                 <!-- #ifdef MP-WEIXIN -->
-                <towxml class="fav-preview" :nodes="favoritesNodesCache[item.FavoriteID] || {}"></towxml>
+                <image v-if="item.QuestionImg" :src="item.QuestionImg" class="fav-thumb" mode="widthFix" />
+                <view v-else class="fav-no-thumb">
+                  <text class="fav-type-tag">{{ item.QuestionType || '题' }}</text>
+                </view>
                 <!-- #endif -->
-                <div class="fav-footer">
-                  <span class="fav-source" v-if="item.Source">{{ item.Source }}</span>
-                  <span class="fav-time">{{ formatDate(item.CreatedAt) }}</span>
-                </div>
+                <view class="fav-number">{{ idx + 1 }}</view>
+                <view class="fav-remove" @tap.stop="removeFromFavorites(item.QuestionID)">✕</view>
               </div>
             </div>
           </div>
@@ -136,7 +139,15 @@ watch(favorites, () => {
 // #endif
 
 const toggleGroup = (bookTitle) => {
-  collapsedGroups.value[bookTitle] = !collapsedGroups.value[bookTitle];
+  console.log('toggleGroup called:', bookTitle);
+  console.log('current state:', collapsedGroups.value);
+  // 使用新对象触发响应式更新（兼容小程序）
+  const newState = {
+    ...collapsedGroups.value,
+    [bookTitle]: !collapsedGroups.value[bookTitle]
+  };
+  console.log('new state:', newState);
+  collapsedGroups.value = newState;
 };
 
 const fetchCategories = async () => {
@@ -224,6 +235,12 @@ const fetchFavorites = async () => {
     });
     favorites.value = res.data || [];
     
+    // 调试：检查第一个收藏题目的 QuestionImg
+    if (favorites.value.length > 0) {
+      console.log('第一个收藏题目:', favorites.value[0]);
+      console.log('QuestionImg:', favorites.value[0].QuestionImg);
+    }
+    
     // 默认折叠所有组
     const groups = {};
     favorites.value.forEach(item => {
@@ -282,6 +299,61 @@ const groupedFavorites = computed(() => {
   });
   return groups;
 });
+
+// 从题目文本中提取图片 URL
+const extractQuestionImage = (questionText) => {
+  if (!questionText) return null;
+  
+  // 匹配 Markdown 格式图片 ![alt](url)
+  const mdImgMatch = questionText.match(/!\[([^\]]*)\]\((https?:\/\/[^\s)]+)\)/);
+  if (mdImgMatch) {
+    let url = mdImgMatch[2];
+    // 移除 _yjs 等后缀
+    url = url.replace(/(_yjs|_thumb|_small|_medium|_large)(\?.*)?$/i, '');
+    return url;
+  }
+  
+  // 匹配 HTML img 标签 <img src="url">
+  const imgMatch = questionText.match(/<img[^>]+src=["'](https?:\/\/[^"']+)["']/i);
+  if (imgMatch) {
+    let url = imgMatch[1];
+    url = url.replace(/(_yjs|_thumb|_small|_medium|_large)(\?.*)?$/i, '');
+    return url;
+  }
+  
+  // 匹配裸图片 URL
+  const urlMatch = questionText.match(/(https?:\/\/[^\s<>"]+\.(?:png|jpg|jpeg|gif|webp|svg|bmp))/i);
+  if (urlMatch) {
+    let url = urlMatch[1];
+    url = url.replace(/(_yjs|_thumb|_small|_medium|_large)(\?.*)?$/i, '');
+    return url;
+  }
+  
+  return null;
+};
+
+// 获取文本预览（移除图片标签，截取前 100 字符）
+const getTextPreview = (questionText) => {
+  if (!questionText) return '(无内容)';
+  
+  // 移除 Markdown 图片标签
+  let text = questionText.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '');
+  // 移除 HTML img 标签
+  text = text.replace(/<img[^>]+>/gi, '');
+  // 移除其他 HTML 标签
+  text = text.replace(/<[^>]+>/g, '');
+  // 移除 LaTeX 公式（简化处理）
+  text = text.replace(/\$[^$]+\$/g, '');
+  // 清理多余空格
+  text = text.replace(/\s+/g, ' ').trim();
+  
+  // 截取前 100 字符
+  if (text.length > 100) {
+    text = text.substring(0, 100) + '...';
+  }
+  
+  return text || '(无文本内容)';
+};
 
 const renderLaTeX = () => {
   // #ifdef H5
@@ -528,7 +600,7 @@ onMounted(() => {
 }
 
 .main-content {
-  padding: 20rpx 24rpx;
+  padding: 20rpx 24rpx 140rpx 24rpx;
 }
 
 .favorite-group {
@@ -538,14 +610,16 @@ onMounted(() => {
 .group-header {
   display: flex;
   align-items: center;
-  padding: 16rpx 8rpx;
+  padding: 24rpx 16rpx;
   cursor: pointer;
   transition: background 0.2s;
   border-radius: 12rpx;
+  background: #fff;
+  margin-bottom: 8rpx;
 }
 
 .group-header:active {
-  background: rgba(0, 0, 0, 0.03);
+  background: rgba(77, 182, 172, 0.1);
 }
 
 .group-icon {
@@ -593,95 +667,197 @@ onMounted(() => {
   transform: rotate(-90deg);
 }
 
-.favorite-item {
+/* 树形结构题目列表 */
+.fav-tree-list {
+  margin-top: 16rpx;
+  padding-left: 60rpx;
+  padding-bottom: 40rpx;
+}
+
+.fav-tree-item {
+  display: flex;
+  align-items: center;
+  gap: 20rpx;
+  padding: 20rpx;
   background: #fff;
   border-radius: 16rpx;
-  padding: 24rpx;
   margin-bottom: 16rpx;
+  border: 1rpx solid #e8e8e8;
+  transition: all 0.2s;
+}
+
+.fav-tree-item:active {
+  background: #f5f7fa;
+  border-color: #4db6ac;
+}
+
+/* 题图 */
+.fav-tree-thumb {
+  width: 200rpx;
+  height: 150rpx;
+  object-fit: cover;
+  border-radius: 12rpx;
+  flex-shrink: 0;
+}
+
+.fav-tree-no-thumb {
+  width: 200rpx;
+  height: 150rpx;
+  background: #f5f7fa;
+  border-radius: 12rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.fav-tree-type-tag {
+  font-size: 24rpx;
+  color: #4db6ac;
+  font-weight: 500;
+}
+
+.fav-tree-info-wrap {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+  flex: 1;
+  min-width: 0;
+}
+
+.fav-tree-number {
+  width: 40rpx;
+  height: 40rpx;
+  background: linear-gradient(135deg, #4db6ac, #26a69a);
+  color: #fff;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22rpx;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.fav-tree-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4rpx;
+  flex: 1;
+  min-width: 0;
+}
+
+.fav-tree-type {
+  font-size: 26rpx;
+  color: #333;
+  font-weight: 500;
+}
+
+.fav-tree-chapter {
+  font-size: 20rpx;
+  color: #999;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fav-tree-remove {
+  width: 44rpx;
+  height: 44rpx;
+  background: #f5f5f5;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #999;
+  font-size: 22rpx;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+
+.fav-tree-remove:active {
+  background: #ffebee;
+  color: #e74c3c;
+}
+
+/* 收藏题目网格布局 - 参考 math-smart-paper-config */
+.fav-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 20rpx;
+  margin-top: 16rpx;
+  padding-left: 60rpx;
+  padding-bottom: 40rpx;
+}
+
+.fav-item {
+  background: #fff;
+  border-radius: 16rpx;
+  border: 2rpx solid #f0f0f0;
+  box-shadow: 0 4rpx 12rpx rgba(0,0,0,0.06);
+  transition: all 0.2s;
   position: relative;
-  box-shadow: 0 2rpx 12rpx rgba(0, 0, 0, 0.04);
-  border: 1rpx solid #f0f0f0;
-  transition: all 0.2s ease;
+  overflow: hidden;
 }
 
-.favorite-item:active {
-  transform: scale(0.99);
-  box-shadow: 0 1rpx 6rpx rgba(0, 0, 0, 0.06);
+.fav-item:active {
+  transform: scale(0.98);
+  border-color: #e74c3c;
 }
 
-.remove-fav-btn {
+.fav-thumb {
+  width: 100%;
+  height: 200rpx;
+  object-fit: cover;
+  display: block;
+}
+
+.fav-no-thumb {
+  width: 100%;
+  height: 200rpx;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: #f5f7fa;
+  gap: 8rpx;
+}
+
+.fav-no-thumb .fav-type-tag {
+  font-size: 28rpx;
+  font-weight: 600;
+  background: rgba(77, 182, 172, 0.1);
+  color: #4db6ac;
+  padding: 4rpx 12rpx;
+  border-radius: 6rpx;
+}
+
+.fav-number {
   position: absolute;
-  top: 16rpx;
-  right: 16rpx;
+  top: 12rpx;
+  left: 12rpx;
+  background: rgba(0,0,0,0.6);
+  color: #fff;
+  font-size: 24rpx;
+  padding: 6rpx 14rpx;
+  border-radius: 8rpx;
+  font-weight: 600;
+}
+
+.fav-remove {
+  position: absolute;
+  top: 12rpx;
+  right: 12rpx;
   width: 48rpx;
   height: 48rpx;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(255, 77, 79, 0.08);
-  border-radius: 50%;
-  z-index: 10;
-  transition: all 0.2s;
-}
-
-.remove-fav-btn:active {
-  background: rgba(255, 77, 79, 0.15);
-}
-
-.fav-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 16rpx;
-  padding-right: 56rpx;
-}
-
-.fav-kptitle {
-  font-size: 22rpx;
-  color: #4db6ac;
-  background: rgba(77, 182, 172, 0.1);
-  padding: 6rpx 14rpx;
-  border-radius: 8rpx;
-  font-weight: 500;
-}
-
-.fav-id {
-  font-size: 22rpx;
-  color: #bbb;
-  font-family: monospace;
-}
-
-.fav-preview {
+  background: rgba(255, 77, 79, 0.9);
+  color: #fff;
   font-size: 28rpx;
-  color: #333;
-  line-height: 1.7;
-  margin-bottom: 16rpx;
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 3;
-  overflow: hidden;
-}
-
-.fav-footer {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  border-top: 1rpx solid #f5f5f5;
-  padding-top: 16rpx;
-  margin-top: 8rpx;
-}
-
-.fav-source {
-  font-size: 22rpx;
-  color: #999;
-  display: flex;
-  align-items: center;
-  gap: 6rpx;
-}
-
-.fav-time {
-  font-size: 22rpx;
-  color: #bbb;
+  border-radius: 50%;
+  cursor: pointer;
 }
 
 .empty-state {

@@ -108,6 +108,7 @@
 <script setup>
 import { ref, computed, onMounted, getCurrentInstance } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
+import { copyToClipboard } from '@/utils/clipboard.js';
 
 const instance = getCurrentInstance();
 
@@ -188,12 +189,10 @@ const setFilter = (filter) => {
   currentFilter.value = filter;
 };
 
-const copyGroupNumber = (groupNumber) => {
-  uni.setClipboardData({
-    data: groupNumber,
-    success: () => {
-      uni.showToast({ title: '群号已复制', icon: 'success', duration: 2000 });
-    }
+const copyGroupNumber = async (groupNumber) => {
+  await copyToClipboard(groupNumber, {
+    successMsg: '群号已复制',
+    showModal: false
   });
 };
 

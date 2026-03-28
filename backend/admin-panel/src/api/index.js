@@ -55,6 +55,12 @@ export const adminApi = {
   updateNoticeStatus: (id, status) => service.put(`/admin/notices/${id}/status`, { status }),
   createNotice: (data) => service.post('/admin/notices', data),
   deleteNotice: (id) => service.delete(`/admin/notices/${id}`),
+  
+  // 公告分类管理
+  getNoticeCategories: () => service.get('/admin/notices/categories'),
+  createNoticeCategory: (data) => service.post('/admin/notices/categories', data),
+  updateNoticeCategory: (id, data) => service.put(`/admin/notices/categories/${id}`, data),
+  deleteNoticeCategory: (id) => service.delete(`/admin/notices/categories/${id}`),
   parseWechatUrl: (url) => service.post('/admin/articles/parse-link', { url }),
   uploadImage: (file) => {
     const formData = new FormData()
@@ -91,7 +97,7 @@ export const adminApi = {
   // 题库管理 (通用 dispatcher)
   getQuestions: (type, params) => {
     const map = {
-      'math': '/admin/math/search-questions',
+      'math': '/math/admin/search-questions',
       'computer': '/computer1/admin/questions',
       'public': '/admin/question-bank/questions/search',
       'med': '/med/admin/questions',
@@ -101,7 +107,7 @@ export const adminApi = {
   },
   updateQuestion: (type, id, data) => {
     const map = {
-      'math': `/admin/math/questions/${id}`,
+      'math': `/math/admin/questions/${id}`,
       'computer': `/computer1/admin/questions/${id}`,
       'public': `/admin/question-bank/questions/update`, // Public uses POST for update usually based on publicRoutes
       'med': `/med/questions/${id}`
@@ -113,7 +119,7 @@ export const adminApi = {
   },
   createQuestion: (type, data) => {
     const map = {
-      'math': '/admin/math/questions',
+      'math': '/math/admin/questions',
       'computer': '/computer1/admin/questions', // Computer might not have create yet or uses import
       'public': '/admin/question-bank/questions/add',
       'med': '/med/admin/questions'
@@ -122,7 +128,7 @@ export const adminApi = {
   },
   deleteQuestion: (type, id) => {
     const map = {
-      'math': `/admin/math/questions/${id}`,
+      'math': `/math/admin/questions/${id}`,
       'computer': `/computer1/admin/questions/${id}`,
       'public': `/admin/question-bank/questions/delete`,
       'med': `/med/questions/${id}`
@@ -172,18 +178,33 @@ export const adminApi = {
   getPoliticsSectionBooks: (sectionId) => service.get(`/admin/politics/sections/${sectionId}/books`),
 
   // Math Management
-  getMathCorrections: (params) => service.get('/admin/math/corrections', { params }),
-  ignoreMathCorrection: (id) => service.post(`/admin/math/corrections/${id}/ignore`),
-  getMathBooks: (params) => service.get('/admin/math/books', { params }),
-  getMathSubjects: () => service.get('/admin/math/subjects'),
-  searchMathQuestions: (params) => service.get('/admin/math/search-questions', { params }),
-  getMathQuestionDetail: (id) => service.get(`/admin/math/questions/${id}`),
-  updateMathQuestion: (id, data) => service.put(`/admin/math/questions/${id}`, data),
-  createMathQuestion: (data) => service.post('/admin/math/questions', data),
-  deleteMathQuestion: (id) => service.delete(`/admin/math/questions/${id}`),
-  createMathBook: (data) => service.post('/admin/math/books', data),
-  updateMathBook: (id, data) => service.put(`/admin/math/books/${id}`, data),
-  deleteMathBook: (id) => service.delete(`/admin/math/books/${id}`),
+  getMathCorrections: (params) => service.get('/math/admin/corrections', { params }),
+  ignoreMathCorrection: (id) => service.put(`/math/admin/corrections/${id}`, { status: 'ignored' }),
+  updateMathCorrectionStatus: (id, data) => service.put(`/math/admin/corrections/${id}`, data),
+  getMathBooks: (params) => service.get('/math/admin/books', { params }),
+  getMathBookChapters: (bookId) => service.get(`/math/admin/books/${bookId}/chapters`),
+  getMathBookQuestions: (bookId) => service.get(`/math/admin/books/${bookId}/questions`),
+  getMathBookChapterQuestions: (bookId, chapterName) => service.get(`/math/admin/books/${bookId}/chapters/${encodeURIComponent(chapterName)}/questions`),
+  getMathSubjects: () => service.get('/math/subjects'),
+  searchMathQuestions: (params) => service.get('/math/admin/search-questions', { params }),
+  getMathQuestionDetail: (id) => service.get(`/math/admin/questions/${id}/detail`),
+  updateMathQuestion: (id, data) => service.put(`/math/admin/questions/${id}`, data),
+  createMathQuestion: (data) => service.post('/math/admin/questions', data),
+  deleteMathQuestion: (id) => service.delete(`/math/admin/questions/${id}`),
+  createMathBook: (data) => service.post('/math/admin/books', data),
+  updateMathBook: (id, data) => service.put(`/math/admin/books/${id}`, data),
+  deleteMathBook: (id) => service.delete(`/math/admin/books/${id}`),
+  // Math Knowledge Points
+  getMathKnowledgeCategories: () => service.get('/math/admin/knowledge-categories'),
+  createKnowledgeCategory: (data) => service.post('/math/admin/knowledge-categories', data),
+  updateKnowledgeCategory: (id, data) => service.put(`/math/admin/knowledge-categories/${id}`, data),
+  getAllMathKnowledgePoints: () => service.get('/math/admin/knowledge-points/all'),
+  getQuestionsByKnowledgeCategory: (categoryId) => service.get(`/math/admin/knowledge-categories/${categoryId}/questions`),
+  removeQuestionFromCategory: (categoryId, questionId) => service.delete(`/math/admin/knowledge-categories/${categoryId}/questions/${questionId}`),
+  fixMathKnowledgePointLinks: (dryRun = true) => service.post('/math/admin/fix-knowledge-point-links', { dryRun }),
+  getKnowledgePointQuestionCount: (kpTitle) => service.get('/math/admin/knowledge-point-question-count', { params: { kpTitle } }),
+  getKnowledgePointQuestionCountsBatch: (kpTitles) => service.post('/math/admin/knowledge-point-question-counts', { kpTitles }),
+  searchKnowledgePoints: (keyword) => service.get('/math/admin/knowledge-points/search', { params: { keyword } }),
 
   // Med Management Aliases (Specific to Med Module)
   getMedCourses: () => service.get('/med/admin/courses'),
@@ -199,7 +220,7 @@ export const adminApi = {
   // Question Management (Courses/Subjects dispatcher)
   getCourses: (type) => {
     const map = {
-      'math': '/admin/math/subjects',
+      'math': '/math/subjects',
       'computer': '/computer1/subjects',
       'public': '/subjects', // publicRoutes -> /subjects
       'med': '/med/admin/courses',
@@ -210,7 +231,7 @@ export const adminApi = {
   },
   getFeedbacks: (type, params) => {
     const map = {
-      'math': '/admin/math/corrections',
+      'math': '/math/admin/corrections',
       'computer': '/computer1/feedbacks', // computer1Routes -> /computer1/feedbacks
       'public': '/admin/question-bank/feedbacks', // publicRoutes -> /admin/question-bank/feedbacks
       'med': '/med/feedbacks'
@@ -245,7 +266,7 @@ export const adminApi = {
   
   getCourseChapters: (type, courseId) => {
     const map = {
-      'math': '/admin/math/chapters', // Not in routes, maybe books/:bookId/questions?
+      'math': `/math/admin/books/${courseId}/chapters`,
       'computer': '/computer1/chapters', // computer1Routes -> /computer1/chapters
       'public': '/question-bank/chapters', // publicRoutes -> /question-bank/chapters
       'med': '/med/admin/chapters'
@@ -264,6 +285,42 @@ export const adminApi = {
   deleteComputerQuestion: (id) => service.delete(`/computer1/admin/questions/${id}`),
   updateComputerFeedbackStatus: (id, data) => service.put(`/computer1/feedbacks/${id}`, data),
   importComputerPaper: (data) => service.post('/computer1/import-paper', data),
+  
+  // 计算机试卷管理
+  getComputerPaperList: (params) => service.get('/computer1/admin/papers', { params }),
+  getComputerPaperDetail: (id) => service.get(`/computer1/admin/papers/${id}`),
+  deleteComputerPaper: (id) => service.delete(`/computer1/admin/papers/${id}`),
+  calibrateComputerPaper: (id) => service.post(`/computer1/admin/papers/${id}/calibrate`),
+  syncComputerPaperInfo: (id) => service.post(`/computer1/admin/papers/${id}/sync`),
+
+  // 教辅管理
+  getTutorials: (params) => service.get('/computer/tutorials', { params }),
+  getTutorialDetail: (id) => service.get(`/computer/tutorials/${id}`),
+  createTutorial: (data) => service.post('/computer/tutorials', data),
+  updateTutorial: (id, data) => service.put(`/computer/tutorials/${id}`, data),
+  deleteTutorial: (id) => service.delete(`/computer/tutorials/${id}`),
+  getTutorialChapters: (tutorialId) => service.get(`/computer/tutorials/${tutorialId}/chapters`),
+  createTutorialChapter: (tutorialId, data) => service.post(`/computer/tutorials/${tutorialId}/chapters`, data),
+  updateTutorialChapter: (chapterId, data) => service.put(`/computer/tutorial-chapters/${chapterId}`, data),
+  deleteTutorialChapter: (chapterId) => service.delete(`/computer/tutorial-chapters/${chapterId}`),
+  getTutorialQuestions: (tutorialId) => service.get(`/computer/tutorials/${tutorialId}/questions`),
+  addTutorialQuestion: (data) => service.post('/computer/tutorial-questions', data),
+  importTutorial: (data) => service.post('/computer/tutorials/import', data),
+  resetTutorialIds: () => service.post('/computer/tutorials/reset-ids'),
+  // 教辅合集管理
+  getTutorialCollections: (params) => service.get('/computer/tutorial-collections', { params }),
+  getTutorialCollectionDetail: (id) => service.get(`/computer/tutorial-collections/${id}`),
+  createTutorialCollection: (data) => service.post('/computer/tutorial-collections', data),
+  updateTutorialCollection: (id, data) => service.put(`/computer/tutorial-collections/${id}`, data),
+  deleteTutorialCollection: (id) => service.delete(`/computer/tutorial-collections/${id}`),
+  
+  // 图片管理
+  getImageStats: () => service.get('/admin/images/stats'),
+  getImageList: (params) => service.get('/admin/images', { params }),
+  deleteImage: (id) => service.delete(`/admin/images/${id}`),
+  getImageDetail: (id) => service.get(`/admin/images/${id}`),
+  updateImageUsage: (id, data) => service.put(`/admin/images/${id}/usage`, data),
+  scanAllImages: (data) => service.post('/admin/images/scan', data),
 }
 
 export const publicApi = {
@@ -338,7 +395,10 @@ Object.assign(adminApi, {
 
   // Pan Resources
   getPanResources: (params) => service.get('/admin/pan-resources', { params }),
-  getPanCategories: () => service.get('/admin/pan-categories'),
+  getPanCategories: (full = false) => service.get('/admin/pan-categories', { params: { full } }),
+  createPanCategory: (data) => service.post('/admin/pan-categories', data),
+  updatePanCategory: (id, data) => service.put(`/admin/pan-categories/${id}`, data),
+  deletePanCategory: (id) => service.delete(`/admin/pan-categories/${id}`),
   createPanResource: (data) => service.post('/admin/pan-resources', data),
   updatePanResource: (id, data) => service.put(`/admin/pan-resources/${id}`, data),
   deletePanResource: (id) => service.delete(`/admin/pan-resources/${id}`),

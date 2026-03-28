@@ -20,7 +20,7 @@
             <div class="question-text" v-html="formatLatex(q.QuestionText)"></div>
             <!-- #endif -->
             <!-- #ifdef MP-WEIXIN -->
-            <towxml class="question-text" :nodes="parseTextWithLatexForMp(q.QuestionText)"></towxml>
+            <mp-html class="question-text" :content="q.QuestionText" markdown copy-link="false"></mp-html>
             <!-- #endif -->
           </div>
 
@@ -68,12 +68,12 @@
                 <div v-for="(detail, dIndex) in filteredDetails(q.details)" :key="dIndex" class="detail-card">
                   <div class="detail-card-header">
                     <div class="detail-card-dot"></div>
-                    <towxml class="detail-card-title" :nodes="parseTextWithLatexForMp(getDetailHeader(detail))"></towxml>
+                    <mp-html class="detail-card-title" :content="getDetailHeader(detail)" markdown copy-link="false"></mp-html>
                   </div>
-                  <towxml v-if="detail.Context" class="detail-card-body" :nodes="parseTextWithLatexForMp(detail.Context)"></towxml>
+                  <mp-html v-if="detail.Context" class="detail-card-body" :content="detail.Context" markdown copy-link="false"></mp-html>
                 </div>
               </div>
-              <towxml v-else-if="q.OriginalAnswerText" class="answer-content" :nodes="parseTextWithLatexForMp(q.OriginalAnswerText)"></towxml>
+              <mp-html v-else-if="q.OriginalAnswerText" class="answer-content" :content="q.OriginalAnswerText" markdown copy-link="false"></mp-html>
               <div v-else class="no-answer">
                 <div class="empty-icon">📝</div>
                 <p>该题目暂无详细解析内容</p>
@@ -88,10 +88,6 @@
         </div>
       </div>
     </main>
-
-    <div class="footer-actions no-print">
-      <button class="print-btn" @click="handlePrint">打印解析</button>
-    </div>
 
     <!-- 纠错弹窗 -->
     <div class="correction-modal-overlay" :class="{ 'active': correctionModalOpen }" @click="closeCorrectionModal">
@@ -136,6 +132,7 @@ import { onLoad } from '@dcloudio/uni-app';
 import { request, BASE_URL } from '../../api/request';
 import { transformContextString, parseTextWithLatexForMp } from '../../utils/latex';
 import { checkTextContent } from '@/utils/contentSecurity.js';
+import MpHtml from '@/components/mp-html/mp-html.vue';
 
 const paperId = ref(null);
 const paper = ref({});
@@ -306,31 +303,6 @@ const renderMath = () => {
   }
 };
 
-const handlePrint = () => {
-  // 优先使用 PrintToken 以增强安全性，防止通过 ID 猜测链接
-  const idOrToken = paper.value.PrintToken || paperId.value;
-  const printUrl = `${BASE_URL}/math/smart-paper/${idOrToken}/print`;
-  
-  uni.setClipboardData({
-    data: printUrl,
-    success: () => {
-      uni.showModal({
-        title: '复制成功',
-        content: '打印链接已复制到剪贴板。由于小程序不支持直接打印，请在电脑浏览器中打开此链接进行打印。',
-        showCancel: false,
-        confirmText: '知道了'
-      });
-    },
-    fail: () => {
-      uni.showModal({
-        title: '复制失败',
-        content: `请手动复制链接：\n${printUrl}`,
-        confirmText: '确定'
-      });
-    }
-  });
-};
-
 const goBack = () => {
   uni.navigateBack();
 };
@@ -444,11 +416,6 @@ onLoad((options) => {
   border-radius: 8rpx;
   font-size: 24rpx;
   border: none;
-}
-
-.print-btn {
-  background: #3498db;
-  color: #fff;
 }
 
 .paper-content {

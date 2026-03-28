@@ -11,7 +11,7 @@
               <SvgIcon name="more" size="44" fill="#333" />
             </view>
             <view class="tool-menu" v-if="showToolMenu" @click.stop>
-              <view class="tool-menu-item" @click="handleToolMenu('analysis')">
+              <view class="tool-menu-item" @click="handleToolMenu('analysis')" v-if="!isWeeklyTest">
                 <text class="tool-menu-icon">📝</text>
                 <text class="tool-menu-text">查看解析</text>
               </view>
@@ -19,13 +19,17 @@
                 <text class="tool-menu-icon">📊</text>
                 <text class="tool-menu-text">数据分析</text>
               </view>
-              <view class="tool-menu-item" @click="handleToolMenu('paperInfo')">
+              <view class="tool-menu-item" @click="handleToolMenu('paperInfo')" v-if="!isSharedPaper">
                 <text class="tool-menu-icon">ℹ️</text>
                 <text class="tool-menu-text">试卷信息</text>
               </view>
               <view class="tool-menu-item" @click="handleToolMenu('print')">
                 <text class="tool-menu-icon">🖨️</text>
                 <text class="tool-menu-text">打印试卷</text>
+              </view>
+              <view class="tool-menu-item" @click="handleToolMenu('share')" v-if="canShare">
+                <text class="tool-menu-icon">📤</text>
+                <text class="tool-menu-text">分享试卷</text>
               </view>
               <view class="tool-menu-item danger" @click="handleToolMenu('delete')">
                 <text class="tool-menu-icon">🗑️</text>
@@ -58,11 +62,13 @@
               <span class="question-type-tag">{{ q.QuestionType }}</span>
             </div>
             <div class="q-right no-print">
-              <div class="reorder-btns">
-                <text class="reorder-btn" @click="moveQuestion(index, -1)" :class="{ disabled: index === 0 }">上移</text>
-                <text class="reorder-btn" @click="moveQuestion(index, 1)" :class="{ disabled: index === paper.questions.length - 1 }">下移</text>
-              </div>
-              <text class="replace-btn" @click="replaceQuestion(q, index)">换一题</text>
+              <template v-if="!isSharedPaper">
+                <div class="reorder-btns">
+                  <text class="reorder-btn" @click="moveQuestion(index, -1)" :class="{ disabled: index === 0 }">上移</text>
+                  <text class="reorder-btn" @click="moveQuestion(index, 1)" :class="{ disabled: index === paper.questions.length - 1 }">下移</text>
+                </div>
+                <text class="replace-btn" @click="replaceQuestion(q, index)">换一题</text>
+              </template>
               <button class="correction-btn" @click="openCorrectionModal(q.QuestionID)">纠错</button>
             </div>
           </div>
@@ -72,16 +78,16 @@
             <div class="question-text" v-html="formatLatex(q.QuestionText)"></div>
             <!-- #endif -->
             <!-- #ifdef MP-WEIXIN -->
-            <towxml class="question-text" :nodes="parseTextWithLatexForMp(q.QuestionText)"></towxml>
+            <mp-html class="question-text" :content="q.QuestionText" markdown copy-link="false"></mp-html>
             <!-- #endif -->
           </div>
           
-          <div class="question-footer no-print">
+          <div class="question-footer no-print" v-if="!isWeeklyTest">
             <span class="source-tag">来源：{{ q.BookTitle }}</span>
             <span class="chapter-tag">{{ q.BookChapter }}</span>
           </div>
 
-          <div class="question-footer-print only-print">
+          <div class="question-footer-print only-print" v-if="!isWeeklyTest">
             来源：{{ q.BookTitle }} - {{ q.BookChapter }}
           </div>
         </div>
@@ -255,6 +261,54 @@
         </div>
       </div>
     </div>
+
+    <!-- 打印选项弹窗 -->
+    <div class="modal" v-if="showPrintOptionsModal" @click="handlePrintOption('cancel')">
+      <div class="modal-content print-options-content" @click.stop>
+        <div class="modal-header">
+          <h3>打印设置</h3>
+          <span class="close-btn" @click="handlePrintOption('cancel')">×</span>
+        </div>
+        <div class="modal-body">
+          <div class="print-options-info">
+            <p>您今日剩余打印次数：{{ printOptionsData.printCountText }}</p>
+            <p>剩余打印解析次数：{{ printOptionsData.analysisCountText }}</p>
+          </div>
+          <p class="print-options-question">请选择打印方式：</p>
+        </div>
+        <div class="modal-footer print-options-footer">
+          <div class="print-options-row">
+            <button class="confirm-btn secondary" @click="handlePrintOption('withoutAnalysis')">试卷</button>
+            <button class="confirm-btn" @click="handlePrintOption('withAnalysis')">试卷+解析</button>
+          </div>
+          <div class="print-options-row">
+            <button class="cancel-btn full-width" @click="handlePrintOption('cancel')">取消</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 打印提示弹窗（带倒计时） -->
+    <div class="modal" v-if="showPrintAlert" @click="closePrintAlert">
+      <div class="modal-content print-alert-content" @click.stop>
+        <div class="modal-header">
+          <h3>{{ printAlertTitle }}</h3>
+        </div>
+        <div class="modal-body">
+          <div class="print-alert-text" style="white-space: pre-line; line-height: 1.8;">{{ printAlertContent }}</div>
+        </div>
+        <div class="modal-footer">
+          <button 
+            class="confirm-btn" 
+            :disabled="!printAlertCanClose"
+            :class="{ 'disabled': !printAlertCanClose }"
+            @click="closePrintAlert"
+          >
+            {{ printAlertCanClose ? '知道了' : `请阅读 ${printAlertCountdown} 秒` }}
+          </button>
+        </div>
+      </div>
+    </div>
     </view>
   </view>
 </template>
@@ -266,6 +320,8 @@ import { request, BASE_URL } from '../../api/request';
 import { transformContextString, parseTextWithLatexForMp } from '../../utils/latex';
 import SvgIcon from '@/components/SvgIcon/SvgIcon.vue';
 import { checkTextContent } from '@/utils/contentSecurity.js';
+import { copyToClipboard } from '@/utils/clipboard.js';
+import MpHtml from '@/components/mp-html/mp-html.vue';
 
 const statusBarHeight = ref(0);
 const showToolMenu = ref(false);
@@ -273,7 +329,31 @@ const paperId = ref(null);
 const paper = ref({
   Title: '',
   Config: null,
-  questions: []
+  questions: [],
+  IsShared: 0,
+  IsWeeklyTest: 0
+});
+
+// 是否为共享试卷（通过分享码获取的）
+const isSharedPaper = computed(() => {
+  return paper.value.IsShared === 1;
+});
+
+// 是否为周测试卷
+const isWeeklyTest = computed(() => {
+  return paper.value.IsWeeklyTest === 1;
+});
+
+// 是否为管理员（role不等于0即为管理员）
+const isAdmin = computed(() => {
+  const role = uni.getStorageSync('role');
+  return role !== 0 && role !== '0';
+});
+
+// 是否可以分享（管理员可以分享所有，非管理员只能分享自己的）
+const canShare = computed(() => {
+  if (isAdmin.value) return true;
+  return !isSharedPaper.value;
 });
 const subjectName = ref('');
 const loading = ref(true);
@@ -283,6 +363,67 @@ const showAnalysisModal = ref(false);
 const paperConfig = ref({ scope: [], counts: {} });
 const booksList = ref([]);
 const showMoreMenu = ref(false);
+
+// 打印提示弹窗状态
+const showPrintAlert = ref(false);
+const printAlertContent = ref('');
+const printAlertTitle = ref('');
+const printAlertCountdown = ref(3);
+const printAlertTimer = ref(null);
+const printAlertCanClose = ref(false);
+
+// 打印选项弹窗状态
+const showPrintOptionsModal = ref(false);
+const printOptionsData = ref({
+  printCountText: '',
+  analysisCountText: '',
+  canPrintAnalysis: false
+});
+
+// 处理打印选项
+const handlePrintOption = (option) => {
+  showPrintOptionsModal.value = false;
+  if (option === 'withAnalysis') {
+    generatePrintLink(true);
+  } else if (option === 'withoutAnalysis') {
+    generatePrintLink(false);
+  }
+  // option === 'cancel' 时不做任何操作
+};
+
+// 显示打印提示弹窗（带倒计时）
+const showPrintAlertWithCountdown = (title, content) => {
+  printAlertTitle.value = title;
+  printAlertContent.value = content;
+  printAlertCountdown.value = 3;
+  printAlertCanClose.value = false;
+  showPrintAlert.value = true;
+  
+  // 清除之前的定时器
+  if (printAlertTimer.value) {
+    clearInterval(printAlertTimer.value);
+  }
+  
+  // 开始倒计时
+  printAlertTimer.value = setInterval(() => {
+    printAlertCountdown.value--;
+    if (printAlertCountdown.value <= 0) {
+      printAlertCanClose.value = true;
+      clearInterval(printAlertTimer.value);
+      printAlertTimer.value = null;
+    }
+  }, 1000);
+};
+
+// 关闭打印提示弹窗
+const closePrintAlert = () => {
+  if (!printAlertCanClose.value) return;
+  showPrintAlert.value = false;
+  if (printAlertTimer.value) {
+    clearInterval(printAlertTimer.value);
+    printAlertTimer.value = null;
+  }
+};
 
 const goBack = () => {
   uni.navigateBack();
@@ -297,6 +438,7 @@ const closeToolMenu = () => {
 };
 
 const handleToolMenu = (action) => {
+  console.log('工具菜单点击:', action);
   showToolMenu.value = false;
   switch (action) {
     case 'analysis':
@@ -309,7 +451,11 @@ const handleToolMenu = (action) => {
       showPaperInfo();
       break;
     case 'print':
+      console.log('触发打印功能');
       handlePrint();
+      break;
+    case 'share':
+      handleSharePaper();
       break;
     case 'delete':
       confirmDelete();
@@ -692,29 +838,189 @@ const replaceQuestion = async (q, index) => {
   }
 };
 
-const handlePrint = () => {
-  // 优先使用 PrintToken 以增强安全性，防止通过 ID 猜测链接
-  const idOrToken = paper.value.PrintToken || paperId.value;
-  const printUrl = `${BASE_URL}/math/smart-paper/${idOrToken}/print`;
-  
-  uni.setClipboardData({
-    data: printUrl,
-    success: () => {
-      uni.showModal({
-        title: '复制成功',
-        content: '打印链接已复制到剪贴板。由于小程序不支持直接打印，请在电脑浏览器中打开此链接进行打印。',
-        showCancel: false,
-        confirmText: '知道了'
-      });
-    },
-    fail: () => {
-      uni.showModal({
-        title: '复制失败',
-        content: `请手动复制链接：\n${printUrl}`,
-        confirmText: '确定'
-      });
+// 打印权限信息
+const printPermission = ref({
+  print: { allowed: false, remaining: 0 },
+  analysis: { allowed: false, remaining: 0 }
+});
+
+// 获取打印权限
+const fetchPrintPermission = async () => {
+  try {
+    console.log('获取打印权限...');
+    const res = await request({
+      url: '/math/print-permission',
+      method: 'GET'
+    });
+    console.log('打印权限响应:', res);
+    if (res.code === 0 && res.data) {
+      printPermission.value = res.data;
+    } else {
+      console.error('获取打印权限失败:', res.message);
+      uni.showToast({ title: '获取权限失败: ' + res.message, icon: 'none' });
     }
-  });
+  } catch (err) {
+    console.error('获取打印权限失败:', err);
+    uni.showToast({ title: '获取权限失败', icon: 'none' });
+  }
+};
+
+// 分享试卷 - 获取或生成分享编码
+const handleSharePaper = async () => {
+  if (!paperId.value) {
+    uni.showToast({ title: '试卷ID不存在', icon: 'none' });
+    return;
+  }
+  
+  // 只有管理员才能选择设为周测
+  if (isAdmin.value) {
+    uni.showActionSheet({
+      title: '分享设置',
+      itemList: ['普通分享', '设为周测'],
+      success: async (res) => {
+        const weeklyTest = res.tapIndex === 1;
+        await generateShareCode(weeklyTest);
+      }
+    });
+  } else {
+    // 非管理员直接普通分享
+    await generateShareCode(false);
+  }
+};
+
+// 生成分享码
+const generateShareCode = async (isWeeklyTest = false) => {
+  console.log('开始分享试卷，paperId:', paperId.value, '是否周测:', isWeeklyTest);
+  uni.showLoading({ title: '生成分享码...' });
+  
+  try {
+    const res = await request({
+      url: `/math/paper/${paperId.value}/share-code`,
+      method: 'POST',
+      data: {
+        isWeeklyTest: isWeeklyTest
+      }
+    });
+    
+    console.log('分享码接口返回:', res);
+    uni.hideLoading();
+    
+    if ((res.code === 200 || res.code === 0) && res.data && res.data.code) {
+      const shareCode = res.data.code;
+      const shareType = isWeeklyTest ? '周测' : '普通';
+      console.log('获取到分享码:', shareCode, '类型:', shareType);
+      
+      // 复制到剪贴板
+      await copyToClipboard(shareCode, {
+        successMsg: `${shareType}分享码已复制`,
+        modalTitle: `${shareType}分享码生成成功`,
+        showModal: true
+      });
+    } else {
+      console.error('接口返回错误:', res);
+      uni.showToast({ title: res.message || '生成分享码失败', icon: 'none' });
+    }
+  } catch (err) {
+    uni.hideLoading();
+    console.error('生成分享码失败:', err);
+    uni.showToast({ title: '生成分享码失败: ' + (err.message || '未知错误'), icon: 'none' });
+  }
+};
+
+const handlePrint = async () => {
+  console.log('开始打印流程');
+  // 先检查打印权限
+  await fetchPrintPermission();
+  console.log('打印权限信息:', printPermission.value);
+  
+  if (!printPermission.value.print.allowed) {
+    uni.showModal({
+      title: '打印受限',
+      content: printPermission.value.print.message || '您没有打印权限',
+      showCancel: false,
+      confirmText: '知道了'
+    });
+    return;
+  }
+  
+  // 询问是否打印解析
+  // 处理 null 值（超级管理员无限制）
+  const printRemaining = printPermission.value.print.remaining;
+  const analysisRemaining = printPermission.value.analysis.remaining;
+  const hasUnlimitedPrint = printRemaining === null || printRemaining === -1;
+  const hasUnlimitedAnalysis = analysisRemaining === null || analysisRemaining === -1;
+  const canPrintAnalysis = printPermission.value.analysis.allowed && (hasUnlimitedAnalysis || analysisRemaining > 0);
+  
+  // 格式化显示次数
+  const printCountText = hasUnlimitedPrint ? '无限制' : `${printRemaining}次`;
+  const analysisCountText = hasUnlimitedAnalysis ? '无限制' : `${analysisRemaining}次`;
+  
+  if (canPrintAnalysis) {
+    // 使用自定义弹窗支持三个按钮
+    showPrintOptionsModal.value = true;
+    printOptionsData.value = {
+      printCountText,
+      analysisCountText,
+      canPrintAnalysis
+    };
+  } else {
+    uni.showModal({
+      title: '打印确认',
+      content: `您今日剩余打印次数：${printCountText}\n\n生成打印链接后将消耗1次打印次数，无法取消。是否继续？`,
+      confirmText: '继续',
+      cancelText: '取消',
+      success: (res) => {
+        if (res.confirm) {
+          generatePrintLink(false);
+        }
+        // 点击取消不做任何操作，直接关闭弹窗
+      }
+    });
+  }
+};
+
+// 生成加密打印链接
+const generatePrintLink = async (allowAnalysis) => {
+  uni.showLoading({ title: '生成打印链接...' });
+  console.log('生成打印链接, paperId:', paperId.value, 'allowAnalysis:', allowAnalysis);
+  
+  try {
+    const res = await request({
+      url: '/math/generate-print-link',
+      method: 'POST',
+      data: {
+        paperId: paperId.value,
+        allowAnalysis: allowAnalysis
+      }
+    });
+    
+    console.log('生成打印链接响应:', res);
+    
+    if (res.code === 0 && res.data) {
+      const { printUrl, allowAnalysis: canPrintAnalysis } = res.data;
+      console.log('打印链接:', printUrl);
+      
+      const success = await copyToClipboard(printUrl, {
+        successMsg: '打印链接已复制',
+        showModal: false
+      });
+      
+      if (success) {
+        const content = `打印链接已复制到剪贴板。${canPrintAnalysis ? '（包含解析）' : ''}\n\n⚠️ 重要提示：\n1. 链接有效期为18小时，请在有效期内完成打印\n2. 打印次数已扣除，无法恢复\n\n请在电脑浏览器中打开此链接进行打印。`;
+        showPrintAlertWithCountdown('复制成功', content);
+      } else {
+        const content = `请手动复制链接：\n${printUrl}\n\n⚠️ 重要提示：\n1. 链接有效期为18小时，请在有效期内完成打印\n2. 打印次数已扣除，无法恢复`;
+        showPrintAlertWithCountdown('复制失败', content);
+      }
+    } else {
+      uni.showToast({ title: res.message || '生成链接失败', icon: 'none' });
+    }
+  } catch (err) {
+    console.error('生成打印链接失败:', err);
+    uni.showToast({ title: '生成链接失败: ' + (err.message || ''), icon: 'none' });
+  } finally {
+    uni.hideLoading();
+  }
 };
 
 const moveQuestion = async (index, direction) => {
@@ -2010,5 +2316,130 @@ onLoad((options) => {
 .correction-submit-btn:disabled {
   background: #e0e0e0;
   color: #a0a0a0;
+}
+
+/* 打印提示弹窗样式 */
+.print-alert-content {
+  max-width: 600rpx;
+  width: 80%;
+}
+
+.print-alert-content .modal-footer {
+  padding: 20rpx 30rpx;
+  border-top: 2rpx solid #eee;
+  display: flex;
+  gap: 20rpx;
+  align-items: center;
+  justify-content: center;
+}
+
+.print-alert-content .modal-footer button {
+  height: 80rpx;
+  border-radius: 40rpx;
+  font-size: 28rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 2;
+  max-width: 400rpx;
+}
+
+.print-alert-content .confirm-btn {
+  background: linear-gradient(135deg, #4db6ac, #26a69a);
+  color: #fff;
+  border: none;
+  box-shadow: 0 4rpx 12rpx rgba(77, 182, 172, 0.2);
+}
+
+.print-alert-content .confirm-btn:disabled,
+.print-alert-content .confirm-btn.disabled {
+  opacity: 0.5;
+  background: #e0e0e0;
+  color: #999;
+  box-shadow: none;
+}
+
+.print-alert-text {
+  font-size: 28rpx;
+  color: #333;
+  padding: 20rpx;
+}
+
+/* 打印选项弹窗样式 */
+.print-options-content {
+  max-width: 600rpx;
+  width: 80%;
+}
+
+.print-options-info {
+  padding: 20rpx;
+  background: #f5f5f5;
+  border-radius: 12rpx;
+  margin-bottom: 20rpx;
+}
+
+.print-options-info p {
+  font-size: 28rpx;
+  color: #666;
+  line-height: 1.8;
+}
+
+.print-options-question {
+  font-size: 30rpx;
+  color: #333;
+  text-align: center;
+  margin: 30rpx 0;
+}
+
+.print-options-footer {
+  padding: 20rpx 30rpx;
+  border-top: 2rpx solid #eee;
+  display: flex;
+  flex-direction: column;
+  gap: 16rpx;
+}
+
+.print-options-row {
+  display: flex;
+  gap: 16rpx;
+  width: 100%;
+}
+
+.print-options-row button {
+  height: 72rpx;
+  border-radius: 36rpx;
+  font-size: 26rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  padding: 0 20rpx;
+}
+
+.print-options-row .cancel-btn.full-width {
+  flex: 1;
+  width: 100%;
+}
+
+.print-options-footer .cancel-btn {
+  background: #f5f6f7;
+  color: #7f8c8d;
+  border: none;
+}
+
+.print-options-footer .confirm-btn.secondary {
+  background: linear-gradient(135deg, #81c784, #66bb6a);
+  color: #fff;
+  border: none;
+  box-shadow: 0 4rpx 12rpx rgba(129, 199, 132, 0.2);
+}
+
+.print-options-footer .confirm-btn {
+  background: linear-gradient(135deg, #4db6ac, #26a69a);
+  color: #fff;
+  border: none;
+  box-shadow: 0 4rpx 12rpx rgba(77, 182, 172, 0.2);
 }
 </style>

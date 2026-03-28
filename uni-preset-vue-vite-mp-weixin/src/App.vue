@@ -1,11 +1,15 @@
 <template>
   <view class="app-container" :class="{ 'dark-mode': isDarkMode }">
     <slot></slot>
+    <!-- 全局隐私协议弹窗 -->
+    <PrivacyAgreement ref="privacyAgreementRef" />
   </view>
 </template>
 
 <script setup>
 import { ref, onMounted } from 'vue';
+import PrivacyAgreement from '@/components/PrivacyAgreement/PrivacyAgreement.vue';
+import { setPrivacyAgreementRef } from '@/utils/clipboard.js';
 
 // 当前主题状态
 const isDarkMode = ref(false);
@@ -74,6 +78,9 @@ const toggleTheme = (darkMode) => {
   updateNavigationBarStyle();
 };
 
+// 隐私协议弹窗引用
+const privacyAgreementRef = ref(null);
+
 // 初始化主题
 onMounted(() => {
   // 首次加载强制使用白天模式，后续通过本地存储保存用户选择
@@ -84,11 +91,16 @@ onMounted(() => {
   uni.setStorageSync('themeMode', currentTheme);
   // 更新导航栏样式
   updateNavigationBarStyle();
-  
+
   // 监听主题变化事件
   uni.$on('themeChange', (darkMode) => {
     toggleTheme(darkMode);
   });
+
+  // 设置隐私协议弹窗引用
+  if (privacyAgreementRef.value) {
+    setPrivacyAgreementRef(privacyAgreementRef.value);
+  }
 });
 </script>
 

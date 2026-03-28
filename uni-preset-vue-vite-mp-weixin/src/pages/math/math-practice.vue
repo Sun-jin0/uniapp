@@ -1,110 +1,138 @@
 <template>
   <view class="app-container">
-    <main class="main-content" :class="{ 'has-bottom-bar': selectionMode && selectedBookIds.length > 0 }">
-      <!-- Tab 切换 -->
-      <div class="tab-switcher">
-        <div 
-          class="tab-item" 
-          :class="{ active: activeTab === 'mock' }" 
-          @click="activeTab = 'mock'"
-        >
-          模考卷
-        </div>
-        <div 
-          class="tab-item" 
-          :class="{ active: activeTab === 'real' }" 
-          @click="activeTab = 'real'"
-        >
-          真题卷
-        </div>
-      </div>
-
-      <!-- 模考卷列表 -->
-      <section class="bookshelf-section" v-if="activeTab === 'mock'">
+    <main class="main-content">
+      <!-- 获取试卷区域 -->
+      <section class="get-paper-section">
         <div class="section-header">
-          <h2>模考卷</h2>
-          <span class="count-badge">{{ filteredMocks.length }} 份试卷</span>
+          <h2>获取试卷</h2>
+          <p class="section-desc">输入分享码获取他人分享的试卷</p>
         </div>
-        <div class="paper-list" v-if="filteredMocks.length > 0">
-          <div v-for="book in filteredMocks" :key="book.BookID" class="paper-item style-blue" :class="{ 'selected': isSelected(book.BookID) }" @click="handleBookClick(book)">
-            <div v-if="book.IsNew" class="new-banner">NEW</div>
-            <div v-if="selectionMode" class="selection-box">
-              <div class="checkbox" :class="{ 'checked': isSelected(book.BookID), 'disabled': isInBookshelf(book.BookID) }">
-                <span v-if="isSelected(book.BookID) || isInBookshelf(book.BookID)">✓</span>
-              </div>
-            </div>
-            <div class="paper-content" :class="{ 'dimmed': selectionMode && isInBookshelf(book.BookID) }">
-              <div class="paper-icon">📝</div>
-              <div class="paper-info">
-                <div class="paper-title-row">
-                  <span class="paper-title">{{ book.BookTitle }}</span>
-                  <span class="paper-tag" v-if="isInBookshelf(book.BookID)">已在书架</span>
-                </div>
-                <div class="paper-meta">
-                  <span class="paper-version">{{ book.VersionInfo || '2026' }}</span>
-                  <span class="paper-learner" v-if="book.LearnerCount">{{ book.LearnerCount }}人参与</span>
-                </div>
-              </div>
-              <div class="paper-arrow" v-if="!selectionMode">❯</div>
-            </div>
-          </div>
-        </div>
-        <div v-else class="empty-state">
-          <div class="empty-icon">📝</div>
-          <p>暂无模考卷</p>
+        <div class="code-input-area">
+          <input 
+            v-model="shareCode" 
+            type="text" 
+            placeholder="请输入7位分享码" 
+            maxlength="7"
+            class="code-input"
+          />
+          <button class="get-paper-btn" :disabled="!shareCode || shareCode.length < 7" @click="handleGetPaperByCode">
+            获取
+          </button>
         </div>
       </section>
 
-      <!-- 真题卷列表 -->
-      <section class="bookshelf-section" v-if="activeTab === 'real'">
-        <div class="section-header">
-          <h2>真题卷</h2>
-          <span class="count-badge">{{ filteredReals.length }} 份试卷</span>
-        </div>
-        <div class="paper-list" v-if="filteredReals.length > 0">
-          <div v-for="book in filteredReals" :key="book.BookID" class="paper-item style-yellow" :class="{ 'selected': isSelected(book.BookID) }" @click="handleBookClick(book)">
-            <div v-if="book.IsNew" class="new-banner">NEW</div>
-            <div v-if="selectionMode" class="selection-box">
-              <div class="checkbox" :class="{ 'checked': isSelected(book.BookID), 'disabled': isInBookshelf(book.BookID) }">
-                <span v-if="isSelected(book.BookID) || isInBookshelf(book.BookID)">✓</span>
-              </div>
+      <!-- 试卷Tab区域 -->
+      <section class="bookshelf-section paper-tabs-section">
+        <!-- Tab头部 -->
+        <div class="paper-tabs-header">
+          <div class="tabs-left">
+            <div class="tab-item" :class="{ active: activePaperTab === 'my' }" @click="activePaperTab = 'my'">
+              <view class="tab-text" :class="{ 'active-text': activePaperTab === 'my' }">我的</view>
+              <view class="tab-line" v-if="activePaperTab === 'my'"></view>
             </div>
-            <div class="paper-content" :class="{ 'dimmed': selectionMode && isInBookshelf(book.BookID) }">
-              <div class="paper-icon">📜</div>
-              <div class="paper-info">
-                <div class="paper-title-row">
-                  <span class="paper-title">{{ book.BookTitle }}</span>
-                  <span class="paper-tag" v-if="isInBookshelf(book.BookID)">已在书架</span>
-                </div>
-                <div class="paper-meta">
-                  <span class="paper-version">{{ book.VersionInfo || '2026' }}</span>
-                  <span class="paper-learner" v-if="book.LearnerCount">{{ book.LearnerCount }}人参与</span>
-                </div>
-              </div>
-              <div class="paper-arrow" v-if="!selectionMode">❯</div>
+            <div class="tab-item" :class="{ active: activePaperTab === 'shared' }" @click="activePaperTab = 'shared'">
+              <view class="tab-text" :class="{ 'active-text': activePaperTab === 'shared' }">共享</view>
+              <view class="tab-line" v-if="activePaperTab === 'shared'"></view>
+            </div>
+            <div class="tab-item" :class="{ active: activePaperTab === 'weekly' }" @click="activePaperTab = 'weekly'">
+              <view class="tab-text" :class="{ 'active-text': activePaperTab === 'weekly' }">周测</view>
+              <view class="tab-line" v-if="activePaperTab === 'weekly'"></view>
             </div>
           </div>
+          <span class="count-badge" :class="activePaperTab === 'weekly' ? 'weekly-badge' : (activePaperTab === 'shared' ? 'shared-badge' : '')">
+            {{ currentTabCount }} 份
+          </span>
         </div>
-        <div v-else class="empty-state">
-          <div class="empty-icon">📜</div>
-          <p>暂无真题卷</p>
-        </div>
+        
+        <!-- 试卷列表 - 使用swiper实现滑动切换 -->
+        <swiper class="paper-swiper" :current="currentSwiperIndex" @change="onPaperTabChange">
+          <!-- 我的试卷 -->
+          <swiper-item>
+            <scroll-view scroll-y class="paper-list-scroll">
+              <view class="paper-list">
+                <view v-for="paper in myPapers" :key="paper.PaperID" class="paper-item style-teal" @click="goToPaper(paper)">
+                  <view class="paper-content">
+                    <view class="icon-box paper-icon-box teal-bg">
+                      <view class="inner-icon paper-scroll"></view>
+                    </view>
+                    <view class="paper-info">
+                      <view class="paper-title">{{ paper.Title }}</view>
+                      <view class="paper-meta">
+                        <text class="meta-date">{{ formatDate(paper.CreatedAt) }}</text>
+                      </view>
+                    </view>
+                    <view class="paper-arrow">❯</view>
+                  </view>
+                </view>
+                <view v-if="myPapers.length === 0" class="empty-section">
+                  <view class="empty-icon empty-my-icon"></view>
+                  <text class="empty-text">暂无试卷</text>
+                  <text class="empty-tip">去智能组卷页面创建属于你的试卷</text>
+                </view>
+              </view>
+            </scroll-view>
+          </swiper-item>
+          
+          <!-- 共享试卷（非周测） -->
+          <swiper-item>
+            <scroll-view scroll-y class="paper-list-scroll">
+              <view class="paper-list">
+                <view v-for="paper in sharedPapers" :key="paper.PaperID" class="paper-item style-orange" @click="goToPaper(paper)">
+                  <view class="paper-content">
+                    <view class="icon-box paper-icon-box orange-bg">
+                      <view class="inner-icon paper-share"></view>
+                    </view>
+                    <view class="paper-info">
+                      <view class="paper-title">{{ paper.Title }}</view>
+                      <view class="paper-meta">
+                        <text class="meta-source">来自: {{ paper.originalAuthor || '未知' }}</text>
+                      </view>
+                    </view>
+                    <view class="paper-arrow">❯</view>
+                  </view>
+                </view>
+                <view v-if="sharedPapers.length === 0" class="empty-section">
+                  <view class="empty-icon empty-shared-icon"></view>
+                  <text class="empty-text">暂无共享试卷</text>
+                  <text class="empty-tip">输入分享码获取他人分享的试卷</text>
+                </view>
+              </view>
+            </scroll-view>
+          </swiper-item>
+          
+          <!-- 周测试卷 -->
+          <swiper-item>
+            <scroll-view scroll-y class="paper-list-scroll">
+              <view class="paper-list">
+                <view v-for="paper in weeklyTestPapers" :key="paper.PaperID" class="paper-item style-purple" @click="goToPaper(paper)">
+                  <view class="paper-content">
+                    <view class="icon-box paper-icon-box purple-bg">
+                      <view class="inner-icon paper-weekly"></view>
+                    </view>
+                    <view class="paper-info">
+                      <view class="paper-title">{{ paper.Title }}</view>
+                      <view class="paper-meta">
+                        <text class="meta-source">来自: {{ paper.originalAuthor || '未知' }}</text>
+                      </view>
+                    </view>
+                    <view class="paper-arrow">❯</view>
+                  </view>
+                </view>
+                <view v-if="weeklyTestPapers.length === 0" class="empty-section">
+                  <view class="empty-icon empty-weekly-icon"></view>
+                  <text class="empty-text">暂无周测试卷</text>
+                  <text class="empty-tip">周测试卷将显示在这里</text>
+                </view>
+              </view>
+            </scroll-view>
+          </swiper-item>
+        </swiper>
       </section>
-
-      <!-- 批量操作栏 -->
-      <div v-if="selectionMode && selectedBookIds.length > 0" class="bottom-action-bar">
-        <div class="selection-info">
-          已选 <span class="highlight">{{ selectedBookIds.length }}</span> 本
-        </div>
-        <button class="add-to-bookshelf-btn" :disabled="submitting" @click="confirmBatchAdd">
-          {{ submitting ? '正在添加...' : '加入书架' }}
-        </button>
-      </div>
 
       <!-- 加载状态 -->
       <div v-if="loading" class="loading-state">
         <div class="loading-spinner"></div>
-        <p>正在加载内容...</p>
+        <p>正在加载...</p>
       </div>
     </main>
   </view>
@@ -115,482 +143,450 @@ import { ref, onMounted, computed } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
 import { request } from '../../api/request';
 
-const subjects = ref(uni.getStorageSync('math_subjects') || []);
-const selectedSubjectId = ref(uni.getStorageSync('math_selected_subject_id') || null);
-const activeTab = ref('mock'); // 'mock' or 'real'
-const books = ref([]);
-const userBookshelf = ref([]);
+const allPapers = ref([]);
 const loading = ref(false);
-const submitting = ref(false);
+const shareCode = ref('');
 
-// 选择模式相关
-const selectionMode = ref(false);
-const selectedBookIds = ref([]);
+// 试卷Tab相关 - 默认我的试卷
+const activePaperTab = ref('my');
 
-const toggleSelectionMode = () => {
-  selectionMode.value = !selectionMode.value;
-  if (!selectionMode.value) {
-    selectedBookIds.value = [];
-  }
-};
-
-const isSelected = (bookId) => {
-  return selectedBookIds.value.includes(bookId);
-};
-
-const isInBookshelf = (bookId) => {
-  return userBookshelf.value.some(b => b.BookID === bookId);
-};
-
-const handleBookClick = (book) => {
-  if (selectionMode.value) {
-    if (isInBookshelf(book.BookID)) return;
-    
-    const index = selectedBookIds.value.indexOf(book.BookID);
-    if (index > -1) {
-      selectedBookIds.value.splice(index, 1);
-    } else {
-      selectedBookIds.value.push(book.BookID);
-    }
-  } else {
-    // 保存为最近练习科目，以便在首页显示
-    const practiceItem = {
-      type: 'math',
-      subject: '数学',
-      id: book.BookID,
-      title: book.BookTitle,
-      bookTitle: book.BookTitle,
-      bookId: book.BookID,
-      url: `/pages/math/math-question-detail?bookId=${book.BookID}&bookTitle=${encodeURIComponent(book.BookTitle)}`,
-      icon: 'math'
-    };
-    uni.setStorageSync('lastPracticeSubject', practiceItem);
-
-    uni.navigateTo({
-      url: `/pages/math/math-question-detail?bookId=${book.BookID}&bookTitle=${encodeURIComponent(book.BookTitle)}`
-    });
-  }
-};
-
-const confirmBatchAdd = async () => {
-  if (selectedBookIds.value.length === 0) return;
-  submitting.value = true;
-  try {
-    await request({
-      url: '/math/bookshelf/batch-add',
-      method: 'POST',
-      data: { bookIds: selectedBookIds.value }
-    });
-    uni.showToast({ title: '已加入书架', icon: 'success' });
-    await fetchUserBookshelf();
-    selectionMode.value = false;
-    selectedBookIds.value = [];
-  } catch (error) {
-    console.error('Failed to add books to bookshelf:', error);
-    uni.showToast({ title: '添加失败', icon: 'none' });
-  } finally {
-    submitting.value = false;
-  }
-};
-
-const fetchUserBookshelf = async () => {
-  try {
-    const response = await request({
-      url: '/math/bookshelf',
-      method: 'GET'
-    });
-    userBookshelf.value = response.data;
-  } catch (error) {
-    console.error('Failed to fetch user bookshelf:', error);
-  }
-};
-
-const displaySubjects = computed(() => {
-  if (!subjects.value) return [];
-  const order = { '考研数学(一)': 1, '考研数学(二)': 2, '考研数学(三)': 3 };
-  return subjects.value
-    .filter(s => s && s.name && order[s.name])
-    .sort((a, b) => {
-      return (order[a.name] || 99) - (order[b.name] || 99);
-    });
+// 计算当前swiper索引
+const currentSwiperIndex = computed(() => {
+  const map = { 'my': 0, 'shared': 1, 'weekly': 2 };
+  return map[activePaperTab.value] || 0;
 });
 
-const currentSubjectName = computed(() => {
-  const subject = subjects.value.find(s => s.id == selectedSubjectId.value);
-  return subject ? subject.name : '数学';
-});
-
-const filteredMocks = computed(() => {
-  return books.value
-    .filter(book => book.ContentType === 'mock_paper')
-    .sort((a, b) => (b.VersionInfo || '').localeCompare(a.VersionInfo || ''));
-});
-
-const filteredReals = computed(() => {
-  return books.value
-    .filter(book => book.ContentType === 'real_paper')
-    .sort((a, b) => (b.VersionInfo || '').localeCompare(a.VersionInfo || ''));
-});
-
-const selectSubject = async (subject) => {
-  if (selectedSubjectId.value === subject.id) return;
-  selectedSubjectId.value = subject.id;
-  await fetchBookshelf(subject.id);
-  uni.setStorageSync('math_selected_subject_id', subject.id);
-  uni.setStorageSync('math_selected_subject_name', subject.name);
-};
-
-const fetchSubjects = async () => {
-  try {
-    const response = await request({
-      url: '/math/subjects',
-      method: 'GET'
-    });
-    subjects.value = response.data;
-    uni.setStorageSync('math_subjects', response.data);
-    return response.data;
-  } catch (error) {
-    console.error('Failed to fetch subjects:', error);
-    return [];
+// 计算当前Tab的试卷数量
+const currentTabCount = computed(() => {
+  switch (activePaperTab.value) {
+    case 'my': return myPapers.value.length;
+    case 'shared': return sharedPapers.value.length;
+    case 'weekly': return weeklyTestPapers.value.length;
+    default: return 0;
   }
+});
+
+// 处理swiper切换事件
+const onPaperTabChange = (e) => {
+  const current = e.detail.current;
+  const map = { 0: 'my', 1: 'shared', 2: 'weekly' };
+  activePaperTab.value = map[current] || 'my';
 };
 
-const fetchBookshelf = async (subjectId) => {
-  if (!subjectId) return;
+// 我的试卷（自己创建的）
+const myPapers = computed(() => {
+  return allPapers.value.filter(p => !isShared(p));
+});
+
+// 共享试卷（通过分享获取的，且不是周测）
+const sharedPapers = computed(() => {
+  return allPapers.value.filter(p => isShared(p) && !isWeeklyTest(p));
+});
+
+// 周测试卷（通过分享获取的，且是周测）
+const weeklyTestPapers = computed(() => {
+  return allPapers.value.filter(p => isShared(p) && isWeeklyTest(p));
+});
+
+// 判断是否为共享试卷（处理数字和布尔值）
+const isShared = (paper) => {
+  return paper.IsShared === 1 || paper.IsShared === true;
+};
+
+// 判断是否为周测试卷（处理数字和布尔值）
+const isWeeklyTest = (paper) => {
+  return paper.IsWeeklyTest === 1 || paper.IsWeeklyTest === true;
+};
+
+// 获取我的组卷列表
+const fetchMyPapers = async () => {
   loading.value = true;
   try {
     const response = await request({
-      url: `/math/books-by-subject?subjectId=${subjectId}&contentType=practice`,
+      url: '/math/smart-papers',
       method: 'GET'
     });
-    books.value = response.data;
+    if (response.code === 0 || response.code === 200) {
+      allPapers.value = response.data || [];
+      // 调试日志
+      console.log('获取到的试卷:', allPapers.value);
+      allPapers.value.forEach(p => {
+        console.log(`试卷: ${p.Title}, IsShared: ${p.IsShared}, IsWeeklyTest: ${p.IsWeeklyTest}, 类型: ${typeof p.IsWeeklyTest}`);
+      });
+    }
   } catch (error) {
-    console.error('Failed to fetch bookshelf:', error);
-    books.value = [];
+    console.error('获取组卷列表失败:', error);
   } finally {
     loading.value = false;
   }
 };
 
-onShow(async () => {
-  // 从缓存同步最新的科目数据
-  const cachedSubjects = uni.getStorageSync('math_subjects');
-  if (cachedSubjects && JSON.stringify(cachedSubjects) !== JSON.stringify(subjects.value)) {
-    subjects.value = cachedSubjects;
+// 通过分享码获取试卷（先预览，再确认保存）
+const handleGetPaperByCode = async () => {
+  if (!shareCode.value || shareCode.value.length !== 7) {
+    uni.showToast({ title: '请输入7位分享码', icon: 'none' });
+    return;
   }
 
-  // 获取用户信息并同步后端选中的科目
+  console.log('开始获取试卷，分享码:', shareCode.value);
+  uni.showLoading({ title: '获取中...' });
+
   try {
-    const userRes = await request({ url: '/user/info' });
-    if (userRes.data && userRes.data.selectedSubjectId) {
-      const backendSubjectId = userRes.data.selectedSubjectId;
-      if (backendSubjectId && backendSubjectId != selectedSubjectId.value) {
-        selectedSubjectId.value = backendSubjectId;
-        uni.setStorageSync('math_selected_subject_id', backendSubjectId);
-        await fetchBookshelf(backendSubjectId);
-      }
+    // 第一步：查询试卷信息
+    const requestUrl = `/math/paper-by-code/${shareCode.value}`;
+    console.log('请求URL:', requestUrl);
+    const response = await request({
+      url: requestUrl,
+      method: 'GET'
+    });
+    console.log('接口响应:', response);
+
+    uni.hideLoading();
+
+    if (response.code === 0 || response.code === 200) {
+      const { paper, questions } = response.data;
+
+      // 显示预览弹窗，确认是否获取
+      uni.showModal({
+        title: '试卷预览',
+        content: `试卷：${paper.Title}\n作者：${paper.authorName || '未知'}\n题目数量：${questions.length} 题\n\n获取后将成为您的试卷，可继续分享他人。`,
+        confirmText: '获取试卷',
+        cancelText: '取消',
+        success: async (res) => {
+          if (res.confirm) {
+            // 确认获取，调用保存接口
+            await claimPaper(shareCode.value);
+          }
+        }
+      });
+    } else {
+      uni.showToast({ title: response.message || '试卷不存在', icon: 'none' });
     }
   } catch (error) {
-    console.error('Failed to fetch user info for subject sync:', error);
+    uni.hideLoading();
+    console.error('获取试卷失败:', error);
+    uni.showToast({ title: '获取失败，请检查分享码', icon: 'none' });
   }
+};
 
-  // 从缓存同步最新的科目 ID (作为兜底)
-  const storedSubjectId = uni.getStorageSync('math_selected_subject_id');
-  if (storedSubjectId && storedSubjectId != selectedSubjectId.value) {
-    selectedSubjectId.value = storedSubjectId;
-    if (selectedSubjectId.value) {
-      await fetchBookshelf(selectedSubjectId.value);
+// 确认获取试卷（保存为自己的试卷）
+const claimPaper = async (code) => {
+  uni.showLoading({ title: '保存中...' });
+
+  try {
+    const response = await request({
+      url: `/math/claim-paper/${code}`,
+      method: 'POST'
+    });
+
+    uni.hideLoading();
+
+    if (response.code === 0 || response.code === 200) {
+      const { paperId, title, code: newCode, originalAuthor, questionCount } = response.data;
+
+      uni.showModal({
+        title: '获取成功',
+        content: `试卷：${title}\n原作者：${originalAuthor || '未知'}\n题目数量：${questionCount} 题\n您的新分享码：${newCode}\n\n是否立即查看？`,
+        confirmText: '立即查看',
+        cancelText: '稍后查看',
+        success: (res) => {
+          if (res.confirm) {
+            uni.navigateTo({
+              url: `/pages/math/math-generated-paper?paperId=${paperId}`
+            });
+          }
+          // 清空输入
+          shareCode.value = '';
+          // 刷新列表
+          fetchMyPapers();
+        }
+      });
+    } else {
+      uni.showToast({ title: response.message || '获取失败', icon: 'none' });
     }
+  } catch (error) {
+    uni.hideLoading();
+    console.error('保存试卷失败:', error);
+    uni.showToast({ title: '保存失败: ' + (error.message || '未知错误'), icon: 'none' });
   }
-  await fetchUserBookshelf();
+};
+
+// 跳转到试卷详情
+const goToPaper = (paper) => {
+  uni.navigateTo({
+    url: `/pages/math/math-generated-paper?paperId=${paper.PaperID}`
+  });
+};
+
+// 格式化日期
+const formatDate = (dateStr) => {
+  if (!dateStr) return '';
+  const date = new Date(dateStr);
+  return `${date.getMonth() + 1}月${date.getDate()}日`;
+};
+
+onShow(() => {
+  fetchMyPapers();
 });
 
-onMounted(async () => {
-  const subjectsData = await fetchSubjects();
-  await fetchUserBookshelf();
-  
-  const pages = getCurrentPages();
-  const currentPage = pages[pages.length - 1];
-  const options = currentPage.options || {};
-  
-  if (options.tab) {
-    activeTab.value = options.tab;
-  }
-  
-  if (subjectsData.length > 0) {
-    let defaultSubjectId = options.subjectId;
-    
-    if (!defaultSubjectId) {
-      defaultSubjectId = uni.getStorageSync('math_selected_subject_id');
-    }
-    
-    if (!defaultSubjectId) {
-      const mathOne = subjectsData.find(s => s && s.name && s.name.includes("数一"));
-      const defaultSubject = mathOne || subjectsData[0];
-      if (defaultSubject) {
-        defaultSubjectId = defaultSubject.id;
-        uni.setStorageSync('math_selected_subject_id', defaultSubject.id);
-        uni.setStorageSync('math_selected_subject_name', defaultSubject.name);
-        
-        // 同步到后端
-        try {
-          await request({
-            url: '/user/selected-subject',
-            method: 'POST',
-            data: { subjectId: defaultSubjectId }
-          });
-        } catch (error) {
-          console.error('Failed to sync default subject to backend:', error);
-        }
-      }
-    }
-    
-    selectedSubjectId.value = defaultSubjectId;
-    if (defaultSubjectId) {
-      await fetchBookshelf(defaultSubjectId);
-    }
-  }
+onMounted(() => {
+  fetchMyPapers();
 });
 </script>
 
 <style scoped>
 .app-container {
-  max-width: 480px;
-  margin: 0 auto;
-  background-color: #fff;
   min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-}
-
-.top-bar {
-  background: rgba(255, 255, 255, 0.85);
-  backdrop-filter: blur(15px);
-  -webkit-backdrop-filter: blur(15px);
-  padding: 10px 15px;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
-  position: sticky;
-  top: 0;
-  z-index: 100;
-}
-
-.top-bar-content {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.back-btn {
-  width: 40px;
-  height: 40px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-}
-
-.back-icon {
-  font-size: 18px;
-  color: #333;
-}
-
-.top-bar-tabs {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-}
-
-.action-btn {
-  font-size: 14px;
-  color: #007aff;
-  font-weight: 500;
-  padding: 4px 12px;
-  background: #f0f7ff;
-  border-radius: 14px;
-}
-
-.main-content.has-bottom-bar {
-  padding-bottom: 100px;
-}
-
-.bottom-action-bar {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 80px;
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(10px);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 20px;
-  box-shadow: 0 -2px 15px rgba(0, 0, 0, 0.08);
-  z-index: 1000;
-}
-
-.selection-info {
-  font-size: 15px;
-  color: #666;
-}
-
-.selection-info .highlight {
-  color: #007aff;
-  font-weight: 700;
-  font-size: 20px;
-  margin: 0 4px;
-}
-
-.add-to-bookshelf-btn {
-  background: #007aff;
-  color: #fff;
-  border: none;
-  border-radius: 25px;
-  padding: 10px 30px;
-  font-size: 15px;
-  font-weight: 600;
-  box-shadow: 0 4px 12px rgba(0, 122, 255, 0.3);
-  transition: all 0.3s ease;
-}
-
-.add-to-bookshelf-btn:disabled {
-  background: #ccc;
-  box-shadow: none;
-}
-
-
-.tab-switcher {
-  flex: 1;
-  display: flex;
-  background: #f0f0f0;
-  padding: 4px;
-  border-radius: 12px;
-  gap: 4px;
-}
-
-.tab-item {
-  flex: 1;
-  text-align: center;
-  padding: 6px 0;
-  border-radius: 9px;
-  font-size: 14px;
-  font-weight: 600;
-  color: #666;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  cursor: pointer;
-}
-
-.tab-item.active {
-  background: #fff;
-  color: #007aff;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  background: #f5f7fa;
 }
 
 .main-content {
-  flex: 1;
-  padding: 15px;
-  padding-bottom: 100px;
+  padding: 20rpx;
+  padding-bottom: 40rpx;
 }
 
-.bookshelf-section {
-  margin-bottom: 25px;
+/* 获取试卷区域 */
+.get-paper-section {
+  background: #fff;
+  border-radius: 16rpx;
+  padding: 30rpx;
+  margin-bottom: 30rpx;
+  box-shadow: 0 2rpx 12rpx rgba(0, 0, 0, 0.06);
 }
 
 .section-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 15px;
+  margin-bottom: 20rpx;
 }
 
 .section-header h2 {
-  font-size: 18px;
-  font-weight: 700;
+  font-size: 32rpx;
+  font-weight: 600;
   color: #333;
+  margin-bottom: 8rpx;
 }
 
-.count-badge {
-  font-size: 12px;
+.section-desc {
+  font-size: 24rpx;
   color: #999;
-  background: #f0f0f0;
-  padding: 2px 8px;
-  border-radius: 10px;
 }
 
-.paper-list {
+.code-input-area {
   display: flex;
-  flex-direction: column;
-  gap: 12px;
+  gap: 16rpx;
 }
 
-.paper-item {
-  position: relative;
-  display: flex;
-  align-items: center;
-  background: #fff;
-  border-radius: 12px;
-  padding: 12px;
-  transition: all 0.3s ease;
-  border: 1px solid rgba(0, 0, 0, 0.03);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
-  overflow: hidden; /* 确保丝带不会超出圆角 */
-}
-
-.new-banner {
-  position: absolute;
-  top: 0;
-  left: 0;
-  background-color: #ff3b30;
-  color: white;
-  padding: 3px 0;
-  width: 36px;
-  text-align: center;
-  font-size: 8px;
-  font-weight: 800;
-  clip-path: polygon(0 0, 100% 0, 85% 100%, 0% 100%);
-  z-index: 2;
-  letter-spacing: 0.5px;
-}
-
-.paper-item.selected {
-  background: #f0f7ff;
-  border-color: rgba(0, 122, 255, 0.2);
-}
-
-.selection-box {
-  margin-right: 12px;
-}
-
-.paper-content {
+.code-input {
   flex: 1;
-  display: flex;
-  align-items: center;
-  min-width: 0;
+  height: 80rpx;
+  border: 2rpx solid #e0e0e0;
+  border-radius: 12rpx;
+  padding: 0 24rpx;
+  font-size: 28rpx;
+  text-align: center;
+  letter-spacing: 4rpx;
 }
 
-.paper-content.dimmed {
-  opacity: 0.6;
+.code-input:focus {
+  border-color: #4db6ac;
+  outline: none;
 }
 
-.paper-icon {
-  width: 44px;
-  height: 44px;
-  border-radius: 10px;
+.get-paper-btn {
+  width: 140rpx;
+  height: 80rpx;
+  background: linear-gradient(135deg, #4db6ac, #26a69a);
+  color: #fff;
+  border: none;
+  border-radius: 12rpx;
+  font-size: 28rpx;
+  font-weight: 500;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 18px;
-  margin-right: 12px;
+}
+
+.get-paper-btn:disabled {
+  background: #e0e0e0;
+  color: #999;
+}
+
+/* 试卷Tab区域 - 参考math-bookshelf样式 */
+.bookshelf-section {
+  background: #fff;
+  border-radius: 16rpx;
+  padding: 30rpx;
+  box-shadow: 0 2rpx 12rpx rgba(0, 0, 0, 0.06);
+}
+
+.paper-tabs-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20rpx;
+}
+
+.tabs-left {
+  display: flex;
+  gap: 24rpx;
+  align-items: flex-end;
+}
+
+.tab-item {
+  position: relative;
+  padding: 10rpx 0;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  min-height: 60rpx;
+}
+
+.tab-text {
+  font-size: 28rpx;
+  color: #999;
+  font-weight: 500;
+  transition: all 0.3s;
+  line-height: 1;
+}
+
+.tab-item.active .tab-text {
+  color: #ff6b6b;
+  font-weight: 600;
+}
+
+/* 选中时字体加大 */
+.tab-text.active-text {
+  font-size: 34rpx;
+  font-weight: 700;
+}
+
+.tab-line {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 40rpx;
+  height: 4rpx;
+  background: #ff6b6b;
+  border-radius: 2rpx;
+}
+
+.count-badge {
+  font-size: 24rpx;
+  color: #4db6ac;
+  background: rgba(77, 182, 172, 0.1);
+  padding: 6rpx 16rpx;
+  border-radius: 20rpx;
+}
+
+.shared-badge {
+  color: #ff9800;
+  background: rgba(255, 152, 0, 0.1);
+}
+
+.weekly-badge {
+  color: #9c27b0;
+  background: rgba(156, 39, 176, 0.1);
+}
+
+/* swiper样式 */
+.paper-swiper {
+  height: 600rpx;
+}
+
+.paper-list-scroll {
+  height: 100%;
+}
+
+.paper-list {
+  padding-bottom: 20rpx;
+}
+
+/* 试卷项样式 */
+.paper-item {
+  margin-bottom: 16rpx;
+  border-radius: 12rpx;
+  overflow: hidden;
+  transition: all 0.2s;
+}
+
+.paper-item:active {
+  transform: scale(0.98);
+}
+
+/* 样式类型 */
+.style-teal {
+  background: linear-gradient(135deg, #e0f7fa 0%, #fff 100%);
+}
+
+.style-teal:active {
+  background: linear-gradient(135deg, #b2ebf2 0%, #e0f7fa 100%);
+}
+
+.style-orange {
+  background: linear-gradient(135deg, #fff8e1 0%, #fff 100%);
+}
+
+.style-orange:active {
+  background: linear-gradient(135deg, #ffecb3 0%, #fff8e1 100%);
+}
+
+.style-purple {
+  background: linear-gradient(135deg, #f3e5f5 0%, #fff 100%);
+}
+
+.style-purple:active {
+  background: linear-gradient(135deg, #e1bee7 0%, #f3e5f5 100%);
+}
+
+.paper-content {
+  display: flex;
+  align-items: center;
+  padding: 24rpx;
+  gap: 20rpx;
+}
+
+/* 图标样式 */
+.icon-box {
+  width: 72rpx;
+  height: 72rpx;
+  border-radius: 16rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   flex-shrink: 0;
 }
 
-.style-blue .paper-icon {
-  background: linear-gradient(135deg, #e0e7ff 0%, #c7d2fe 100%);
+.teal-bg {
+  background: linear-gradient(135deg, #4db6ac, #26a69a);
 }
 
-.style-yellow .paper-icon {
-  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+.orange-bg {
+  background: linear-gradient(135deg, #ff9800, #f57c00);
+}
+
+.purple-bg {
+  background: linear-gradient(135deg, #9c27b0, #7b1fa2);
+}
+
+.inner-icon {
+  width: 40rpx;
+  height: 40rpx;
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+}
+
+.paper-scroll {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='white'%3E%3Cpath d='M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z'/%3E%3C/svg%3E");
+}
+
+.paper-share {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='white'%3E%3Cpath d='M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92s2.92-1.31 2.92-2.92-1.31-2.92-2.92-2.92z'/%3E%3C/svg%3E");
+}
+
+.paper-weekly {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='white'%3E%3Cpath d='M19 3h-1V1h-2v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11zM9 10H7v2h2v-2zm4 0h-2v2h2v-2zm4 0h-2v2h2v-2zm-8 4H7v2h2v-2zm4 0h-2v2h2v-2zm4 0h-2v2h2v-2z'/%3E%3C/svg%3E");
 }
 
 .paper-info {
@@ -598,117 +594,104 @@ onMounted(async () => {
   min-width: 0;
 }
 
-.paper-title-row {
-  display: flex;
-  align-items: center;
-  margin-bottom: 4px;
-}
-
 .paper-title {
-  font-size: 16px;
+  font-size: 30rpx;
   font-weight: 600;
   color: #333;
-  white-space: nowrap;
+  margin-bottom: 10rpx;
   overflow: hidden;
   text-overflow: ellipsis;
-  margin-right: 8px;
-}
-
-.paper-tag {
-  font-size: 10px;
-  color: #007aff;
-  background: #e6f2ff;
-  padding: 1px 6px;
-  border-radius: 4px;
-  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .paper-meta {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 16rpx;
+  flex-wrap: wrap;
 }
 
-.paper-version {
-  font-size: 13px;
-  color: #007aff;
-  font-weight: 500;
-}
-
-.paper-learner {
-  font-size: 12px;
+.meta-date {
+  font-size: 24rpx;
   color: #999;
 }
 
+.meta-source {
+  font-size: 24rpx;
+  color: #ff9800;
+}
+
+.style-purple .meta-source {
+  color: #9c27b0;
+}
+
 .paper-arrow {
+  font-size: 28rpx;
   color: #ccc;
-  font-size: 14px;
-  margin-left: 8px;
+  margin-left: auto;
 }
 
-.checkbox {
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  border: 2px solid #ddd;
-  background: #fff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: transparent;
-  font-size: 12px;
-  transition: all 0.2s ease;
-}
-
-.checkbox.checked {
-  background: #007aff;
-  border-color: #007aff;
-  color: #fff;
-}
-
-.checkbox.disabled {
-  background: #f5f5f5;
-  border-color: #eee;
-  color: #ccc;
-  opacity: 0.8;
-}
-
-.loading-state, .empty-state {
+/* 空状态 */
+.empty-section {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 60px 0;
-  color: #999;
+  padding: 80rpx 40rpx;
 }
 
 .empty-icon {
-  font-size: 64rpx;
-  margin-bottom: 16px;
+  width: 120rpx;
+  height: 120rpx;
+  border-radius: 50%;
+  margin-bottom: 30rpx;
 }
 
-.tab-switcher {
-  display: flex;
-  background: #f5f7fa;
-  border-radius: 16rpx;
-  padding: 6rpx;
-  margin: 16rpx 24rpx;
+.empty-my-icon {
+  background: linear-gradient(135deg, #e0f7fa, #b2ebf2);
 }
 
-.tab-item {
-  flex: 1;
-  text-align: center;
-  padding: 20rpx 0;
-  font-size: 28rpx;
+.empty-shared-icon {
+  background: linear-gradient(135deg, #fff8e1, #ffecb3);
+}
+
+.empty-weekly-icon {
+  background: linear-gradient(135deg, #f3e5f5, #e1bee7);
+}
+
+.empty-text {
+  font-size: 30rpx;
   color: #666;
-  border-radius: 12rpx;
-  transition: all 0.3s;
+  margin-bottom: 16rpx;
 }
 
-.tab-item.active {
-  background: #fff;
-  color: #007aff;
-  font-weight: 600;
-  box-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.08);
+.empty-tip {
+  font-size: 26rpx;
+  color: #999;
+}
+
+/* 加载状态 */
+.loading-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 80rpx;
+}
+
+.loading-spinner {
+  width: 60rpx;
+  height: 60rpx;
+  border: 4rpx solid #e0e0e0;
+  border-top-color: #4db6ac;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 20rpx;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 </style>

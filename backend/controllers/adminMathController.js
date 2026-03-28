@@ -195,53 +195,77 @@ const updateQuestion = async (req, res) => {
     await connection.beginTransaction();
     
     try {
-      // 1. 更新 math_questions（只更新题目基本信息）
-      await connection.query(
-        `UPDATE math_questions SET 
-          QuestionText = ?, 
-          OriginalAnswerText = ?, 
-          QuestionType = ?, 
-          Difficulty = ?,
-          LegacyOriginalBookID = ?,
-          IsTypeManuallySet = 1 
-        WHERE QuestionID = ?`,
-        [
-          questionText, 
-          answerText, 
-          questionType || null, 
-          difficulty || 3,
-          bookId || null,
-          questionId
-        ]
-      );
+      // 1. 动态构建 math_questions 更新语句（只更新提供的字段）
+      const updateFields = [];
+      const updateValues = [];
       
-      // 2. 更新 math_bookquestions（书籍章节相关信息）
-      if (bookId) {
+      if (questionText !== undefined) {
+        updateFields.push('QuestionText = ?');
+        updateValues.push(questionText);
+      }
+      if (answerText !== undefined) {
+        updateFields.push('OriginalAnswerText = ?');
+        updateValues.push(answerText);
+      }
+      if (questionType !== undefined) {
+        updateFields.push('QuestionType = ?');
+        updateValues.push(questionType || null);
+        updateFields.push('IsTypeManuallySet = 1');
+      }
+      if (difficulty !== undefined) {
+        updateFields.push('Difficulty = ?');
+        updateValues.push(difficulty || 3);
+      }
+      if (bookId !== undefined) {
+        updateFields.push('LegacyOriginalBookID = ?');
+        updateValues.push(bookId || null);
+      }
+      
+      // 只有在有字段需要更新时才执行更新
+      if (updateFields.length > 0) {
+        updateValues.push(questionId);
+        const updateQuery = `UPDATE math_questions SET ${updateFields.join(', ')} WHERE QuestionID = ?`;
+        await connection.query(updateQuery, updateValues);
+      }
+      
+      // 2. 更新 math_bookquestions（书籍章节相关信息）- 只更新提供的字段
+      if (bookId !== undefined) {
         // 检查是否已存在关联记录
         const [existingRecords] = await connection.query(
           'SELECT EntryID FROM math_bookquestions WHERE BookID = ? AND QuestionID = ?',
-          [bookId, questionId]
+          [bookId || null, questionId]
         );
         
         if (existingRecords.length > 0) {
-          // 更新现有记录
-          await connection.query(
-            `UPDATE math_bookquestions SET 
-              BookChapter = ?,
-              QuestionPage = ?,
-              QuestionSort = ?,
-              ChapterSort = ?
-            WHERE BookID = ? AND QuestionID = ?`,
-            [
-              bookChapter || null,
-              questionPage || null,
-              questionSort || null,
-              chapterSort || null,
-              bookId,
-              questionId
-            ]
-          );
-        } else {
+          // 动态构建更新语句
+          const bookUpdateFields = [];
+          const bookUpdateValues = [];
+          
+          if (bookChapter !== undefined) {
+            bookUpdateFields.push('BookChapter = ?');
+            bookUpdateValues.push(bookChapter || null);
+          }
+          if (questionPage !== undefined) {
+            bookUpdateFields.push('QuestionPage = ?');
+            bookUpdateValues.push(questionPage || null);
+          }
+          if (questionSort !== undefined) {
+            bookUpdateFields.push('QuestionSort = ?');
+            bookUpdateValues.push(questionSort || null);
+          }
+          if (chapterSort !== undefined) {
+            bookUpdateFields.push('ChapterSort = ?');
+            bookUpdateValues.push(chapterSort || null);
+          }
+          
+          if (bookUpdateFields.length > 0) {
+            bookUpdateValues.push(bookId || null, questionId);
+            await connection.query(
+              `UPDATE math_bookquestions SET ${bookUpdateFields.join(', ')} WHERE BookID = ? AND QuestionID = ?`,
+              bookUpdateValues
+            );
+          }
+        } else if (bookId) {
           // 获取最大EntryID
           const [maxEntryResult] = await connection.query(
             'SELECT MAX(EntryID) as maxEntry FROM math_bookquestions'
@@ -266,64 +290,66 @@ const updateQuestion = async (req, res) => {
         }
       }
       
-      // 2. 处理详情记录 (math_questiondetails)
-      // 获取当前数据库中的所有详情 ID
-      const [currentDetails] = await connection.query('SELECT ID FROM math_questiondetails WHERE QuestionID = ?', [questionId]);
-      
-      // 确保 ID 都是数字类型，以便进行准确比较
-      const incomingIds = details.filter(d => d.ID).map(d => Number(d.ID));
-      const dbIds = currentDetails.map(d => Number(d.ID));
-      
-      const idsToDelete = dbIds.filter(id => !incomingIds.includes(id));
+      // 2. 处理详情记录 (math_questiondetails) - 只在提供了 details 时才处理
+      if (details !== undefined && Array.isArray(details)) {
+        // 获取当前数据库中的所有详情 ID
+        const [currentDetails] = await connection.query('SELECT ID FROM math_questiondetails WHERE QuestionID = ?', [questionId]);
+        
+        // 确保 ID 都是数字类型，以便进行准确比较
+        const incomingIds = details.filter(d => d.ID).map(d => Number(d.ID));
+        const dbIds = currentDetails.map(d => Number(d.ID));
+        
+        const idsToDelete = dbIds.filter(id => !incomingIds.includes(id));
 
-      if (idsToDelete.length > 0) {
-        await connection.query('DELETE FROM math_questiondetails WHERE ID IN (?)', [idsToDelete]);
-      }
-      
-      // B. 更新或插入记录
-      for (const detail of details) {
-        // 将 ID 转换为数字类型
-        const detailId = detail.ID ? Number(detail.ID) : null;
-        
-        console.log('处理详情记录:', {
-          detailId,
-          linkedKPID: detail.LinkedKnowledgePointID,
-          busType: detail.BusType,
-          title: detail.Title
-        });
-        
-        if (detailId && dbIds.includes(detailId)) {
-          // 更新已有记录
-          console.log('更新详情记录 ID:', detailId, 'LinkedKnowledgePointID:', detail.LinkedKnowledgePointID || null);
-          await connection.query(
-            'UPDATE math_questiondetails SET Context = ?, Notes = ?, Title = ?, JsonData = ?, LinkedKnowledgePointID = ?, BusType = ?, Give = ? WHERE ID = ?',
-            [detail.Context, detail.Notes, detail.Title, detail.JsonData, detail.LinkedKnowledgePointID || null, detail.BusType, detail.Give || 0, detailId]
-          );
-        } else {
-          // 插入新记录
-          console.log('插入新详情记录, LinkedKnowledgePointID:', detail.LinkedKnowledgePointID || null);
-          await connection.query(
-            'INSERT INTO math_questiondetails (QuestionID, Context, Notes, Title, JsonData, LinkedKnowledgePointID, BusType, Give) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-            [questionId, detail.Context, detail.Notes, detail.Title, detail.JsonData, detail.LinkedKnowledgePointID || null, detail.BusType, detail.Give || 0]
-          );
+        if (idsToDelete.length > 0) {
+          await connection.query('DELETE FROM math_questiondetails WHERE ID IN (?)', [idsToDelete]);
         }
         
-        // C. 如果有关联考点且考点内容有变化，更新考点表
-        if (detail.LinkedKnowledgePointID && detail.Context !== undefined) {
-          const kpId = Number(detail.LinkedKnowledgePointID);
-          // 检查考点是否存在
-          const [existingKPs] = await connection.query(
-            'SELECT KnowledgePointID FROM math_knowledgepoints WHERE KnowledgePointID = ?',
-            [kpId]
-          );
+        // B. 更新或插入记录
+        for (const detail of details) {
+          // 将 ID 转换为数字类型
+          const detailId = detail.ID ? Number(detail.ID) : null;
           
-          if (existingKPs.length > 0) {
-            // 更新考点内容
-            console.log('更新考点内容, KnowledgePointID:', kpId);
+          console.log('处理详情记录:', {
+            detailId,
+            linkedKPID: detail.LinkedKnowledgePointID,
+            busType: detail.BusType,
+            title: detail.Title
+          });
+          
+          if (detailId && dbIds.includes(detailId)) {
+            // 更新已有记录
+            console.log('更新详情记录 ID:', detailId, 'LinkedKnowledgePointID:', detail.LinkedKnowledgePointID || null);
             await connection.query(
-              'UPDATE math_knowledgepoints SET KPContent = ? WHERE KnowledgePointID = ?',
-              [detail.Context, kpId]
+              'UPDATE math_questiondetails SET Context = ?, Notes = ?, Title = ?, JsonData = ?, LinkedKnowledgePointID = ?, BusType = ?, Give = ? WHERE ID = ?',
+              [detail.Context, detail.Notes, detail.Title, detail.JsonData, detail.LinkedKnowledgePointID || null, detail.BusType, detail.Give || 0, detailId]
             );
+          } else {
+            // 插入新记录
+            console.log('插入新详情记录, LinkedKnowledgePointID:', detail.LinkedKnowledgePointID || null);
+            await connection.query(
+              'INSERT INTO math_questiondetails (QuestionID, Context, Notes, Title, JsonData, LinkedKnowledgePointID, BusType, Give) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+              [questionId, detail.Context, detail.Notes, detail.Title, detail.JsonData, detail.LinkedKnowledgePointID || null, detail.BusType, detail.Give || 0]
+            );
+          }
+          
+          // C. 如果有关联考点且考点内容有变化，更新考点表
+          if (detail.LinkedKnowledgePointID && detail.Context !== undefined) {
+            const kpId = Number(detail.LinkedKnowledgePointID);
+            // 检查考点是否存在
+            const [existingKPs] = await connection.query(
+              'SELECT KnowledgePointID FROM math_knowledgepoints WHERE KnowledgePointID = ?',
+              [kpId]
+            );
+            
+            if (existingKPs.length > 0) {
+              // 更新考点内容
+              console.log('更新考点内容, KnowledgePointID:', kpId);
+              await connection.query(
+                'UPDATE math_knowledgepoints SET KPContent = ? WHERE KnowledgePointID = ?',
+                [detail.Context, kpId]
+              );
+            }
           }
         }
       }
@@ -799,6 +825,10 @@ const updateKnowledgePoint = async (req, res) => {
 // 获取所有考点列表（用于管理页面显示所有考点）
 const getAllKnowledgePoints = async (req, res) => {
   try {
+    // 添加分页支持，默认获取前500条，避免超时
+    const limit = parseInt(req.query.limit) || 500;
+    const offset = parseInt(req.query.offset) || 0;
+    
     const [rows] = await mysqlPool.query(`
       SELECT 
         KnowledgePointID,
@@ -809,7 +839,14 @@ const getAllKnowledgePoints = async (req, res) => {
         KPCode
       FROM math_knowledgepoints
       ORDER BY KnowledgePointID DESC
-    `);
+      LIMIT ? OFFSET ?
+    `, [limit, offset]);
+    
+    // 简化：直接返回考点列表，题目数量通过单独API获取
+    rows.forEach(kp => {
+      kp.QuestionCount = 0; // 先设置为0，后续通过单独API获取
+    });
+    
     res.json(successResponse(rows));
   } catch (error) {
     console.error('获取所有考点失败:', error);
@@ -2183,25 +2220,11 @@ const importFromBooksFolder = async (req, res) => {
 const getKnowledgeCategories = async (req, res) => {
   try {
     const [rows] = await mysqlPool.query(`
-      SELECT * FROM math_knowledge_categories 
-      WHERE IsActive = 1 
+      SELECT * FROM math_knowledge_categories
+      WHERE IsActive = 1
       ORDER BY CategoryCode ASC
     `);
-    
-    // 计算每个分类下的题目数量
-    for (const category of rows) {
-      const [countResult] = await mysqlPool.query(`
-        SELECT COUNT(*) as count 
-        FROM math_questiondetails 
-        WHERE LinkedKnowledgePointID IN (
-          SELECT KnowledgePointID 
-          FROM math_knowledgepoints 
-          WHERE KPCode LIKE ?
-        )
-      `, [`${category.CategoryCode}%`]);
-      category.QuestionCount = countResult[0]?.count || 0;
-    }
-    
+
     res.json(successResponse(rows));
   } catch (error) {
     console.error('获取考点分类失败:', error);
@@ -2212,17 +2235,17 @@ const getKnowledgeCategories = async (req, res) => {
 // 创建考点分类
 const createKnowledgeCategory = async (req, res) => {
   try {
-    const { CategoryName, CategoryCode, ParentID, SubjectID } = req.body;
-    
+    const { CategoryName, CategoryCode, Description, SortOrder, IsActive } = req.body;
+
     const [result] = await mysqlPool.query(
-      'INSERT INTO math_knowledge_categories (CategoryName, CategoryCode, ParentID, SubjectID, IsActive) VALUES (?, ?, ?, ?, 1)',
-      [CategoryName, CategoryCode, ParentID || null, SubjectID || null]
+      'INSERT INTO math_knowledge_categories (CategoryName, CategoryCode, Description, SortOrder, IsActive) VALUES (?, ?, ?, ?, ?)',
+      [CategoryName, CategoryCode, Description || '', SortOrder || 0, IsActive !== undefined ? IsActive : 1]
     );
-    
+
     res.json(successResponse({ id: result.insertId }, '创建成功'));
   } catch (error) {
     console.error('创建考点分类失败:', error);
-    res.status(500).json(errorResponse('服务器错误'));
+    res.status(500).json(errorResponse('服务器错误: ' + error.message));
   }
 };
 
@@ -2230,13 +2253,20 @@ const createKnowledgeCategory = async (req, res) => {
 const updateKnowledgeCategory = async (req, res) => {
   try {
     const { id } = req.params;
-    const { CategoryName, CategoryCode, IsActive } = req.body;
-    
-    await mysqlPool.query(
-      'UPDATE math_knowledge_categories SET CategoryName = ?, CategoryCode = ?, IsActive = ? WHERE id = ?',
-      [CategoryName, CategoryCode, IsActive, id]
-    );
-    
+    const { CategoryName, CategoryCode, IsActive, QuestionCount } = req.body;
+
+    // 如果只更新 QuestionCount，单独处理
+    if (QuestionCount !== undefined && CategoryName === undefined) {
+      await mysqlPool.query('UPDATE math_knowledge_categories SET QuestionCount = ? WHERE id = ?', [QuestionCount, id]);
+      return res.json(successResponse(null, '更新成功'));
+    }
+
+    // 否则更新完整信息
+    const query = 'UPDATE math_knowledge_categories SET CategoryName = ?, CategoryCode = ?, IsActive = ?, QuestionCount = ? WHERE id = ?';
+    const params = [CategoryName, CategoryCode, IsActive, QuestionCount, id];
+
+    await mysqlPool.query(query, params);
+
     res.json(successResponse(null, '更新成功'));
   } catch (error) {
     console.error('更新考点分类失败:', error);
@@ -2272,30 +2302,67 @@ const getQuestionsByCategory = async (req, res) => {
     if (categories.length === 0) {
       return res.status(404).json(errorResponse('分类不存在'));
     }
-    
+
     const category = categories[0];
-    
-    // 获取该分类下的考点 - math_knowledgepoints 表使用 KPCode 字段
-    const [knowledgePoints] = await mysqlPool.query(
-      'SELECT KnowledgePointID FROM math_knowledgepoints WHERE KPCode LIKE ?',
-      [`${category.CategoryCode}%`]
-    );
-    
-    if (knowledgePoints.length === 0) {
+    const level = category.CategoryCode.split('-').length;
+
+    let kpNames = [];
+
+    if (level === 4) {
+      // 4级，直接使用当前分类名称
+      kpNames = [category.CategoryName];
+    } else if (level === 3) {
+      // 3级，包含当前分类名称和所有子级（4级）的分类名称
+      kpNames = [category.CategoryName];
+      
+      // 查找所有4级子分类
+      const [childCategories] = await mysqlPool.query(
+        `SELECT CategoryName FROM math_knowledge_categories WHERE CategoryCode LIKE ?`,
+        [`${category.CategoryCode}-%`]
+      );
+      
+      childCategories.forEach(c => {
+        kpNames.push(c.CategoryName);
+      });
+    } else {
+      // 1-2级，找所有子级（3级和4级）
+      const [childCategories] = await mysqlPool.query(
+        `SELECT CategoryName, CategoryCode FROM math_knowledge_categories WHERE CategoryCode LIKE ?`,
+        [`${category.CategoryCode}%`]
+      );
+      // 过滤出3级和4级分类
+      kpNames = childCategories
+        .filter(c => {
+          const childLevel = c.CategoryCode.split('-').length;
+          return childLevel >= 3 && childLevel <= 4;
+        })
+        .map(c => c.CategoryName);
+    }
+
+    if (kpNames.length === 0) {
       return res.json(successResponse([]));
     }
-    
-    const kpIds = knowledgePoints.map(kp => kp.KnowledgePointID);
-    
-    // 获取关联的题目
+
+    const conditions = kpNames.map(() => 'q.LinkNames LIKE ?').join(' OR ');
+    const params = kpNames.map(name => `%${name}%`);
+
     const [questions] = await mysqlPool.query(`
-      SELECT DISTINCT q.* 
+      SELECT DISTINCT q.*,
+        bq.BookID as BookID,
+        bq.BookChapter,
+        bq.QuestionPage,
+        bq.QuestionSort,
+        bk.BookTitle,
+        ms.SubjectName
       FROM math_questions q
-      JOIN math_questiondetails qd ON q.QuestionID = qd.QuestionID
-      WHERE qd.LinkedKnowledgePointID IN (${kpIds.map(() => '?').join(',')})
+      LEFT JOIN math_bookquestions bq ON q.QuestionID = bq.QuestionID
+      LEFT JOIN math_books bk ON bq.BookID = bk.BookID
+      LEFT JOIN math_book_subjects mbs ON bk.BookID = mbs.BookID
+      LEFT JOIN math_subjects ms ON mbs.SubjectID = ms.SubjectID
+      WHERE (${conditions})
       ORDER BY q.QuestionID DESC
-    `, kpIds);
-    
+    `, params);
+
     res.json(successResponse(questions));
   } catch (error) {
     console.error('获取分类题目失败:', error);
@@ -2344,6 +2411,172 @@ const removeQuestionFromCategory = async (req, res) => {
   }
 };
 
+// 批量修复题目考点关联
+const fixQuestionKnowledgePointLinks = async (req, res) => {
+  try {
+    const { dryRun = true } = req.body;
+    
+    // 1. 获取所有考点
+    const [knowledgePoints] = await mysqlPool.query(
+      'SELECT KnowledgePointID, KPCode, KPTitle, KPContent FROM math_knowledgepoints'
+    );
+    
+    // 2. 获取所有题目详情（包括已有考点关联的，用于重新匹配）
+    const [allDetails] = await mysqlPool.query(
+      `SELECT qd.ID, qd.QuestionID, qd.Context, qd.Title, qd.Notes, qd.LinkedKnowledgePointID 
+       FROM math_questiondetails qd`
+    );
+    
+    let fixedCount = 0;
+    const fixes = [];
+    
+    // 3. 尝试根据内容匹配考点
+    for (const detail of allDetails) {
+      const content = (detail.Context || '') + ' ' + (detail.Title || '') + ' ' + (detail.Notes || '');
+      
+      // 策略1: 查找内容中是否包含考点代码 (如 "1.1.1" 或 "1-1-1" 等)
+      // 支持格式: 1.1.1, 1-1-1, 1.1, 1-1 等
+      const codePatterns = [
+        /(\d+[.-]\d+[.-]\d+)/,  // 匹配 1.1.1 或 1-1-1
+        /(\d+[.-]\d+)/,           // 匹配 1.1 或 1-1
+      ];
+      
+      let matchedKP = null;
+      let matchedCode = null;
+      
+      for (const pattern of codePatterns) {
+        const codeMatch = content.match(pattern);
+        if (codeMatch) {
+          const code = codeMatch[1];
+          // 标准化代码格式 (将 . 替换为 - 以便匹配)
+          const normalizedCode = code.replace(/\./g, '-');
+          
+          // 查找匹配的考点
+          matchedKP = knowledgePoints.find(kp => {
+            if (!kp.KPCode) return false;
+            const kpCodeNormalized = kp.KPCode.replace(/\./g, '-');
+            return kpCodeNormalized === normalizedCode || 
+                   kpCodeNormalized.startsWith(normalizedCode + '-');
+          });
+          
+          if (matchedKP) {
+            matchedCode = code;
+            break;
+          }
+        }
+      }
+      
+      // 策略2: 如果没有匹配到，尝试根据标题匹配考点名称
+      if (!matchedKP && detail.Title) {
+        matchedKP = knowledgePoints.find(kp => 
+          kp.KPTitle && detail.Title.includes(kp.KPTitle)
+        );
+        if (matchedKP) {
+          matchedCode = 'title-match';
+        }
+      }
+      
+      if (matchedKP) {
+        // 检查是否需要更新（之前没有关联或关联不同）
+        const needsUpdate = !detail.LinkedKnowledgePointID || 
+                           detail.LinkedKnowledgePointID !== matchedKP.KnowledgePointID;
+        
+        if (needsUpdate) {
+          fixes.push({
+            detailId: detail.ID,
+            questionId: detail.QuestionID,
+            kpId: matchedKP.KnowledgePointID,
+            kpCode: matchedKP.KPCode,
+            kpTitle: matchedKP.KPTitle,
+            matchedCode: matchedCode,
+            oldKpId: detail.LinkedKnowledgePointID
+          });
+          
+          if (!dryRun) {
+            await mysqlPool.query(
+              'UPDATE math_questiondetails SET LinkedKnowledgePointID = ? WHERE ID = ?',
+              [matchedKP.KnowledgePointID, detail.ID]
+            );
+            fixedCount++;
+          }
+        }
+      }
+    }
+    
+    res.json(successResponse({
+      dryRun,
+      totalDetails: allDetails.length,
+      matchedCount: fixes.length,
+      fixedCount,
+      fixes: fixes.slice(0, 50) // 只返回前50条详情
+    }, dryRun ? '预览模式：找到 ' + fixes.length + ' 条可修复记录' : '已修复 ' + fixedCount + ' 条记录'));
+    
+  } catch (error) {
+    console.error('修复题目考点关联失败:', error);
+    res.status(500).json(errorResponse('服务器错误: ' + error.message));
+  }
+};
+
+// 根据考点名称获取题目数量
+const getQuestionCountByKnowledgePoint = async (req, res) => {
+  try {
+    const { kpTitle } = req.query;
+    
+    if (!kpTitle) {
+      return res.status(400).json(errorResponse('考点名称不能为空'));
+    }
+    
+    // 使用LIKE查询匹配包含该考点名称的题目
+    const [rows] = await mysqlPool.query(`
+      SELECT COUNT(*) as count
+      FROM math_questions mq
+      WHERE mq.LinkNames IS NOT NULL 
+        AND mq.LinkNames != ''
+        AND mq.LinkNames LIKE ?
+    `, [`%${kpTitle}%`]);
+    
+    const count = rows[0]?.count || 0;
+    
+    res.json(successResponse({ count, kpTitle }));
+  } catch (error) {
+    console.error('获取考点题目数量失败:', error);
+    res.status(500).json(errorResponse('服务器错误: ' + error.message));
+  }
+};
+
+// 批量获取考点题目数量
+const getQuestionCountsBatch = async (req, res) => {
+  try {
+    const { kpTitles } = req.body;
+    
+    if (!Array.isArray(kpTitles) || kpTitles.length === 0) {
+      return res.status(400).json(errorResponse('考点名称列表不能为空'));
+    }
+    
+    // 限制批量查询数量
+    const titles = kpTitles.slice(0, 100);
+    const counts = {};
+    
+    // 逐个查询每个考点的题目数量
+    for (const kpTitle of titles) {
+      const [rows] = await mysqlPool.query(`
+        SELECT COUNT(*) as count
+        FROM math_questions mq
+        WHERE mq.LinkNames IS NOT NULL 
+          AND mq.LinkNames != ''
+          AND mq.LinkNames LIKE ?
+      `, [`%${kpTitle}%`]);
+      
+      counts[kpTitle] = rows[0]?.count || 0;
+    }
+    
+    res.json(successResponse(counts));
+  } catch (error) {
+    console.error('批量获取考点题目数量失败:', error);
+    res.status(500).json(errorResponse('服务器错误: ' + error.message));
+  }
+};
+
 module.exports = {
   getSubjects,
   createSubject,
@@ -2387,5 +2620,8 @@ module.exports = {
   updateKnowledgeCategory,
   deleteKnowledgeCategory,
   getQuestionsByCategory,
-  removeQuestionFromCategory
+  removeQuestionFromCategory,
+  fixQuestionKnowledgePointLinks,
+  getQuestionCountByKnowledgePoint,
+  getQuestionCountsBatch
 };

@@ -118,7 +118,7 @@ const adminGetQQGroups = async (req, res) => {
     const [rows] = await pool.query(sql, params);
     const groups = rows.map(row => ({
       ...row,
-      tags: row.tags ? JSON.parse(row.tags) : []
+      tags: parseTags(row.tags)
     }));
     
     res.json(successResponse(groups));

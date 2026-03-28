@@ -118,6 +118,7 @@
 <script setup>
 import { ref, onMounted, onUnmounted, getCurrentInstance } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
+import { copyToClipboard } from '@/utils/clipboard.js';
 
 const instance = getCurrentInstance();
 
@@ -238,16 +239,11 @@ const viewStats = () => {
 };
 
 // 复制用户ID
-const copyUserId = () => {
+const copyUserId = async () => {
   if (userId.value) {
-    uni.setClipboardData({
-      data: userId.value,
-      success: () => {
-        uni.showToast({
-          title: '复制成功',
-          icon: 'success'
-        });
-      }
+    await copyToClipboard(userId.value, {
+      successMsg: '复制成功',
+      showModal: false
     });
   }
 };

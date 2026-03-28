@@ -53,6 +53,7 @@ const LATEX_TO_UNICODE = {
   '\\mathbf': '', '\\mathit': '', '\\mathcal': '', '\\mathbb': '',
   '\\,': ' ', '\\;': ' ', '\\!': '', '\\ ': ' ', '~': ' ',
   '\\quad': '  ', '\\qquad': '    ',
+  '\\lt': '<', '\\gt': '>', '\\le': '≤', '\\ge': '≥',
 };
 
 /**
@@ -217,7 +218,7 @@ function extractBracedContent(str) {
  * @returns {string} - 处理后的文本
  */
 function processColorInLatex(text) {
-  if (!text) return text;
+  if (!text || typeof text !== 'string') return '';
   
   let result = '';
   let i = 0;
@@ -264,11 +265,23 @@ function preprocessTextForMp(text) {
   
   let processed = text;
   
-  // 0. 预处理 LaTeX 公式边界
-  // 注意：不再移除公式边界的换行符，因为这会破坏选项之间的换行
+  // 0. 预处理：将所有 HTML 标签替换为占位符，保护它们不被错误解析
+  const tagPlaceholders = [];
+  processed = processed.replace(/<\/?[a-zA-Z][a-zA-Z0-9]*(?:\s+[^>]*)?\/?>/gi, (match) => {
+    const placeholder = `__TAG_${tagPlaceholders.length}__`;
+    tagPlaceholders.push(match);
+    return placeholder;
+  });
   
-  // 0.1 先处理数据中已有的 <br> 标签 - 统一转换为换行符
-  // 同时处理 <br> 后面可能跟着的换行符，避免产生连续换行
+  // 0.0 转义所有 < 和 >，防止被解析为 HTML 标签
+  processed = processed.replace(/</g, '\\lt').replace(/>/g, '\\gt');
+  
+  // 0.1 恢复所有 HTML 标签
+  tagPlaceholders.forEach((tag, index) => {
+    processed = processed.replace(`__TAG_${index}__`, tag);
+  });
+  
+  // 0.2 将 <br> 标签统一转换为换行符
   processed = processed.replace(/<br\s*\/?>\n?/gi, '\n');
   
   // 0.2 处理公式内的 \color 命令
@@ -279,31 +292,54 @@ function preprocessTextForMp(text) {
     return `<strong>${content}</strong>`;
   });
   
-  // 0.4 清理 LaTeX 公式内部的换行符（在 $...$ 之间）
-  // 这一步很重要，因为换行符会导致 LaTeX 渲染服务出错
-  processed = processed.replace(/\$([^$]+)\$/g, (match, formula) => {
-    // 移除公式内的换行符，保留空格
-    const cleaned = formula.replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
-    return `$${cleaned}$`;
-  });
-  processed = processed.replace(/\$\$([^$]+)\$\$/g, (match, formula) => {
-    const cleaned = formula.replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
+  // 0.4 清理 LaTeX 公式内部的换行符（在 $...$ 之间）并转义 < 和 >
+  // 先处理多行公式 $$...$$
+  processed = processed.replace(/\$\$([\s\S]*?)\$\$/g, (match, formula) => {
+    let cleaned = formula.replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
+    // 转义 < 和 > 为 HTML 实体，防止被解析为 HTML 标签
+    cleaned = cleaned.replace(/</g, '&lt;').replace(/>/g, '&gt;');
     return `$$${cleaned}$$`;
   });
+  // 再处理单行公式 $...$
+  processed = processed.replace(/\$([^$\n]+)\$/g, (match, formula) => {
+    let cleaned = formula.replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
+    // 转义 < 和 > 为 HTML 实体，防止被解析为 HTML 标签
+    cleaned = cleaned.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    return `$${cleaned}$`;
+  });
   
-  // 1. 处理 《答案》等自定义标签 - 转换为 HTML，使用 data-type 属性标记类型
-  // 这样 Towxml 可以正确解析，然后通过 CSS 样式显示颜色
+  // 1. 处理 《答案》等自定义标签 - 转换为 HTML，使用内联样式
+  // 微信小程序中直接使用内联样式更可靠
+  const answerLabelStyle = 'color:#fff;background-color:#009688;padding:2px 8px;margin-right:6px;border-radius:4px;font-size:13px;font-weight:bold;display:inline-block;';
+  const analysisLabelStyle = 'color:#fff;background-color:#2196F3;padding:2px 8px;margin-right:6px;border-radius:4px;font-size:13px;font-weight:bold;display:inline-block;';
+  const stepLabelStyle = 'color:#FF9800;font-weight:bold;display:inline-block;';
+  const noteStyle = 'color:#009688;';
+  
   processed = processed
-    .replace(/《答案》/g, '<span class="custom-answer">【答案】</span>')
+    // 《答案》【答案】《/答案》→ 答案标签
+    .replace(/《答案》\s*【答案】\s*《\/答案》/g, `<span style="${answerLabelStyle}">答案</span>`)
+    // 《答案》【证明】《/答案》→ 证明标签
+    .replace(/《答案》\s*【证明】\s*《\/答案》/g, `<span style="${answerLabelStyle}">证明</span>`)
+    // 《答案》【解析】《/答案》→ 解析标签
+    .replace(/《答案》\s*【解析】\s*《\/答案》/g, `<span style="${answerLabelStyle}">解析</span>`)
+    // 《答案》...《/答案》→ 答案标签 + 内容
+    .replace(/《答案》/g, `<span style="${answerLabelStyle}">答案</span>`)
     .replace(/《\/答案》/g, '')
-    .replace(/《分析》/g, '<span class="custom-analysis">【思路分析】</span>')
-    .replace(/《\/分析》/g, '')
-    .replace(/《点评》/g, '<span class="custom-comment">【点评】</span>')
-    .replace(/《\/点评》/g, '')
-    .replace(/《注释》/g, '<span class="custom-note">')
+    // 《分析》【解析】《/分析》→ 解析标签
+    .replace(/《分析》\s*【解析】\s*《\/分析》/g, `<span style="${analysisLabelStyle}">解析</span>`)
+    // 《分析》【思路分析】《/分析》→ 思路分析标签
+    .replace(/《分析》\s*【思路分析】\s*《\/分析》/g, `<span style="${analysisLabelStyle}">思路分析</span>`)
+    // 《分析》...《/分析》→ 分析标签 + 青色内容
+    .replace(/《分析》/g, `<span style="${analysisLabelStyle}">分析</span><span style="${noteStyle}">`)
+    .replace(/《\/分析》/g, '</span>')
+    // 《点评》...《/点评》→ 删除不显示
+    .replace(/《点评》[\s\S]*?《\/点评》/g, '')
+    // 《注释》...《/注释》→ 青色文字
+    .replace(/《注释》/g, `<span style="${noteStyle}">`)
     .replace(/《\/注释》/g, '</span>')
-    .replace(/《步骤》/g, '<span class="custom-step">【步骤】</span>')
-    .replace(/《\/步骤》/g, '');
+    // 《步骤》...《/步骤》→ 橙色加粗，无标签
+    .replace(/《步骤》/g, `<span style="${stepLabelStyle}">`)
+    .replace(/《\/步骤》/g, '</span>');
   
   // 2. 处理 \bold 和 \mathbf 命令（仅处理公式外的）
   // 注意：公式内的 \bold 和 \mathbf 会被保留，让后端处理
@@ -423,27 +459,279 @@ function preprocessTextForMp(text) {
 }
 
 /**
+ * 解析 HTML 字符串为节点数组
+ * @param {string} html - HTML 字符串
+ * @returns {Array} - 节点数组
+ */
+function parseHtmlToNodes(html, parentFormulas = []) {
+  if (!html || typeof html !== 'string') return [];
+  
+  // 首先保护公式内容，将 $...$ 和 $$...$$ 替换为占位符
+  const formulas = [...parentFormulas]; // 继承父级的 formulas
+  // 使用 [\s\S] 来匹配包括换行符在内的所有字符
+  let protectedHtml = html.replace(/\$\$([\s\S]*?)\$\$/g, (match, formula) => {
+    const placeholder = `__FORMULA_${formulas.length}__`;
+    formulas.push(match);
+    return placeholder;
+  });
+  // 然后处理单行公式 $...$
+  protectedHtml = protectedHtml.replace(/\$([^$\n]+)\$/g, (match, formula) => {
+    const placeholder = `__FORMULA_${formulas.length}__`;
+    formulas.push(match);
+    return placeholder;
+  });
+  
+  const nodes = [];
+  let i = 0;
+  
+  while (i < protectedHtml.length) {
+    // 检查是否是公式占位符
+    const formulaMatch = protectedHtml.substring(i).match(/^__FORMULA_(\d+)__/);
+    if (formulaMatch) {
+      const formulaIndex = parseInt(formulaMatch[1]);
+      const formula = formulas[formulaIndex];
+      // 解析公式内容，将 HTML 实体转换回 < 和 >
+      let formulaContent = formula.replace(/\$\$?/g, '').trim();
+      formulaContent = formulaContent.replace(/&lt;/g, '<').replace(/&gt;/g, '>');
+      const unicodeFormula = latexToUnicode(formulaContent);
+      nodes.push({
+        type: 'text',
+        text: unicodeFormula
+      });
+      i += formulaMatch[0].length;
+      continue;
+    }
+    
+    // 检查是否是标签
+    if (protectedHtml[i] === '<') {
+      const tagEnd = protectedHtml.indexOf('>', i);
+      if (tagEnd === -1) break;
+      
+      const tagContent = protectedHtml.substring(i + 1, tagEnd);
+      const isClosing = tagContent.startsWith('/');
+      const tagName = isClosing ? tagContent.substring(1) : tagContent.split(' ')[0];
+      
+      if (!isClosing) {
+        // 提取属性
+        const attrs = {};
+        const attrRegex = /(\w+)=['"]([^'"]*)['"]/g;
+        let attrMatch;
+        while ((attrMatch = attrRegex.exec(tagContent)) !== null) {
+          attrs[attrMatch[1]] = attrMatch[2];
+        }
+        
+        // 检查是否是自闭合标签（如 img、br、hr 等）
+        const selfClosingTags = ['img', 'br', 'hr', 'input', 'meta', 'link'];
+        const isSelfClosing = tagContent.endsWith('/') || selfClosingTags.includes(tagName.toLowerCase());
+        
+        if (isSelfClosing) {
+          // 自闭合标签
+          nodes.push({
+            type: 'element',
+            tag: tagName,
+            attrs: attrs,
+            children: []
+          });
+          i = tagEnd + 1;
+          continue;
+        }
+        
+        // 开始标签 - 查找对应的结束标签
+        const closeTagStart = protectedHtml.indexOf(`</${tagName}>`, tagEnd);
+        if (closeTagStart !== -1) {
+          const innerContent = protectedHtml.substring(tagEnd + 1, closeTagStart);
+          
+          // 递归解析内部内容，传递 formulas 数组
+          const children = parseHtmlToNodes(innerContent, formulas);
+          
+          nodes.push({
+            type: 'element',
+            tag: tagName,
+            attrs: attrs,
+            children: children.length > 0 ? children : [{ type: 'text', text: innerContent }]
+          });
+          
+          i = closeTagStart + `</${tagName}>`.length;
+          continue;
+        }
+      }
+      i = tagEnd + 1;
+    } else {
+      // 文本内容
+      const nextTag = protectedHtml.indexOf('<', i);
+      const textEnd = nextTag === -1 ? protectedHtml.length : nextTag;
+      const text = protectedHtml.substring(i, textEnd);
+      
+      if (text) {
+        nodes.push({
+          type: 'text',
+          text: text
+        });
+      }
+      
+      i = textEnd;
+    }
+  }
+  
+  return nodes;
+}
+
+/**
+ * 解析包含公式的文本
+ * @param {string} text - 文本
+ * @returns {Array} - 节点数组
+ */
+function parseTextWithFormulas(text) {
+  const parts = [];
+  let lastIndex = 0;
+  
+  // 匹配 $...$ 和 $$...$$
+  const regex = /\$\$?([^$]+)\$\$?/g;
+  let match;
+  
+  while ((match = regex.exec(text)) !== null) {
+    // 添加公式前的文本
+    if (match.index > lastIndex) {
+      const textContent = text.substring(lastIndex, match.index);
+      if (textContent) {
+        parts.push({
+          type: 'text',
+          text: textContent
+        });
+      }
+    }
+    
+    // 添加公式节点 - 将 LaTeX 转换为 Unicode
+    const formulaText = match[1].trim();
+    const unicodeFormula = latexToUnicode(formulaText);
+    parts.push({
+      type: 'text',
+      text: unicodeFormula
+    });
+    
+    lastIndex = regex.lastIndex;
+  }
+  
+  // 添加剩余文本
+  if (lastIndex < text.length) {
+    const textContent = text.substring(lastIndex);
+    if (textContent) {
+      parts.push({
+        type: 'text',
+        text: textContent
+      });
+    }
+  }
+  
+  // 如果没有公式，直接返回文本
+  if (parts.length === 0 && text) {
+    parts.push({
+      type: 'text',
+      text: text
+    });
+  }
+  
+  return parts;
+}
+
+/**
+ * 简单的 Markdown 转 HTML 节点解析器（替代 towxml）
+ * @param {string} text - 预处理后的文本
+ * @returns {Object} - 节点对象
+ */
+function simpleMarkdownToNodes(text) {
+  if (!text || typeof text !== 'string') {
+    return {
+      type: 'element',
+      tag: 'div',
+      children: []
+    };
+  }
+
+  // 首先保护多行公式 $$...$$
+  const multilineFormulas = [];
+  let protectedText = text.replace(/\$\$([\s\S]*?)\$\$/g, (match, formula) => {
+    const placeholder = `__MULTILINE_FORMULA_${multilineFormulas.length}__`;
+    multilineFormulas.push(match);
+    return placeholder;
+  });
+
+  // 将文本按换行分割
+  const lines = protectedText.split('\n');
+  const children = [];
+
+  for (let line of lines) {
+    line = line.trim();
+    if (!line) continue;
+
+    // 检查是否是多行公式占位符
+    const multilineMatch = line.match(/^__MULTILINE_FORMULA_(\d+)__$/);
+    if (multilineMatch) {
+      const formulaIndex = parseInt(multilineMatch[1]);
+      const formula = multilineFormulas[formulaIndex];
+      // 解析公式内容，将 HTML 实体转换回 < 和 >
+      let formulaContent = formula.replace(/\$\$/g, '').trim();
+      formulaContent = formulaContent.replace(/&lt;/g, '<').replace(/&gt;/g, '>');
+      const unicodeFormula = latexToUnicode(formulaContent);
+      children.push({
+        type: 'text',
+        text: unicodeFormula
+      });
+      continue;
+    }
+
+    // 解析这一行（包含 HTML 标签和公式）
+    const nodes = parseHtmlToNodes(line);
+    
+    if (nodes.length === 1) {
+      children.push(nodes[0]);
+    } else if (nodes.length > 1) {
+      children.push({
+        type: 'element',
+        tag: 'div',
+        attrs: {
+          style: 'margin-bottom: 8px;'
+        },
+        children: nodes
+      });
+    }
+  }
+
+  return {
+    type: 'element',
+    tag: 'div',
+    children: children.length > 0 ? children : [{ type: 'text', text: text }]
+  };
+}
+
+/**
  * 解析包含 LaTeX 公式的文本为微信小程序可用的 nodes 对象
  * 适用于微信小程序
  * @param {string} text - 包含 LaTeX 公式的文本
- * @returns {Object} - Towxml 可用的 nodes 对象
+ * @returns {Object} - 节点对象
  */
 export function parseTextWithLatexForMp(text) {
   // #ifdef MP-WEIXIN
   if (!text || typeof text !== 'string') {
-    return {};
+    return {
+      type: 'element',
+      tag: 'div',
+      children: []
+    };
   }
 
   try {
     // 1. 预处理文本
     let processedText = preprocessTextForMp(text);
     
-    // 2. 动态导入并使用 Towxml 解析为 Markdown/LaTeX
-    // 使用 ./towxml 路径，因为 towxml 已复制到 utils 目录下
-    const towxml = require('./towxml/index');
-    const result = towxml(processedText, 'markdown');
+    // 2. 使用简单的 Markdown 解析器（替代 towxml）
+    const result = simpleMarkdownToNodes(processedText);
     
-    return result || {};
+    return result || {
+      type: 'element',
+      tag: 'div',
+      children: [{ type: 'text', text: text }]
+    };
   } catch (error) {
     console.error('parseTextWithLatexForMp error:', error);
     // 出错时返回原始文本作为纯文本节点
@@ -756,18 +1044,40 @@ export function transformContextString(rawContextString) {
     .replace(/\\mathbf\{([^}]+)\}/g, '<b>$1</b>');
   
   // 4. 处理 Markdown 格式图片
+  // 使用更宽松的正则，匹配 URL 直到 .png/.jpg 等扩展名及后续参数
   currentText = currentText.replace(
-    /!\[([^\]]*)\]\(([^)]+)\)/g,
+    /!\[([^\]]*)\]\((https?:\/\/[^\s]+?\.(?:png|jpg|jpeg|gif|webp|svg|bmp)[^\)]*)\)/gi,
     (match, alt, url) => {
       let decodedUrl = url;
       try {
         decodedUrl = decodeURIComponent(url);
       } catch (e) {}
       let cleanUrl = decodedUrl.replace(/(_yjs|_thumb|_small|_medium|_large)(\?.*)?$/i, '$2');
-      cleanUrl = cleanUrl.replace(/^http:\/\//i, 'https://');
       return `<img src="${cleanUrl}" alt="${alt}" style="max-width:100%;height:auto;display:block;margin:10px 0;border-radius:4px;" />`;
     }
   );
+  
+  // 4.5 处理裸图片 URL（不在 Markdown 格式中的图片链接）
+  // 先保护已经处理过的 <img> 标签
+  const existingImgs = [];
+  currentText = currentText.replace(/<img[^>]+>/gi, (match) => {
+    existingImgs.push(match);
+    return `<!--EXISTING_IMG_${existingImgs.length - 1}-->`;
+  });
+  
+  // 处理裸图片 URL
+  currentText = currentText.replace(
+    /(https?:\/\/[^\s<>"]+\.(?:png|jpg|jpeg|gif|webp|svg|bmp))(?:_yjs|_thumb|_small|_medium|_large)?(?!["'])/gi,
+    (match, url) => {
+      let cleanUrl = url.replace(/(_yjs|_thumb|_small|_medium|_large)$/i, '');
+      return `<img src="${cleanUrl}" style="max-width:100%;height:auto;display:block;margin:10px 0;border-radius:4px;" />`;
+    }
+  );
+  
+  // 还原已有的 <img> 标签
+  currentText = currentText.replace(/<!--EXISTING_IMG_(\d+)-->/g, (match, index) => {
+    return existingImgs[parseInt(index)] || match;
+  });
   
   // 5. 将 LaTeX 公式转换为 Unicode 字符
   currentText = convertLatexToUnicode(currentText);

@@ -39,6 +39,18 @@
               <text class="item-title">3. 学习数据</text>
               <text class="item-desc">我们会记录您的刷题进度、答题记录、收藏题目等学习数据，用于提供个性化的学习服务。</text>
             </view>
+            <view class="list-item">
+              <text class="item-title">4. 剪贴板信息</text>
+              <text class="item-desc">我们会读取您的剪贴板内容，用于复制分享码、网盘链接、QQ群号等信息，以及粘贴作文内容到输入框。</text>
+            </view>
+            <view class="list-item">
+              <text class="item-title">5. 选中的照片或视频</text>
+              <text class="item-desc">我们会收集您选中的照片或视频信息，用于上传头像、题目反馈图片。</text>
+            </view>
+            <view class="list-item">
+              <text class="item-title">6. 相册（仅写入）</text>
+              <text class="item-desc">我们会在获取您的明示同意后，使用您的相册（仅写入）权限，用于保存图片到相册。</text>
+            </view>
           </view>
         </view>
 
@@ -62,6 +74,15 @@
             </view>
             <view class="list-item">
               <text class="item-desc">• 保障账号安全，防止欺诈和滥用</text>
+            </view>
+            <view class="list-item">
+              <text class="item-desc">• 读取剪贴板：复制分享码、网盘链接、QQ群号，粘贴作文内容</text>
+            </view>
+            <view class="list-item">
+              <text class="item-desc">• 选中的照片或视频：上传头像、题目反馈图片</text>
+            </view>
+            <view class="list-item">
+              <text class="item-desc">• 相册（仅写入）：保存图片到相册</text>
             </view>
           </view>
         </view>
@@ -176,6 +197,8 @@ const goBack = () => {
 .container {
   min-height: 100vh;
   background-color: #f8f9fa;
+  display: flex;
+  justify-content: center;
 }
 
 /* 自定义导航栏 */
@@ -225,6 +248,8 @@ const goBack = () => {
 /* 内容区域 */
 .content-scroll {
   height: calc(100vh - v-bind(statusBarHeight + 44)px);
+  max-width: 750rpx;
+  width: 100%;
 }
 
 .privacy-content {

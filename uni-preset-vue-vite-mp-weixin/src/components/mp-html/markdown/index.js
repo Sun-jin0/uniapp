@@ -50,18 +50,38 @@ function preprocessText(content) {
     return `<!--INLINE_FORMULA_${formulas.length - 1}-->`;
   });
   
-  // 5. 处理 《答案》等自定义标签
+  // 5. 处理 《答案》等自定义标签 - 使用内联样式
+  // 颜色方案：答案/分析标签-绿色，步骤-橙色，注释-绿色斜体
+  const answerLabelStyle = 'color:#fff;background-color:#009688;padding:2px 8px;margin-right:6px;border-radius:4px;font-size:13px;font-weight:bold;display:inline-block;';
+  const analysisLabelStyle = 'color:#fff;background-color:#009688;padding:2px 8px;margin-right:6px;border-radius:4px;font-size:13px;font-weight:bold;display:inline-block;';
+  const stepLabelStyle = 'color:#FF9800;font-weight:bold;display:inline-block;';
+  const noteStyle = 'color:#009688;'
+  
   processed = processed
-    .replace(/《答案》/g, '<span class="custom-answer">【答案】</span>')
+    // 《答案》【答案】《/答案》→ 答案标签
+    .replace(/《答案》\s*【答案】\s*《\/答案》/g, `<span style="${answerLabelStyle}">答案</span>`)
+    // 《答案》【证明】《/答案》→ 证明标签
+    .replace(/《答案》\s*【证明】\s*《\/答案》/g, `<span style="${answerLabelStyle}">证明</span>`)
+    // 《答案》【解析】《/答案》→ 解析标签
+    .replace(/《答案》\s*【解析】\s*《\/答案》/g, `<span style="${answerLabelStyle}">解析</span>`)
+    // 《答案》...《/答案》→ 答案标签 + 内容
+    .replace(/《答案》/g, `<span style="${answerLabelStyle}">答案</span>`)
     .replace(/《\/答案》/g, '')
-    .replace(/《分析》/g, '<span class="custom-analysis">【思路分析】</span>')
-    .replace(/《\/分析》/g, '')
-    .replace(/《点评》/g, '<span class="custom-comment">【点评】</span>')
-    .replace(/《\/点评》/g, '')
-    .replace(/《注释》/g, '<span class="custom-note">')
+    // 《分析》【解析】《/分析》→ 解析标签
+    .replace(/《分析》\s*【解析】\s*《\/分析》/g, `<span style="${analysisLabelStyle}">解析</span>`)
+    // 《分析》【思路分析】《/分析》→ 思路分析标签
+    .replace(/《分析》\s*【思路分析】\s*《\/分析》/g, `<span style="${analysisLabelStyle}">思路分析</span>`)
+    // 《分析》...《/分析》→ 分析标签 + 青色内容
+    .replace(/《分析》/g, `<span style="${analysisLabelStyle}">分析</span><span style="${noteStyle}">`)
+    .replace(/《\/分析》/g, '</span>')
+    // 《点评》...《/点评》→ 删除不显示
+    .replace(/《点评》[\s\S]*?《\/点评》/g, '')
+    // 《注释》...《/注释》→ 青色文字
+    .replace(/《注释》/g, `<span style="${noteStyle}">`)
     .replace(/《\/注释》/g, '</span>')
-    .replace(/《步骤》/g, '<span class="custom-step">【步骤】</span>')
-    .replace(/《\/步骤》/g, '');
+    // 《步骤》...《/步骤》→ 橙色加粗，无标签
+    .replace(/《步骤》/g, `<span style="${stepLabelStyle}">`)
+    .replace(/《\/步骤》/g, '</span>');
   
   // 6. 处理 \bold 和 \mathbf 命令（仅处理公式外的）
   processed = processed
@@ -83,22 +103,21 @@ function preprocessText(content) {
     });
   
   // 7. 处理 Markdown 格式图片 ![alt](url)
-  // 使用更宽松的正则来匹配 URL（允许括号嵌套）
+  // 使用更宽松的正则来匹配 URL（匹配到闭合的括号）
   processed = processed.replace(
-    /!\[([^\]]*)\]\((https?:\/\/[^\s]+?\.(?:png|jpg|jpeg|gif|webp|svg|bmp)[^\)]*)\)/gi,
+    /!\[([^\]]*)\]\((https?:\/\/[^\s)]+)\)/gi,
     (match, alt, url) => {
-      let cleanUrl = url.replace(/(_yjs|_thumb|_small|_medium|_large)(\?.*)?$/i, '$2');
-      cleanUrl = cleanUrl.replace(/^http:\/\//i, 'https://');
+      let cleanUrl = url.replace(/(_yjs|_thumb|_small|_medium|_large)(\?.*)?$/i, '');
       return `<img src="${cleanUrl}" alt="${alt}" style="max-width:100%;height:auto;display:block;margin:10px 0;" />`;
     }
   );
   
-  // 8. 处理图片URL
+  // 8. 处理裸图片URL（不在 Markdown 格式中的图片链接）
+  // 使用负向前瞻确保不匹配到 HTML 标签内的 URL
   processed = processed.replace(
-    /(https?:\/\/[^\s<>"]+\.(?:png|jpg|jpeg|gif|webp|svg|bmp))(?:_yjs|_thumb|_small|_medium|_large)?(?!["'])/gi,
+    /(https?:\/\/[^\s<>"]+\.(?:png|jpg|jpeg|gif|webp|svg|bmp))(?:_yjs|_thumb|_small|_medium|_large)?(?!["'])(?![^<]*>)/gi,
     (match, url) => {
       let cleanUrl = url.replace(/(_yjs|_thumb|_small|_medium|_large)$/i, '');
-      cleanUrl = cleanUrl.replace(/^http:\/\//i, 'https://');
       return `<img src="${cleanUrl}" style="max-width:100%;height:auto;display:block;margin:10px 0;" />`;
     }
   );
@@ -226,6 +245,13 @@ Markdown.prototype.onUpdate = function (content) {
       return placeholder;
     });
 
+    // 保护 HTML img 标签，防止被 marked 转义
+    const imgTags = [];
+    processed = processed.replace(/<img[^>]+>/gi, (match) => {
+      imgTags.push(match);
+      return `<!--HTML_IMG_${imgTags.length - 1}-->`;
+    });
+
     // 配置 marked 选项
     marked.setOptions({
       breaks: true,  // 启用换行符转换为 <br>
@@ -234,7 +260,19 @@ Markdown.prototype.onUpdate = function (content) {
       mangle: false  // 禁用自动转义
     })
 
+    // 手动将换行符转换为 <br> 标签（确保换行生效）
+    processed = processed.replace(/\n/g, '<br>\n')
+
     let html = marked(processed);
+
+    // 还原 HTML img 标签
+    html = html.replace(/<!--HTML_IMG_(\d+)-->/g, (match, index) => {
+      const imgTag = imgTags[parseInt(index)];
+      if (imgTag) {
+        return imgTag;
+      }
+      return match;
+    });
 
     // 恢复代码块为正确的 HTML 格式
     codeBlocks.forEach((block, index) => {
