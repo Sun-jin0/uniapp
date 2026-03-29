@@ -303,6 +303,7 @@ export const adminApi = {
   createTutorialChapter: (tutorialId, data) => service.post(`/computer/tutorials/${tutorialId}/chapters`, data),
   updateTutorialChapter: (chapterId, data) => service.put(`/computer/tutorial-chapters/${chapterId}`, data),
   deleteTutorialChapter: (chapterId) => service.delete(`/computer/tutorial-chapters/${chapterId}`),
+  getChapterQuestions: (sectionId) => service.get(`/computer/tutorial-sections/${sectionId}/questions`),
   getTutorialQuestions: (tutorialId) => service.get(`/computer/tutorials/${tutorialId}/questions`),
   addTutorialQuestion: (data) => service.post('/computer/tutorial-questions', data),
   importTutorial: (data) => service.post('/computer/tutorials/import', data),
