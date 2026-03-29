@@ -3204,8 +3204,8 @@ const generatePrintLink = async (req, res) => {
     
     const encryptedToken = generatePrintToken(tokenData);
     
-    // 构建打印链接
-    const printUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/test-pdf-export.html?token=${encodeURIComponent(encryptedToken)}`;
+    // 构建打印链接 - 使用固定域名
+    const printUrl = `https://yizhancs.cn/test-pdf-export.html?token=${encodeURIComponent(encryptedToken)}`;
     
     res.json(successResponse({
       printUrl,
