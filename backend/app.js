@@ -44,6 +44,7 @@ app.use('/api/med', require('./routes/medRoutes'));
 app.use('/api/feedback', require('./routes/feedbackRoutes'));
 app.use('/api', require('./routes/uploadRoutes'));
 app.use('/api', require('./routes/mathRoutes'));
+app.use('/api/math', require('./routes/mathSolve'));
 app.use('/api', require('./routes/computer1Routes'));
 app.use('/api', require('./routes/adminMathRoutes'));
 app.use('/api', require('./routes/homepageCardRoutes')); // homepageCardRoutes mounts on / and /admin

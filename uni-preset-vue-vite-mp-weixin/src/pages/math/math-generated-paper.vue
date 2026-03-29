@@ -278,7 +278,14 @@
         </div>
         <div class="modal-footer print-options-footer">
           <div class="print-options-row">
-            <button class="confirm-btn secondary" @click="handlePrintOption('withoutAnalysis')">试卷</button>
+            <button 
+              class="confirm-btn secondary" 
+              :disabled="!printOptionsData.canPrintPaper"
+              :class="{ 'disabled': !printOptionsData.canPrintPaper }"
+              @click="handlePrintOption('withoutAnalysis')"
+            >
+              试卷
+            </button>
             <button class="confirm-btn" @click="handlePrintOption('withAnalysis')">试卷+解析</button>
           </div>
           <div class="print-options-row">
@@ -377,7 +384,8 @@ const showPrintOptionsModal = ref(false);
 const printOptionsData = ref({
   printCountText: '',
   analysisCountText: '',
-  canPrintAnalysis: false
+  canPrintAnalysis: false,
+  canPrintPaper: true
 });
 
 // 处理打印选项
@@ -933,7 +941,17 @@ const handlePrint = async () => {
   await fetchPrintPermission();
   console.log('打印权限信息:', printPermission.value);
   
-  if (!printPermission.value.print.allowed) {
+  // 处理 null 值（超级管理员无限制）
+  const printRemaining = printPermission.value.print.remaining;
+  const analysisRemaining = printPermission.value.analysis.remaining;
+  const hasUnlimitedPrint = printRemaining === null || printRemaining === -1;
+  const hasUnlimitedAnalysis = analysisRemaining === null || analysisRemaining === -1;
+  
+  const canPrintPaper = printPermission.value.print.allowed;
+  const canPrintAnalysis = printPermission.value.analysis.allowed && (hasUnlimitedAnalysis || analysisRemaining > 0);
+  
+  // 如果既不能打印试卷也不能打印解析，提示无权限
+  if (!canPrintPaper && !canPrintAnalysis) {
     uni.showModal({
       title: '打印受限',
       content: printPermission.value.print.message || '您没有打印权限',
@@ -943,27 +961,21 @@ const handlePrint = async () => {
     return;
   }
   
-  // 询问是否打印解析
-  // 处理 null 值（超级管理员无限制）
-  const printRemaining = printPermission.value.print.remaining;
-  const analysisRemaining = printPermission.value.analysis.remaining;
-  const hasUnlimitedPrint = printRemaining === null || printRemaining === -1;
-  const hasUnlimitedAnalysis = analysisRemaining === null || analysisRemaining === -1;
-  const canPrintAnalysis = printPermission.value.analysis.allowed && (hasUnlimitedAnalysis || analysisRemaining > 0);
-  
   // 格式化显示次数
   const printCountText = hasUnlimitedPrint ? '无限制' : `${printRemaining}次`;
   const analysisCountText = hasUnlimitedAnalysis ? '无限制' : `${analysisRemaining}次`;
   
   if (canPrintAnalysis) {
-    // 使用自定义弹窗支持三个按钮
+    // 使用自定义弹窗支持三个按钮（可以选择打印试卷或打印解析）
     showPrintOptionsModal.value = true;
     printOptionsData.value = {
       printCountText,
       analysisCountText,
-      canPrintAnalysis
+      canPrintAnalysis,
+      canPrintPaper  // 添加是否可以打印试卷的标志
     };
-  } else {
+  } else if (canPrintPaper) {
+    // 只能打印试卷
     uni.showModal({
       title: '打印确认',
       content: `您今日剩余打印次数：${printCountText}\n\n生成打印链接后将消耗1次打印次数，无法取消。是否继续？`,
@@ -2434,6 +2446,13 @@ onLoad((options) => {
   color: #fff;
   border: none;
   box-shadow: 0 4rpx 12rpx rgba(129, 199, 132, 0.2);
+}
+
+.print-options-footer .confirm-btn.secondary.disabled {
+  background: linear-gradient(135deg, #e0e0e0, #bdbdbd);
+  color: #9e9e9e;
+  cursor: not-allowed;
+  box-shadow: none;
 }
 
 .print-options-footer .confirm-btn {

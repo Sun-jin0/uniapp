@@ -3155,12 +3155,6 @@ const generatePrintLink = async (req, res) => {
       return res.status(400).json(errorResponse('试卷ID不能为空'));
     }
     
-    // 检查用户打印权限
-    const printPermission = await User.checkPrintPermission(userId);
-    if (!printPermission.allowed) {
-      return res.status(403).json(errorResponse(printPermission.message || '没有打印权限'));
-    }
-    
     // 获取试卷信息
     const [papers] = await mysqlPool.query(
       'SELECT * FROM math_generated_papers WHERE PaperID = ? AND UserID = ?',
@@ -3173,7 +3167,7 @@ const generatePrintLink = async (req, res) => {
     
     const paper = papers[0];
     
-    // 如果需要打印解析，检查解析权限
+    // 如果需要打印解析，只检查解析权限；否则检查打印权限
     let canPrintAnalysis = false;
     if (allowAnalysis) {
       const analysisPermission = await User.checkPrintAnalysisPermission(userId);
@@ -3181,14 +3175,22 @@ const generatePrintLink = async (req, res) => {
         return res.status(403).json(errorResponse(analysisPermission.message || '没有打印解析权限'));
       }
       canPrintAnalysis = true;
-    }
-    
-    // 增加用户打印次数
-    await User.incrementPrintCount(userId);
-    
-    // 如果需要打印解析，增加解析次数
-    if (canPrintAnalysis) {
+      
+      // 增加解析次数
+      console.log('正在增加用户打印解析次数, userId:', userId);
       await User.incrementPrintAnalysisCount(userId);
+      console.log('用户打印解析次数已增加');
+    } else {
+      // 只打印试卷，检查打印权限
+      const printPermission = await User.checkPrintPermission(userId);
+      if (!printPermission.allowed) {
+        return res.status(403).json(errorResponse(printPermission.message || '没有打印权限'));
+      }
+      
+      // 增加打印次数
+      console.log('正在增加用户打印次数, userId:', userId);
+      await User.incrementPrintCount(userId);
+      console.log('用户打印次数已增加');
     }
     
     // 生成加密令牌
@@ -3598,6 +3600,11 @@ const getUserPrintPermission = async (req, res) => {
     const userId = req.userId;
     const printPermission = await User.checkPrintPermission(userId);
     const analysisPermission = await User.checkPrintAnalysisPermission(userId);
+    
+    // 禁用缓存
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
     
     res.json(successResponse({
       print: {

@@ -1,15 +1,13 @@
 // 根据运行环境设置基础 URL
 const getBaseUrl = () => {
   // #ifdef H5
-  // H5 本地开发使用本地后端
-  // return 'http://localhost:3000/api';
+  // H5 使用服务器后端
+  return 'https://yizhancs.cn/api';
   // #endif
   
   // #ifdef MP-WEIXIN
-  // 微信小程序开发环境 - 使用局域网 IP 或真实服务器
-  // 开发时可以使用本地 IP，生产使用真实域名
-  // 注意：需要在微信开发者工具中勾选"不校验合法域名"
-  // return 'http://10.220.195.201:3000/api';
+  // 微信小程序使用服务器后端
+  return 'https://yizhancs.cn/api';
   // #endif
   
   // 默认使用生产环境

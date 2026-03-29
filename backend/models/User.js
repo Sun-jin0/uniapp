@@ -155,6 +155,11 @@ class User {
       paperMaxQuestions: user.paper_max_questions || 22,
       paperUsedToday: user.paper_used_today || 0,
       paperLastDate: user.paper_last_date,
+      printLimitDaily: user.print_limit_daily !== null ? user.print_limit_daily : 1,
+      printUsedToday: user.print_used_today || 0,
+      printLastDate: user.print_last_date,
+      printAnalysisLimit: user.print_analysis_limit !== null ? user.print_analysis_limit : 1,
+      printAnalysisUsed: user.print_analysis_used || 0,
       isSuperAdmin: user.is_super_admin === 1,
       comparePassword: async (candidatePassword) => {
         return candidatePassword === user.password;
@@ -190,9 +195,12 @@ class User {
     };
   }
 
-  // 检查用户打印权限（每日限制）
+  // 检查用户打印权限（总次数限制，与打印解析一致）
   static async checkPrintPermission(userId) {
-    const user = await this.findById(userId);
+    // 直接从数据库查询最新数据，避免缓存
+    const [rows] = await pool.query('SELECT * FROM users WHERE id = ?', [userId]);
+    const user = rows[0];
+    
     if (!user) {
       return { allowed: false, message: '用户不存在' };
     }
@@ -212,8 +220,12 @@ class User {
 
     const today = new Date().toISOString().split('T')[0];
     
+    // 将数据库中的日期转换为 YYYY-MM-DD 格式进行比较
+    const lastDate = user.print_last_date ? new Date(user.print_last_date).toISOString().split('T')[0] : null;
+    
     // 如果不是今天，重置计数
-    if (user.print_last_date !== today) {
+    if (lastDate !== today) {
+      console.log('[checkPrintPermission] 日期不匹配，重置打印计数');
       await pool.query(
         'UPDATE users SET print_used_today = 0, print_last_date = ? WHERE id = ?',
         [today, userId]
@@ -240,7 +252,7 @@ class User {
     if (remaining <= 0) {
       return { 
         allowed: false, 
-        message: `今日打印次数已用完（每日限制${limit}次）`,
+        message: `打印次数已用完（共限制${limit}次）`,
         role: role,
         limit,
         used,
@@ -257,13 +269,16 @@ class User {
     };
   }
 
-  // 增加用户今日打印次数
+  // 增加用户打印次数
   static async incrementPrintCount(userId) {
     const today = new Date().toISOString().split('T')[0];
-    await pool.query(
+    console.log(`[incrementPrintCount] userId: ${userId}, today: ${today}`);
+    const [result] = await pool.query(
       'UPDATE users SET print_used_today = print_used_today + 1, print_last_date = ? WHERE id = ?',
       [today, userId]
     );
+    console.log(`[incrementPrintCount] 更新结果:`, result);
+    return result;
   }
 
   // 检查用户打印解析权限（总次数限制）
