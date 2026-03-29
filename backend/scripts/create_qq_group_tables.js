@@ -35,11 +35,11 @@ async function createQQGroupTables() {
         qr_code VARCHAR(255) COMMENT '群二维码图片',
         is_pinned TINYINT DEFAULT 0 COMMENT '是否置顶：1-是，0-否',
         sort_order INT DEFAULT 0 COMMENT '排序（越大越靠前）',
-        status TINYINT DEFAULT 1 COMMENT '状态：1-启用，0-禁用',
+        is_active TINYINT DEFAULT 1 COMMENT '状态：1-启用，0-禁用',
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
         INDEX idx_is_pinned (is_pinned),
-        INDEX idx_status (status)
+        INDEX idx_is_active (is_active)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='QQ群表'
     `);
     console.log('   ✓ qq_groups 表创建成功\n');

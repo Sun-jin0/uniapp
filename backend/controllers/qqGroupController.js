@@ -20,7 +20,7 @@ const getQQGroups = async (req, res) => {
   try {
     const [rows] = await pool.query(`
       SELECT * FROM qq_groups 
-      WHERE status = 1
+      WHERE is_active = 1
       ORDER BY is_pinned DESC, sort_order DESC, member_count DESC
     `);
     
@@ -35,7 +35,7 @@ const getQQGroups = async (req, res) => {
       qrCode: row.qr_code,
       isPinned: row.is_pinned === 1,
       sortOrder: row.sort_order,
-      status: row.status,
+      isActive: row.is_active,
       createdAt: row.created_at,
       updatedAt: row.updated_at
     }));
@@ -52,7 +52,7 @@ const getOrganizations = async (req, res) => {
   try {
     const [rows] = await pool.query(`
       SELECT DISTINCT org_name as name FROM qq_groups 
-      WHERE status = 1 AND org_name IS NOT NULL AND org_name != ''
+      WHERE is_active = 1 AND org_name IS NOT NULL AND org_name != ''
       ORDER BY org_name ASC
     `);
     res.json(successResponse(rows));
@@ -99,7 +99,7 @@ const togglePin = async (req, res) => {
 // 管理员获取Q群列表
 const adminGetQQGroups = async (req, res) => {
   try {
-    const { org_name, status } = req.query;
+    const { org_name, is_active } = req.query;
     let sql = 'SELECT * FROM qq_groups WHERE 1=1';
     const params = [];
     
@@ -108,9 +108,9 @@ const adminGetQQGroups = async (req, res) => {
       params.push(org_name);
     }
     
-    if (status !== undefined) {
-      sql += ' AND status = ?';
-      params.push(status === '1' ? 1 : 0);
+    if (is_active !== undefined) {
+      sql += ' AND is_active = ?';
+      params.push(is_active === '1' ? 1 : 0);
     }
     
     sql += ' ORDER BY sort_order DESC, id DESC';
@@ -153,16 +153,16 @@ const getQQGroup = async (req, res) => {
 // 创建Q群
 const createQQGroup = async (req, res) => {
   try {
-    const { name, org_name, group_number, description, tags, member_count, qr_code, is_pinned, sort_order, status } = req.body;
+    const { name, org_name, group_number, description, tags, member_count, qr_code, is_pinned, sort_order, is_active } = req.body;
     
     if (!name || !group_number) {
       return res.status(400).json(errorResponse('群名称和群号不能为空'));
     }
     
     const [result] = await pool.query(
-      `INSERT INTO qq_groups (name, org_name, group_number, description, tags, member_count, qr_code, is_pinned, sort_order, status)
+      `INSERT INTO qq_groups (name, org_name, group_number, description, tags, member_count, qr_code, is_pinned, sort_order, is_active)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [name, org_name || '', group_number, description || '', JSON.stringify(tags || []), member_count || 0, qr_code || '', is_pinned || 0, sort_order || 0, status !== undefined ? status : 1]
+      [name, org_name || '', group_number, description || '', JSON.stringify(tags || []), member_count || 0, qr_code || '', is_pinned || 0, sort_order || 0, is_active !== undefined ? is_active : 1]
     );
     
     res.json(successResponse({ id: result.insertId, message: '创建成功' }));
@@ -176,7 +176,7 @@ const createQQGroup = async (req, res) => {
 const updateQQGroup = async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, org_name, group_number, description, tags, member_count, qr_code, is_pinned, sort_order, status } = req.body;
+    const { name, org_name, group_number, description, tags, member_count, qr_code, is_pinned, sort_order, is_active } = req.body;
     
     const [existing] = await pool.query('SELECT * FROM qq_groups WHERE id = ?', [id]);
     if (existing.length === 0) {
@@ -186,9 +186,9 @@ const updateQQGroup = async (req, res) => {
     await pool.query(
       `UPDATE qq_groups SET
         name = ?, org_name = ?, group_number = ?, description = ?, tags = ?,
-        member_count = ?, qr_code = ?, is_pinned = ?, sort_order = ?, status = ?
+        member_count = ?, qr_code = ?, is_pinned = ?, sort_order = ?, is_active = ?
        WHERE id = ?`,
-      [name, org_name, group_number, description, JSON.stringify(tags || []), member_count, qr_code, is_pinned, sort_order, status, id]
+      [name, org_name, group_number, description, JSON.stringify(tags || []), member_count, qr_code, is_pinned, sort_order, is_active, id]
     );
     
     res.json(successResponse({ message: '更新成功' }));

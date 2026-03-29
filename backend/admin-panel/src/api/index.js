@@ -2,7 +2,7 @@ import axios from 'axios'
 import { ElMessage } from 'element-plus'
 
 const service = axios.create({
-  baseURL: '/api',
+  baseURL: 'http://139.199.9.132:3000/api',
   timeout: 10000
 })
 
@@ -64,7 +64,7 @@ export const adminApi = {
   parseWechatUrl: (url) => service.post('/admin/articles/parse-link', { url }),
   uploadImage: (file) => {
     const formData = new FormData()
-    formData.append('file', file)
+    formData.append('image', file)
     return service.post('/upload/image', formData, {
       headers: { 'Content-Type': 'multipart/form-data' }
     })
@@ -303,7 +303,7 @@ export const adminApi = {
   createTutorialChapter: (tutorialId, data) => service.post(`/computer/tutorials/${tutorialId}/chapters`, data),
   updateTutorialChapter: (chapterId, data) => service.put(`/computer/tutorial-chapters/${chapterId}`, data),
   deleteTutorialChapter: (chapterId) => service.delete(`/computer/tutorial-chapters/${chapterId}`),
-  getChapterQuestions: (sectionId) => service.get(`/computer/tutorial-sections/${sectionId}/questions`),
+  getChapterQuestions: (chapterId) => service.get(`/computer/tutorial-chapters/${chapterId}/questions`),
   getTutorialQuestions: (tutorialId) => service.get(`/computer/tutorials/${tutorialId}/questions`),
   addTutorialQuestion: (data) => service.post('/computer/tutorial-questions', data),
   importTutorial: (data) => service.post('/computer/tutorials/import', data),

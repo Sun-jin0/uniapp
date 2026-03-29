@@ -364,7 +364,7 @@ const searchQuestions = async () => {
   loadingQuestions.value = true
   try {
     const res = await adminApi.searchComputerQuestions(questionFilter)
-    questions.value = res.data.list || []
+    questions.value = res.data.questions || res.data.list || []
     questionTotal.value = res.data.total || 0
   } catch (error) {
     console.error('搜索题目失败:', error)

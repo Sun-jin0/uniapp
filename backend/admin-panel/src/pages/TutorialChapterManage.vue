@@ -220,7 +220,7 @@
     <!-- 手动录入题目对话框 - 与computer-manage编辑题目一致 -->
     <el-dialog
       v-model="manualAddQuestionModalVisible"
-      title="手动录入题目"
+      :title="manualQuestionForm.id ? '编辑题目' : '手动录入题目'"
       width="1000px"
       top="3vh"
       destroy-on-close
@@ -321,6 +321,14 @@
 
     <!-- 查看题目对话框 -->
     <el-dialog v-model="viewQuestionModalVisible" title="题目详情" width="800px">
+      <template #header>
+        <div class="dialog-header-with-action">
+          <span>题目详情</span>
+          <el-button type="primary" size="small" @click="openEditQuestionModal">
+            <el-icon><Edit /></el-icon> 编辑题目
+          </el-button>
+        </div>
+      </template>
       <div v-if="currentQuestion" class="question-detail">
         <div class="question-info">
           <p><strong>题型：</strong>{{ currentQuestion.exercise_type_name }}</p>
@@ -337,6 +345,9 @@
           <div v-if="currentQuestion.analysis" class="analysis-content" v-html="currentQuestion.analysis"></div>
         </div>
       </div>
+      <template #footer>
+        <el-button @click="viewQuestionModalVisible = false">关闭</el-button>
+      </template>
     </el-dialog>
   </div>
 </template>
@@ -346,7 +357,7 @@ import { ref, reactive, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { adminApi } from '@/api'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, Search, ArrowRight, ArrowDown, Folder, Document, Loading, Check, Rank } from '@element-plus/icons-vue'
+import { Plus, Search, ArrowRight, ArrowDown, Folder, Document, Loading, Check, Rank, Edit } from '@element-plus/icons-vue'
 import draggable from 'vuedraggable'
 import RichEditor from '@/components/RichEditor.vue'
 
@@ -746,78 +757,178 @@ const confirmSaveManualQuestion = async () => {
     return
   }
 
+  // 判断是编辑还是新增
+  const isEdit = !!manualQuestionForm.id
+
   savingManualQuestion.value = true
   try {
-    // 处理选项数据 - 转换为对象格式
-    let optionsData = null
-    if ([1, 2, 5].includes(manualQuestionForm.exercise_type) && manualQuestionForm.options.length > 0) {
-      optionsData = {}
-      manualQuestionForm.options.forEach(opt => {
-        if (opt.option_key && opt.option_value) {
-          optionsData[opt.option_key] = opt.option_value
-        }
-      })
-    }
-
-    // 创建新题目
+    // 处理选项数据
+    // 编辑模式需要数组格式，新增模式需要对象格式
+    const optionsArray = [1, 2, 5].includes(manualQuestionForm.exercise_type) 
+      ? manualQuestionForm.options.filter(opt => opt.option_key && opt.option_value)
+      : []
+    
+    // 准备题目数据
     const questionData = {
       exercise_type_name: manualQuestionForm.exercise_type_name,
       stem: manualQuestionForm.stem,
       answer: manualQuestionForm.answer,
       analysis: manualQuestionForm.analysis,
       total_score: manualQuestionForm.total_score,
-      options: optionsData,
+      options: optionsArray,
       subs: manualQuestionForm.exercise_type === 4 ? manualQuestionForm.subs : null
     }
 
-    const res = await adminApi.createQuestion(questionData)
-    const newQuestionId = res.data?.question_id
+    if (isEdit) {
+      // 编辑现有题目
+      await adminApi.updateQuestion('computer', manualQuestionForm.id, questionData)
+      
+      // 实时更新本地数据
+      const questionId = manualQuestionForm.id
+      for (const sectionId in sectionQuestions.value) {
+        const questions = sectionQuestions.value[sectionId]
+        const index = questions.findIndex(q => q.question_id === questionId)
+        if (index !== -1) {
+          // 更新本地题目数据
+          sectionQuestions.value[sectionId][index] = {
+            ...questions[index],
+            stem: questionData.stem,
+            answer: questionData.answer,
+            analysis: questionData.analysis,
+            total_score: questionData.total_score,
+            exercise_type_name: questionData.exercise_type_name,
+            options: questionData.options
+          }
+        }
+      }
+      
+      // 同时更新当前查看的题目
+      if (currentQuestion.value && currentQuestion.value.question_id === questionId) {
+        currentQuestion.value = {
+          ...currentQuestion.value,
+          stem: questionData.stem,
+          answer: questionData.answer,
+          analysis: questionData.analysis,
+          total_score: questionData.total_score,
+          exercise_type_name: questionData.exercise_type_name,
+          options: questionData.options
+        }
+      }
+      
+      ElMessage.success('编辑成功')
+    } else {
+      // 创建新题目
+      const res = await adminApi.createQuestion(questionData)
+      const newQuestionId = res.data?.question_id
 
-    if (newQuestionId && currentSectionForManualAdd.value) {
-      // 添加到小节
-      await adminApi.addTutorialQuestion({
-        tutorial_id: tutorialId,
-        chapter_id: currentSectionForManualAdd.value.id,
-        question_id: newQuestionId,
-        sort_order: sectionQuestions.value[currentSectionForManualAdd.value.id]?.length || 0
-      })
+      if (newQuestionId && currentSectionForManualAdd.value) {
+        // 添加到小节
+        await adminApi.addTutorialQuestion({
+          tutorial_id: tutorialId,
+          chapter_id: currentSectionForManualAdd.value.id,
+          question_id: newQuestionId,
+          sort_order: sectionQuestions.value[currentSectionForManualAdd.value.id]?.length || 0
+        })
 
-      // 刷新题目列表
-      await loadSectionQuestions(currentSectionForManualAdd.value.id)
+        // 刷新题目列表
+        await loadSectionQuestions(currentSectionForManualAdd.value.id)
 
-      // 更新题目数量
-      currentSectionForManualAdd.value.question_count = (currentSectionForManualAdd.value.question_count || 0) + 1
+        // 更新题目数量
+        currentSectionForManualAdd.value.question_count = (currentSectionForManualAdd.value.question_count || 0) + 1
 
-      ElMessage.success('添加成功')
-      manualAddQuestionModalVisible.value = false
-
-      // 重置表单
-      manualQuestionForm.exercise_type = 1
-      manualQuestionForm.exercise_type_name = '单选题'
-      manualQuestionForm.stem = ''
-      manualQuestionForm.options = [
-        { option_key: 'A', option_value: '' },
-        { option_key: 'B', option_value: '' },
-        { option_key: 'C', option_value: '' },
-        { option_key: 'D', option_value: '' }
-      ]
-      manualQuestionForm.answer = ''
-      manualQuestionForm.analysis = ''
-      manualQuestionForm.total_score = 2
-      manualQuestionForm.subs = []
+        ElMessage.success('添加成功')
+      }
     }
+
+    manualAddQuestionModalVisible.value = false
+
+    // 重置表单
+    resetManualQuestionForm()
   } catch (error) {
-    console.error('手动添加题目失败:', error)
-    ElMessage.error('手动添加题目失败')
+    console.error(isEdit ? '编辑题目失败:' : '手动添加题目失败:', error)
+    ElMessage.error(isEdit ? '编辑题目失败' : '手动添加题目失败')
   } finally {
     savingManualQuestion.value = false
   }
+}
+
+// 重置手动录入表单
+const resetManualQuestionForm = () => {
+  manualQuestionForm.id = null
+  manualQuestionForm.exercise_type = 1
+  manualQuestionForm.exercise_type_name = '单选题'
+  manualQuestionForm.stem = ''
+  manualQuestionForm.options = [
+    { option_key: 'A', option_value: '' },
+    { option_key: 'B', option_value: '' },
+    { option_key: 'C', option_value: '' },
+    { option_key: 'D', option_value: '' }
+  ]
+  manualQuestionForm.answer = ''
+  manualQuestionForm.analysis = ''
+  manualQuestionForm.total_score = 2
+  manualQuestionForm.subs = []
 }
 
 // 查看题目
 const viewQuestion = (question) => {
   currentQuestion.value = question
   viewQuestionModalVisible.value = true
+}
+
+// 打开编辑题目弹窗
+const openEditQuestionModal = () => {
+  if (!currentQuestion.value) return
+  
+  console.log('当前题目:', currentQuestion.value)
+  console.log('选项数据:', currentQuestion.value.options)
+  
+  // 逐个属性赋值，确保响应式更新
+  manualQuestionForm.id = currentQuestion.value.question_id
+  manualQuestionForm.exercise_type = getExerciseTypeFromName(currentQuestion.value.exercise_type_name) || 1
+  manualQuestionForm.exercise_type_name = currentQuestion.value.exercise_type_name || '单选题'
+  manualQuestionForm.stem = currentQuestion.value.stem || ''
+  manualQuestionForm.answer = currentQuestion.value.answer || ''
+  manualQuestionForm.analysis = currentQuestion.value.analysis || ''
+  manualQuestionForm.total_score = currentQuestion.value.total_score || 2
+  
+  // 处理选项数据 - 需要替换整个数组
+  if (currentQuestion.value.options && currentQuestion.value.options.length > 0) {
+    manualQuestionForm.options = currentQuestion.value.options.map(opt => ({
+      option_key: opt.option_key || '',
+      option_value: opt.option_value || ''
+    }))
+  } else {
+    manualQuestionForm.options = [
+      { option_key: 'A', option_value: '' },
+      { option_key: 'B', option_value: '' },
+      { option_key: 'C', option_value: '' },
+      { option_key: 'D', option_value: '' }
+    ]
+  }
+  
+  // 处理小题数据
+  manualQuestionForm.subs = currentQuestion.value.subs 
+    ? JSON.parse(JSON.stringify(currentQuestion.value.subs)) 
+    : []
+  
+  console.log('表单选项:', manualQuestionForm.options)
+  
+  // 关闭查看弹窗，打开编辑弹窗
+  viewQuestionModalVisible.value = false
+  manualAddQuestionModalVisible.value = true
+}
+
+// 根据题型名称获取题型代码
+const getExerciseTypeFromName = (typeName) => {
+  const typeMap = {
+    '单选题': 1,
+    '多选题': 2,
+    '填空题': 3,
+    '解答题': 4,
+    '判断题': 5
+  }
+  return typeMap[typeName] || 1
 }
 
 // 拖拽结束
@@ -868,6 +979,13 @@ onMounted(() => {
 <style scoped>
 .tutorial-chapter-manage {
   padding: 20px;
+}
+
+.dialog-header-with-action {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
 }
 
 .mt-20 {
