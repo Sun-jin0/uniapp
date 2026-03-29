@@ -128,7 +128,7 @@ import { Plus, Search } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import axios from 'axios'
 
-const API_BASE_URL = 'http://localhost:3000/api/qq-group/admin'
+const API_BASE_URL = '/api/qq-group/admin'
 
 // 创建带认证的 axios 实例
 const authAxios = axios.create()
