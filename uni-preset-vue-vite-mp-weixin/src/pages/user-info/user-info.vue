@@ -214,6 +214,10 @@ const uploadAvatar = async (tempFilePath) => {
     // 获取 token
     const token = uni.getStorageSync('token') || '';
 
+    console.log('上传头像开始:', tempFilePath);
+    console.log('上传URL:', `${BASE_URL}/user/upload-avatar`);
+    console.log('Token:', token ? '已设置' : '未设置');
+
     // 使用uni.uploadFile上传文件
     uni.uploadFile({
       url: `${BASE_URL}/user/upload-avatar`, // 后端上传接口
@@ -224,6 +228,9 @@ const uploadAvatar = async (tempFilePath) => {
       },
       success: (uploadRes) => {
         uni.hideLoading();
+
+        console.log('上传响应状态码:', uploadRes.statusCode);
+        console.log('上传响应数据:', uploadRes.data);
 
         try {
           const res = JSON.parse(uploadRes.data);
@@ -250,7 +257,7 @@ const uploadAvatar = async (tempFilePath) => {
       fail: (error) => {
         uni.hideLoading();
         console.error('上传头像失败:', error);
-        uni.showToast({ title: '上传失败: 网络错误', icon: 'none' });
+        uni.showToast({ title: '上传失败: ' + (error.errMsg || '网络错误'), icon: 'none' });
       }
     });
   } catch (error) {

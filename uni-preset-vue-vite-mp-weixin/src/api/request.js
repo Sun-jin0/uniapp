@@ -10,7 +10,7 @@ const getBaseUrl = () => {
   return 'https://yizhancs.cn/api';
   // #endif
   
-  // 默认使用生产环境
+  // 默认使用服务器环境
   return 'https://yizhancs.cn/api';
 };
 

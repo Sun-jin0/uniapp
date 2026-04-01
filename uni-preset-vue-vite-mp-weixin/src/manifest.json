@@ -90,7 +90,15 @@
         "optimization" : {
             "subPackages" : true
         },
-        "__usePrivacyCheck__" : true
+        "__usePrivacyCheck__" : true,
+        "permission" : {},
+        "requiredPrivateInfos" : [],
+        "requiredBackgroundModes" : [],
+        "networkTimeout" : {
+            "request" : 60000,
+            "downloadFile" : 60000
+        },
+        "downloadFileDomain" : ["s3.hi168.com"]
     },
     "mp-alipay" : {
         "usingComponents" : true

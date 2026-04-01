@@ -59,7 +59,7 @@ async function uploadToOSS(localFilePath, objectName = null) {
       const ext = path.extname(localFilePath);
       const timestamp = Date.now();
       const random = Math.random().toString(36).substring(2, 8);
-      objectName = `uploads/${timestamp}_${random}${ext}`;
+      objectName = `uploads/${timestamp}-${random}${ext}`;
     }
 
     // 读取文件

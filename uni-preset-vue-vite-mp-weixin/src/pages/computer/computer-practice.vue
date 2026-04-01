@@ -1,4 +1,4 @@
-﻿﻿﻿<script setup>
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<script setup>
 import { ref, onMounted, computed, watch, nextTick } from 'vue';
 import { onShareAppMessage, onShareTimeline } from '@dcloudio/uni-app';
 import { onLoad } from '@dcloudio/uni-app';
@@ -28,6 +28,70 @@ const hasCodeBlock = (text) => {
   // 检测 <pre> 标签
   if (/<pre[\s\S]*?<\/pre>/i.test(text)) return true;
   return false;
+};
+
+// 解析内容，将图片和非图片内容分离
+const parseContentWithImages = (text) => {
+  if (!text || typeof text !== 'string') return [{ type: 'html', content: text }];
+
+  const result = [];
+  let lastIndex = 0;
+
+  // 匹配图片标签
+  const imgRegex = /<img[^>]*>/gi;
+  let match;
+
+  while ((match = imgRegex.exec(text)) !== null) {
+    // 添加图片前的 HTML 内容
+    if (match.index > lastIndex) {
+      const htmlContent = text.substring(lastIndex, match.index);
+      if (htmlContent.trim()) {
+        result.push({ type: 'html', content: htmlContent });
+      }
+    }
+
+    // 添加图片，并强制添加样式限制宽度
+    let imgTag = match[0];
+    // 移除已有的 style 属性
+    imgTag = imgTag.replace(/\s+style="[^"]*"/gi, '');
+    // 添加新的 style 属性
+    imgTag = imgTag.replace(/<img/i, '<img style="max-width: 100%; height: auto; display: block;"');
+    result.push({ type: 'image', content: imgTag });
+
+    lastIndex = match.index + match[0].length;
+  }
+
+  // 添加剩余内容
+  if (lastIndex < text.length) {
+    const remaining = text.substring(lastIndex);
+    if (remaining.trim()) {
+      result.push({ type: 'html', content: remaining });
+    }
+  }
+
+  return result.length > 0 ? result : [{ type: 'html', content: text }];
+};
+
+// 给 HTML 中的图片添加样式，但不分离内容
+const addImageStyles = (text) => {
+  if (!text || typeof text !== 'string') return text;
+  
+  let result = text;
+  
+  // 1. 先将 Markdown 图片 ![alt](url) 转换为 HTML <img>
+  result = result.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1" style="max-width: 100%; height: auto; display: block;">');
+  
+  // 2. 给已有的 HTML img 标签添加样式
+  result = result.replace(/<img([^>]*)>/gi, (match, attrs) => {
+    // 如果已经有 style 属性，则替换它
+    if (/style="[^"]*"/i.test(attrs)) {
+      return match.replace(/style="[^"]*"/i, 'style="max-width: 100%; height: auto; display: block;"');
+    }
+    // 否则添加 style 属性
+    return match.replace(/<img/i, '<img style="max-width: 100%; height: auto; display: block;"');
+  });
+  
+  return result;
 };
 
 // 解析内容，将代码块转换为数组格式
@@ -882,8 +946,14 @@ const fetchQuestions = async () => {
         });
       } else if (options.majorId === 'tutorial' && options.chapterId) {
         // 教辅模式：获取章节下的题目
+        // 清除缓存，确保获取最新数据
+        uni.removeStorageSync('computer_question_list');
+        uni.removeStorageSync('computer_question_context');
+        
         res = await request({
-          url: `/computer/tutorial-chapters/${options.chapterId}/questions`
+          url: `/computer/tutorial-chapters/${options.chapterId}/questions`,
+          // 添加时间戳防止缓存
+          data: { _t: Date.now() }
         });
         
         // 教辅模式也需要设置 allQuestionIds 以支持分页加载
@@ -1032,18 +1102,53 @@ const adjustImageUrl = (imageUrl) => {
 // 处理题干、解析和答案中的图片
 const fixHtmlImages = (html) => {
   if (!html) return html;
-  return html.replace(/<img([^>]*)src=["']([^"']+)["']([^>]*)>/gi, (match, before, src, after) => {
-    const adjustedSrc = adjustImageUrl(src);
-    const hasWidthStyle = /(?:^|\s)style=["'][^"']*max-width/i.test(match) || /(?:^|\s)width\s*=/i.test(match);
-    if (hasWidthStyle) {
-      return `<img${before}src="${adjustedSrc}"${after}>`;
-    }
-    const style = 'max-width:100%;';
-    if (before.includes('style=')) {
-      return `<img${before.replace(/style=["']([^"']*)["']/, `style="$1${style}"`)}src="${adjustedSrc}"${after}>`;
+  
+  // 1. 处理 <img> 标签及其所有属性
+  return html.replace(/<img([^>]+)>/gi, (match, fullAttrs) => {
+    // 提取 src
+    let src = '';
+    const srcMatch = fullAttrs.match(/src=["']([^"']+)["']/i);
+    if (srcMatch) {
+      src = adjustImageUrl(srcMatch[1]);
     } else {
-      return `<img style="${style}"${before}src="${adjustedSrc}"${after}>`;
+      return match; // 没有 src 属性的 img 标签不处理
     }
+
+    let attrs = fullAttrs;
+    let styleStr = 'max-width: 100%;';
+    
+    // 提取并移除已有的 style 属性进行合并
+    attrs = attrs.replace(/style=["']([^"']*)["']/i, (m, existingStyle) => {
+      if (existingStyle) {
+        // 如果原有 style 不包含 max-width，则追加
+        if (!existingStyle.toLowerCase().includes('max-width')) {
+          styleStr = `${existingStyle}${existingStyle.trim().endsWith(';') ? '' : ';'} ${styleStr}`;
+        } else {
+          styleStr = existingStyle;
+        }
+      }
+      return '';
+    });
+
+    // 提取 width 和 height 并转换为 style (如果 style 中还没有对应属性)
+    attrs = attrs.replace(/\s+width=["'](\d+)["']/i, (m, w) => {
+      if (!styleStr.toLowerCase().includes('width:')) {
+        styleStr += ` width: ${w}px;`;
+      }
+      return '';
+    });
+    attrs = attrs.replace(/\s+height=["'](\d+)["']/i, (m, h) => {
+      if (!styleStr.toLowerCase().includes('height:')) {
+        styleStr += ` height: ${h}px;`;
+      }
+      return '';
+    });
+
+    // 移除原始的 src 属性
+    attrs = attrs.replace(/\s+src=["']([^"']+)["']/i, '');
+
+    // 重新组合 img 标签，确保 src 是第一个属性且 style 被正确合并
+    return `<img src="${src}" style="${styleStr.trim()}"${attrs}>`;
   });
 };
 
@@ -1224,6 +1329,11 @@ const processQuestionData = (data) => {
   }
 
   return data;
+};
+
+const stripHtml = (html) => {
+  if (!html) return '';
+  return html.replace(/<[^>]+>/g, '').trim();
 };
 
 const loadQuestionDetails = async (index) => {
@@ -1419,7 +1529,9 @@ const confirmAnswer = async (index) => {
     }
     
     // 校验选择题
-    const standardAnswer = (question.originalAnswer || question.answer || '').replace(/,/g, '');
+    const rawAnswer = question.originalAnswer || question.answer || '';
+    // 移除 HTML 标签并只保留大写字母用于比对
+    const standardAnswer = stripHtml(rawAnswer).replace(/[^A-Z]/gi, '').toUpperCase();
     state.isCorrect = state.userAnswer === standardAnswer;
     state.status = state.isCorrect ? 'correct' : 'error';
   } else if (question.exercise_type === 3 || question.exercise_type_name?.includes('填空')) {
@@ -2219,12 +2331,10 @@ onShareTimeline(() => {
                             </view>
                           </scroll-view>
                         </view>
-                        <mp-html v-else-if="hasLatex(segment.content)" :content="segment.content" class="title-rich-text" markdown @imgtap="handleImageTap"></mp-html>
-                        <rich-text v-else :nodes="segment.content" class="title-rich-text"></rich-text>
+                        <mp-html v-else :content="addImageStyles(segment.content)" class="title-rich-text" markdown @imgtap="handleImageTap"></mp-html>
                       </view>
                     </template>
-                    <mp-html v-else-if="hasLatex(currentQuestion.truncatedStem || currentQuestion.stem)" :content="currentQuestion.truncatedStem || currentQuestion.stem" class="title-rich-text" markdown @imgtap="handleImageTap"></mp-html>
-                    <rich-text v-else :nodes="currentQuestion.truncatedStem || currentQuestion.stem" class="title-rich-text"></rich-text>
+                    <mp-html v-else :content="addImageStyles(currentQuestion.truncatedStem || currentQuestion.stem)" class="title-rich-text" markdown @imgtap="handleImageTap"></mp-html>
                   </template>
                   <template v-else>
                     <template v-if="hasCodeBlock(currentQuestion.truncatedStem || currentQuestion.originalStem)">
@@ -2240,12 +2350,10 @@ onShareTimeline(() => {
                             </view>
                           </scroll-view>
                         </view>
-                        <mp-html v-else-if="hasLatex(segment.content)" :content="segment.content" class="title-rich-text" markdown @imgtap="handleImageTap"></mp-html>
-                        <rich-text v-else :nodes="segment.content" class="title-rich-text"></rich-text>
+                        <mp-html v-else :content="addImageStyles(segment.content)" class="title-rich-text" markdown @imgtap="handleImageTap"></mp-html>
                       </view>
                     </template>
-                    <mp-html v-else-if="hasLatex(currentQuestion.truncatedStem || currentQuestion.originalStem)" :content="currentQuestion.truncatedStem || currentQuestion.originalStem" class="title-rich-text" markdown @imgtap="handleImageTap"></mp-html>
-                    <rich-text v-else :nodes="currentQuestion.truncatedStem || currentQuestion.originalStem" class="title-rich-text"></rich-text>
+                    <mp-html v-else :content="addImageStyles(currentQuestion.truncatedStem || currentQuestion.originalStem)" class="title-rich-text" markdown @imgtap="handleImageTap"></mp-html>
                   </template>
                   <!-- #endif -->
                 </view>
@@ -2273,8 +2381,10 @@ onShareTimeline(() => {
                 <mp-html :content="option.text || option" @imgtap="handleImageTap"></mp-html>
                 <!-- #endif -->
                 <!-- #ifdef MP-WEIXIN -->
-                <mp-html v-if="hasLatex(option.text || option)" :content="option.text || option" markdown @imgtap="handleImageTap"></mp-html>
-                <rich-text v-else :nodes="option.text || option"></rich-text>
+                <template v-for="(item, idx) in parseContentWithImages(option.text || option)" :key="idx">
+                  <mp-html v-if="item.type === 'html'" :content="item.content" markdown domain="https://s3.hi168.com" @imgtap="handleImageTap"></mp-html>
+                  <rich-text v-else-if="item.type === 'image'" :nodes="item.content"></rich-text>
+                </template>
                 <!-- #endif -->
               </view>
               <view v-if="shouldShowAnswer(currentIndex)" class="result-icon">
@@ -2315,8 +2425,7 @@ onShareTimeline(() => {
                   <mp-html :content="sub.stem" @imgtap="handleImageTap"></mp-html>
                   <!-- #endif -->
                   <!-- #ifdef MP-WEIXIN -->
-                  <mp-html v-if="hasLatex(sub.stem)" :content="sub.stem" markdown @imgtap="handleImageTap"></mp-html>
-                  <rich-text v-else :nodes="sub.stem"></rich-text>
+                  <rich-text :nodes="addImageStyles(sub.stem)" class="sub-stem-text"></rich-text>
                   <!-- #endif -->
                 </view>
                 <textarea 
@@ -2339,8 +2448,19 @@ onShareTimeline(() => {
                       <mp-html :content="sub.answer || sub.originalAnswer || sub.standard_answer || sub.correct_answer" @imgtap="handleImageTap"></mp-html>
                       <!-- #endif -->
                       <!-- #ifdef MP-WEIXIN -->
-                      <mp-html v-if="hasLatex(sub.answer || sub.originalAnswer || sub.standard_answer || sub.correct_answer)" :content="sub.answer || sub.originalAnswer || sub.standard_answer || sub.correct_answer" markdown @imgtap="handleImageTap"></mp-html>
-                      <rich-text v-else :nodes="sub.answer || sub.originalAnswer || sub.standard_answer || sub.correct_answer"></rich-text>
+                      <template v-if="hasCodeBlock(sub.answer || sub.originalAnswer || sub.standard_answer || sub.correct_answer)">
+                        <view v-for="(segment, idx) in parseContentWithCodeBlocks(sub.answer || sub.originalAnswer || sub.standard_answer || sub.correct_answer)" :key="idx">
+                          <view v-if="segment.type === 'code'" class="code-block-wrapper">
+                            <scroll-view class="code-block-scroll" scroll-x="true" scroll-with-animation="true">
+                              <view class="code-block-content">
+                                <view class="code-content-text">{{ segment.content }}</view>
+                              </view>
+                            </scroll-view>
+                          </view>
+                          <rich-text v-else :nodes="addImageStyles(segment.content)" class="sub-answer-text"></rich-text>
+                        </view>
+                      </template>
+                      <rich-text v-else :nodes="addImageStyles(sub.answer || sub.originalAnswer || sub.standard_answer || sub.correct_answer)" class="sub-answer-text"></rich-text>
                       <!-- #endif -->
                     </view>
                   </view>
@@ -2351,8 +2471,19 @@ onShareTimeline(() => {
                       <mp-html :content="sub.analysis || sub.commentary || sub.method || sub.explanation || sub.solution" @imgtap="handleImageTap"></mp-html>
                       <!-- #endif -->
                       <!-- #ifdef MP-WEIXIN -->
-                      <mp-html v-if="hasLatex(sub.analysis || sub.commentary || sub.method || sub.explanation || sub.solution)" :content="sub.analysis || sub.commentary || sub.method || sub.explanation || sub.solution" markdown @imgtap="handleImageTap"></mp-html>
-                      <rich-text v-else :nodes="sub.analysis || sub.commentary || sub.method || sub.explanation || sub.solution"></rich-text>
+                      <template v-if="hasCodeBlock(sub.analysis || sub.commentary || sub.method || sub.explanation || sub.solution)">
+                        <view v-for="(segment, idx) in parseContentWithCodeBlocks(sub.analysis || sub.commentary || sub.method || sub.explanation || sub.solution)" :key="idx">
+                          <view v-if="segment.type === 'code'" class="code-block-wrapper">
+                            <scroll-view class="code-block-scroll" scroll-x="true" scroll-with-animation="true">
+                              <view class="code-block-content">
+                                <view class="code-content-text">{{ segment.content }}</view>
+                              </view>
+                            </scroll-view>
+                          </view>
+                          <rich-text v-else :nodes="addImageStyles(segment.content)" class="sub-answer-text"></rich-text>
+                        </view>
+                      </template>
+                      <rich-text v-else :nodes="addImageStyles(sub.analysis || sub.commentary || sub.method || sub.explanation || sub.solution)" class="sub-answer-text"></rich-text>
                       <!-- #endif -->
                     </view>
                   </view>
@@ -2420,7 +2551,10 @@ onShareTimeline(() => {
               </view>
               <view class="grid-item no-border">
                 <text class="label">答案</text>
-                <text class="value correct">{{ currentQuestion.answer }}</text>
+                <view class="value correct">
+                  <!-- 对于简单的选择题答案，使用 rich-text 渲染以处理可能的 HTML 标签 -->
+                  <rich-text :nodes="currentQuestion.answer"></rich-text>
+                </view>
               </view>
               <view v-if="!settings.recitationMode" class="grid-item no-border">
                 <text class="label">结果</text>
@@ -2448,8 +2582,10 @@ onShareTimeline(() => {
               <mp-html :content="currentQuestion.displayAnswer || currentQuestion.answer" @imgtap="handleImageTap"></mp-html>
               <!-- #endif -->
               <!-- #ifdef MP-WEIXIN -->
-              <mp-html v-if="hasLatex(currentQuestion.displayAnswer || currentQuestion.answer)" :content="currentQuestion.displayAnswer || currentQuestion.answer" markdown @imgtap="handleImageTap"></mp-html>
-              <rich-text v-else :nodes="currentQuestion.displayAnswer || currentQuestion.answer"></rich-text>
+              <template v-for="(item, idx) in parseContentWithImages(currentQuestion.displayAnswer || currentQuestion.answer)" :key="idx">
+                <mp-html v-if="item.type === 'html'" :content="item.content" markdown domain="https://s3.hi168.com" @imgtap="handleImageTap"></mp-html>
+                <rich-text v-else-if="item.type === 'image'" :nodes="item.content"></rich-text>
+              </template>
               <!-- #endif -->
             </view>
           </view>
@@ -2467,8 +2603,10 @@ onShareTimeline(() => {
               <mp-html :content="currentQuestion.answer" @imgtap="handleImageTap"></mp-html>
               <!-- #endif -->
               <!-- #ifdef MP-WEIXIN -->
-              <mp-html v-if="hasLatex(currentQuestion.answer)" :content="currentQuestion.answer" markdown @imgtap="handleImageTap"></mp-html>
-              <rich-text v-else :nodes="currentQuestion.answer"></rich-text>
+              <template v-for="(item, idx) in parseContentWithImages(currentQuestion.answer)" :key="idx">
+                <mp-html v-if="item.type === 'html'" :content="item.content" markdown domain="https://s3.hi168.com" @imgtap="handleImageTap"></mp-html>
+                <rich-text v-else-if="item.type === 'image'" :nodes="item.content"></rich-text>
+              </template>
               <!-- #endif -->
             </view>
           </view>
@@ -2486,8 +2624,10 @@ onShareTimeline(() => {
               <mp-html :content="currentQuestion.analysis" @imgtap="handleImageTap"></mp-html>
               <!-- #endif -->
               <!-- #ifdef MP-WEIXIN -->
-              <mp-html v-if="hasLatex(currentQuestion.analysis)" :content="currentQuestion.analysis" markdown @imgtap="handleImageTap"></mp-html>
-              <rich-text v-else :nodes="currentQuestion.analysis"></rich-text>
+              <template v-for="(item, idx) in parseContentWithImages(currentQuestion.analysis)" :key="idx">
+                <mp-html v-if="item.type === 'html'" :content="item.content" markdown domain="https://s3.hi168.com" @imgtap="handleImageTap"></mp-html>
+                <rich-text v-else-if="item.type === 'image'" :nodes="item.content"></rich-text>
+              </template>
               <!-- #endif -->
             </view>
           </view>
@@ -3448,6 +3588,13 @@ onShareTimeline(() => {
       max-width: 100%;
       box-sizing: border-box;
       overflow-x: hidden;
+      
+      /* 限制图片宽度 */
+      :deep(img) {
+        max-width: 100% !important;
+        height: auto !important;
+        display: block !important;
+      }
     }
 
   /* 填空题横线样式 */
@@ -3616,6 +3763,10 @@ onShareTimeline(() => {
       flex: 1;
       .label { font-size: 24rpx; color: #999; display: block; margin-bottom: 10rpx; }
       .value { font-size: 34rpx; font-weight: bold; 
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 48rpx;
         &.correct { color: var(--correct-color); }
         &.error { color: var(--error-color); }
         &.score { color: #ff9800; }

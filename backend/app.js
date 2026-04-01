@@ -58,6 +58,10 @@ app.use('/api', require('./routes/tutorialRoutes'));
 app.use('/api/security', require('./routes/security'));
 app.use('/api', require('./routes/avatarFrameRoutes'));
 app.use('/api/qq-group', require('./routes/qqGroupRoutes'));
+// 卡牌路由
+const cardRoutes = require('./routes/cardRoutes');
+app.use('/api/cards', cardRoutes);
+console.log('卡牌路由已注册: /api/cards');
 // 邀请功能已删除
 
 // 静态页面用于管理员管理纠错

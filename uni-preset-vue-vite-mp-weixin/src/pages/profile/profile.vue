@@ -84,6 +84,14 @@
               <text class="item-label">我的收藏</text>
               <view class="item-arrow"></view>
             </view>
+            <view class="menu-divider"></view>
+            <view class="menu-item-row" @tap="goToDrawCard">
+              <view class="icon-box relax-bg">
+                <view class="inner-icon relax"></view>
+              </view>
+              <text class="item-label">放松一下</text>
+              <view class="item-arrow"></view>
+            </view>
           </view>
 
           <!-- 设置与隐私组 -->
@@ -255,8 +263,19 @@ const goToMyCollections = () => {
   });
 };
 
-
-
+// 跳转到抽卡页面
+const goToDrawCard = () => {
+  console.log('点击了放松一下按钮');
+  uni.navigateTo({
+    url: '/pages/draw-card/draw-card',
+    success: () => {
+      console.log('跳转成功');
+    },
+    fail: (err) => {
+      console.error('跳转失败:', err);
+    }
+  });
+};
 
 // 切换主题模式
 const toggleTheme = (e) => {
@@ -730,6 +749,9 @@ const logout = () => {
 
 .collection-bg { background: #fef3c7; }
 .collection { background-color: #f59e0b; mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>'); }
+
+.relax-bg { background: #fce7f3; }
+.relax { background-color: #ec4899; mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"/></svg>'); }
 
 .qq-bg { background: #e0f2fe; }
 .qq { background-color: #0ea5e9; mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>'); }

@@ -224,6 +224,36 @@ const customUploadImage = async (file, insertFn) => {
     if (res.data && res.data.url) {
       // 插入图片到编辑器
       insertFn(res.data.url, file.name, res.data.url)
+      
+      // 插入后清理编辑器中所有图片的硬编码宽高和空属性
+      setTimeout(() => {
+        const editor = editorRef.value
+        if (editor) {
+          // 获取编辑器容器
+          const $textElem = editor.$textElem
+          if ($textElem && $textElem.elems) {
+            $textElem.elems.forEach((elem) => {
+              if (elem.tagName === 'IMG') {
+                elem.removeAttribute('style')
+                elem.removeAttribute('width')
+                elem.removeAttribute('height')
+                elem.removeAttribute('alt')
+                elem.removeAttribute('data-href')
+              }
+              // 递归检查子元素
+              const imgs = elem.querySelectorAll ? elem.querySelectorAll('img') : []
+              imgs.forEach((img) => {
+                img.removeAttribute('style')
+                img.removeAttribute('width')
+                img.removeAttribute('height')
+                img.removeAttribute('alt')
+                img.removeAttribute('data-href')
+              })
+            })
+          }
+        }
+      }, 100)
+      
       ElMessage.success('图片上传成功')
     } else {
       ElMessage.error('图片上传失败')
@@ -251,7 +281,27 @@ const handleCreated = (editor) => {
 }
 
 const handleChange = (editor) => {
-  const html = editor.getHtml()
+  let html = editor.getHtml()
+  
+  // 移除所有图片的硬编码宽高
+  html = html.replace(/<img([^>]*?)style="[^"]*width\s*:\s*\d+(\.\d+)?(px|%)?[^"]*height\s*:\s*\d+(\.\d+)?(px|%)?[^"]*"([^>]*?)>/gi, '<img$1$6>')
+             .replace(/<img([^>]*?)width="\d+(\.\d+)?"([^>]*?)height="\d+(\.\d+)?"([^>]*?)>/gi, '<img$1$3$5>')
+             .replace(/<img([^>]*?)style="[^"]*width\s*:\s*\d+(\.\d+)?(px|%)?[^"]*"([^>]*?)>/gi, '<img$1$4>')
+             .replace(/<img([^>]*?)width="\d+(\.\d+)?"([^>]*?)>/gi, '<img$1$3>')
+             .replace(/<img([^>]*?)style="[^"]*height\s*:\s*\d+(\.\d+)?(px|%)?[^"]*"([^>]*?)>/gi, '<img$1$4>')
+             .replace(/<img([^>]*?)height="\d+(\.\d+)?"([^>]*?)>/gi, '<img$1$3>')
+  
+  // 清理空属性：alt="" data-href="" style=""
+  html = html.replace(/<img\s+([^>]*?)alt=""\s*([^>]*?)>/gi, '<img $1$2>')
+             .replace(/<img\s+([^>]*?)data-href=""\s*([^>]*?)>/gi, '<img $1$2>')
+             .replace(/<img\s+([^>]*?)style=""\s*([^>]*?)>/gi, '<img $1$2>')
+             .replace(/<img\s+([^>]*?)alt=""\s*([^>]*?)>/gi, '<img $1$2>')
+             .replace(/<img\s+([^>]*?)data-href=""\s*([^>]*?)>/gi, '<img $1$2>')
+             .replace(/<img\s+([^>]*?)style=""\s*([^>]*?)>/gi, '<img $1$2>')
+             // 清理重复空格和尾部属性
+             .replace(/<img\s+/gi, '<img ')
+             .replace(/\s*>/gi, '>')
+  
   valueHtml.value = html
   emit('update:modelValue', html)
   emit('change', html)

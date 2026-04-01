@@ -99,6 +99,14 @@
 			}
 		},
 		{
+			"path": "pages/draw-card/draw-card",
+			"style": {
+				"navigationBarTitleText": "祈福抽卡",
+				"navigationBarBackgroundColor": "#e53935",
+				"navigationBarTextStyle": "white"
+			}
+		},
+		{
 			"path": "pages/privacy/app-privacy",
 			"style": {
 				"navigationBarTitleText": "用户服务协议",
@@ -232,12 +240,15 @@
 					}
 				},
 				{
-					"path": "computer-practice",
-					"style": {
-						"navigationBarTitleText": "计算机综合练习",
-						"navigationStyle": "custom"
+				"path": "computer-practice",
+				"style": {
+					"navigationBarTitleText": "计算机综合练习",
+					"navigationStyle": "custom",
+					"usingComponents": {
+						"mp-html": "/components/mp-html/mp-html"
 					}
-				},
+				}
+			},
 				{
 					"path": "computer-list",
 					"style": {

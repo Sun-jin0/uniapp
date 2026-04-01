@@ -1121,6 +1121,11 @@ const processQuestionData = (data) => {
   return data;
 };
 
+const stripHtml = (html) => {
+  if (!html) return '';
+  return html.replace(/<[^>]+>/g, '').trim();
+};
+
 const loadQuestionDetails = async (index) => {
   if (index < 0 || index >= questions.value.length) return;
   const question = questions.value[index];
@@ -1318,7 +1323,9 @@ const confirmAnswer = async (index) => {
     }
     
     // 校验选择题
-    const standardAnswer = (question.originalAnswer || question.answer || '').replace(/,/g, '');
+    const rawAnswer = question.originalAnswer || question.answer || '';
+    // 移除 HTML 标签并只保留大写字母用于比对
+    const standardAnswer = stripHtml(rawAnswer).replace(/[^A-Z]/gi, '').toUpperCase();
     state.isCorrect = state.userAnswer === standardAnswer;
     state.status = state.isCorrect ? 'correct' : 'error';
   } else if (question.exercise_type === 3 || question.exercise_type_name?.includes('填空')) {
@@ -2211,7 +2218,9 @@ const submitFeedback = async () => {
                   </view>
                   <view class="grid-item no-border">
                     <text class="label">答案</text>
-                    <text class="value correct">{{ question.answer }}</text>
+                    <view class="value correct">
+                      <rich-text :nodes="question.answer"></rich-text>
+                    </view>
                   </view>
                   <view v-if="!settings.recitationMode" class="grid-item no-border">
                     <text class="label">结果</text>
@@ -3341,6 +3350,10 @@ const submitFeedback = async () => {
       flex: 1;
       .label { font-size: 24rpx; color: #999; display: block; margin-bottom: 10rpx; }
       .value { font-size: 34rpx; font-weight: bold; 
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 48rpx;
         &.correct { color: var(--correct-color); }
         &.error { color: var(--error-color); }
         &.score { color: #ff9800; }
