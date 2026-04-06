@@ -3713,6 +3713,17 @@ const applyEntrySourceCode = () => {
     jsonStr = jsonStr.replace(/\/\/.*$/gm, '')
     // 移除多行注释
     jsonStr = jsonStr.replace(/\/\*[\s\S]*?\*\//g, '')
+    
+    // 处理JSON字符串值中未转义的控制字符
+    // 这是一个简化的处理：将字符串值内的实际换行符转义为 \n
+    jsonStr = jsonStr.replace(/"([^"\\]*(\\.[^"\\]*)*)"/g, (match, p1) => {
+      // 在字符串值内部，将实际换行符、制表符等转义
+      const escaped = p1
+        .replace(/\n/g, '\\n')
+        .replace(/\r/g, '\\r')
+        .replace(/\t/g, '\\t')
+      return '"' + escaped + '"'
+    })
 
     const data = JSON.parse(jsonStr)
 
