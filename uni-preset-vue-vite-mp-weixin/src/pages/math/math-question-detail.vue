@@ -602,7 +602,7 @@
 import { ref, reactive, computed, onMounted, onUnmounted, watch, nextTick } from 'vue';
 import { onLoad } from '@dcloudio/uni-app';
 import SvgIcon from '../../components/SvgIcon/SvgIcon.vue';
-import MpHtml from '../../components/mp-html/mp-html.vue';
+import MpHtml from './components/mp-html/mp-html.vue';
 import { request } from '../../api/request';
 import api from '../../api/index';
 import publicApi from '../../api/public';

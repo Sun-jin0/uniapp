@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<script setup>
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<script setup>
 import { ref, onMounted, computed, watch, nextTick } from 'vue';
 import { onShareAppMessage, onShareTimeline } from '@dcloudio/uni-app';
 import { onLoad } from '@dcloudio/uni-app';
@@ -7,7 +7,7 @@ import medicalApi from '../../api/medical';
 import publicApi from '../../api/public';
 import { transformContextString } from '../../utils/latex';
 import SvgIcon from '../../components/SvgIcon/SvgIcon.vue';
-import MpHtml from '../../components/mp-html/mp-html.vue';
+import MpHtml from './components/mp-html/mp-html.vue';
 import { checkTextContent } from '@/utils/contentSecurity.js';
 
 // 检测内容是否包含 LaTeX 公式或代码块

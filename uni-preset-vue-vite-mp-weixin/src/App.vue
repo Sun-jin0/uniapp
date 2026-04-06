@@ -106,8 +106,6 @@ onMounted(() => {
 
 <style>
 /* #ifdef MP-WEIXIN */
-@import "./wxcomponents/towxml/style/main.wxss";
-@import "./wxcomponents/towxml/style/theme/light.wxss";
 @import "../node_modules/@rojer/katex-mini/dist/index.wxss";
 /* #endif */
 

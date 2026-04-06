@@ -328,7 +328,7 @@ import { transformContextString, parseTextWithLatexForMp } from '../../utils/lat
 import SvgIcon from '@/components/SvgIcon/SvgIcon.vue';
 import { checkTextContent } from '@/utils/contentSecurity.js';
 import { copyToClipboard } from '@/utils/clipboard.js';
-import MpHtml from '@/components/mp-html/mp-html.vue';
+import MpHtml from './components/mp-html/mp-html.vue';
 
 const statusBarHeight = ref(0);
 const showToolMenu = ref(false);

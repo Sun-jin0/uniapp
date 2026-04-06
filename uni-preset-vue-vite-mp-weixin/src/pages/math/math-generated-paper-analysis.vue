@@ -132,7 +132,7 @@ import { onLoad } from '@dcloudio/uni-app';
 import { request, BASE_URL } from '../../api/request';
 import { transformContextString, parseTextWithLatexForMp } from '../../utils/latex';
 import { checkTextContent } from '@/utils/contentSecurity.js';
-import MpHtml from '@/components/mp-html/mp-html.vue';
+import MpHtml from './components/mp-html/mp-html.vue';
 
 const paperId = ref(null);
 const paper = ref({});

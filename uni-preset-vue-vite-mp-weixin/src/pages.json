@@ -53,7 +53,6 @@
 				"navigationStyle": "custom"
 			}
 		},
-
 		{
 			"path": "pages/politics/politics-main",
 			"style": {
@@ -66,14 +65,12 @@
 				"navigationBarTitleText": "考试结果"
 			}
 		},
-
 		{
 			"path": "pages/webview/webview",
 			"style": {
 				"navigationBarTitleText": "正在加载..."
 			}
 		},
-
 		{
 			"path": "pages/ranking/ranking",
 			"style": {
@@ -177,13 +174,6 @@
 					}
 				},
 				{
-					"path": "computer-curated-bank-detail",
-					"style": {
-						"navigationBarTitleText": "题库详情",
-						"navigationStyle": "custom"
-					}
-				},
-				{
 					"path": "computer-chapter-select",
 					"style": {
 						"navigationBarTitleText": "选择资源",
@@ -198,20 +188,6 @@
 					}
 				},
 				{
-					"path": "computer-admin",
-					"style": {
-						"navigationBarTitleText": "计算机管理后台",
-						"navigationStyle": "custom"
-					}
-				},
-				{
-					"path": "computer-question-import",
-					"style": {
-						"navigationBarTitleText": "计算机题目导入",
-						"navigationStyle": "custom"
-					}
-				},
-				{
 					"path": "computer-paper-import",
 					"style": {
 						"navigationBarTitleText": "计算机试卷结构导入",
@@ -219,36 +195,12 @@
 					}
 				},
 				{
-					"path": "computer-question-manage",
+					"path": "computer-practice",
 					"style": {
-						"navigationBarTitleText": "题目管理",
+						"navigationBarTitleText": "计算机综合练习",
 						"navigationStyle": "custom"
 					}
 				},
-				{
-					"path": "computer-question-edit",
-					"style": {
-						"navigationBarTitleText": "编辑题目",
-						"navigationStyle": "custom"
-					}
-				},
-				{
-					"path": "computer-feedback-manage",
-					"style": {
-						"navigationBarTitleText": "反馈管理",
-						"navigationStyle": "custom"
-					}
-				},
-				{
-				"path": "computer-practice",
-				"style": {
-					"navigationBarTitleText": "计算机综合练习",
-					"navigationStyle": "custom",
-					"usingComponents": {
-						"mp-html": "/components/mp-html/mp-html"
-					}
-				}
-			},
 				{
 					"path": "computer-list",
 					"style": {
@@ -257,60 +209,54 @@
 					}
 				},
 				{
-				"path": "computer-wrong-book",
-				"style": {
-					"navigationBarTitleText": "错题本"
-				}
-			},
-			{
-				"path": "computer-online-exam",
-				"style": {
-					"navigationBarTitleText": "在线考试"
-				}
-			},
-			{
-				"path": "tutorial-detail",
-				"style": {
-					"navigationBarTitleText": "教辅章节"
-				}
-			},
-			{
-				"path": "tutorial-practice",
-				"style": {
-					"navigationBarTitleText": "题集刷题",
-					"navigationStyle": "custom"
-				}
-			},
-			{
-				"path": "computer-exam-detail",
-				"style": {
-					"navigationBarTitleText": "正在考试",
-					"navigationStyle": "custom",
-					"usingComponents": {
-						"towxml": "/wxcomponents/towxml/towxml"
+					"path": "computer-wrong-book",
+					"style": {
+						"navigationBarTitleText": "错题本"
+					}
+				},
+				{
+					"path": "computer-online-exam",
+					"style": {
+						"navigationBarTitleText": "在线考试"
+					}
+				},
+				{
+					"path": "tutorial-detail",
+					"style": {
+						"navigationBarTitleText": "教辅章节"
+					}
+				},
+				{
+					"path": "tutorial-practice",
+					"style": {
+						"navigationBarTitleText": "题集刷题",
+						"navigationStyle": "custom"
+					}
+				},
+				{
+					"path": "computer-exam-detail",
+					"style": {
+						"navigationBarTitleText": "正在考试",
+						"navigationStyle": "custom"
+					}
+				},
+				{
+					"path": "computer-exam-result",
+					"style": {
+						"navigationBarTitleText": "考试结果"
+					}
+				},
+				{
+					"path": "computer-exam-ranking",
+					"style": {
+						"navigationBarTitleText": "考试排名",
+						"navigationStyle": "custom"
 					}
 				}
-			},
-			{
-				"path": "computer-exam-result",
-				"style": {
-					"navigationBarTitleText": "考试结果",
-					"usingComponents": {
-						"towxml": "/wxcomponents/towxml/towxml"
-					}
-				}
-			},
-			{
-				"path": "computer-exam-ranking",
-				"style": {
-					"navigationBarTitleText": "考试排名",
-					"navigationStyle": "custom"
-				}
-			}
-		]
-	},
-	{
-		"root": "pages/math",
+			]
+		},
+		{
+			"root": "pages/math",
 			"pages": [
 				{
 					"path": "math-bookshelf",
@@ -329,10 +275,7 @@
 					"style": {
 						"navigationBarTitleText": "题目详情",
 						"navigationBarBackgroundColor": "#4db6ac",
-						"navigationBarTextStyle": "white",
-						"usingComponents": {
-							"towxml": "/wxcomponents/towxml/towxml"
-						}
+						"navigationBarTextStyle": "white"
 					}
 				},
 				{
@@ -360,16 +303,13 @@
 					}
 				},
 				{
-				"path": "math-my-favorites",
-				"style": {
-					"navigationBarTitleText": "我的收藏",
-					"usingComponents": {
-						"towxml": "/wxcomponents/towxml/towxml"
+					"path": "math-my-favorites",
+					"style": {
+						"navigationBarTitleText": "我的收藏"
 					}
-				}
-			},
-			{
-				"path": "math-smart-paper-config",
+				},
+				{
+					"path": "math-smart-paper-config",
 					"style": {
 						"navigationBarTitleText": "智能组卷配置"
 					}
@@ -453,7 +393,6 @@
 				}
 			]
 		},
-
 		{
 			"root": "pages/article",
 			"pages": [
@@ -472,7 +411,6 @@
 			]
 		}
 	],
-	
 	"preloadRule": {
 		"pages/index/index": {
 			"network": "all",
