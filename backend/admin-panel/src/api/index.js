@@ -183,6 +183,7 @@ export const adminApi = {
   updateMathCorrectionStatus: (id, data) => service.put(`/math/admin/corrections/${id}`, data),
   getMathBooks: (params) => service.get('/math/admin/books', { params }),
   getMathBookChapters: (bookId) => service.get(`/math/admin/books/${bookId}/chapters`),
+  addMathBookChapter: (bookId, data) => service.post(`/math/admin/books/${bookId}/chapters`, data),
   getMathBookQuestions: (bookId) => service.get(`/math/admin/books/${bookId}/questions`),
   getMathBookChapterQuestions: (bookId, chapterName) => service.get(`/math/admin/books/${bookId}/chapters/${encodeURIComponent(chapterName)}/questions`),
   getMathSubjects: () => service.get('/math/subjects'),
