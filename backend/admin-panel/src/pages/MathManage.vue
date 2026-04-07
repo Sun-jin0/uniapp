@@ -1,135 +1,6 @@
 <template>
   <div class="math-manage">
     <el-tabs v-model="activeTab" type="border-card">
-      <!-- 考点分类管理 -->
-      <el-tab-pane label="考点分类" name="knowledgeCategories">
-        <div class="knowledge-categories-container">
-          <div class="filter-bar mb-20">
-            <el-button type="primary" @click="openCreateSubjectModal">+ 添加科目</el-button>
-            <el-button @click="fetchKnowledgeCategories">刷新分类</el-button>
-            <el-button type="success" @click="refreshKnowledgeCategoriesCount" :loading="loadingKnowledgeCategories">
-              <Refresh style="width: 14px; height: 14px; margin-right: 4px;" /> 刷新题目数
-            </el-button>
-            <el-button type="warning" @click="fixKnowledgePointLinks" :loading="fixingLinks">
-              <Connection style="width: 14px; height: 14px; margin-right: 4px;" /> 修复题目关联
-            </el-button>
-            <el-tag type="info" size="large" v-if="totalCategoryQuestionCount > 0">
-              总题目数: {{ totalCategoryQuestionCount }}
-            </el-tag>
-            <el-input
-              v-model="categorySearchKeyword"
-              placeholder="搜索考点名称"
-              clearable
-              style="width: 200px; margin-left: 10px;"
-              @keyup.enter="searchCategory"
-            >
-              <template #append>
-                <el-button @click="searchCategory">
-                  <Search style="width: 14px; height: 14px;" />
-                </el-button>
-              </template>
-            </el-input>
-          </div>
-
-          <!-- 调试信息 -->
-          <el-alert v-if="debugInfo" type="info" :closable="false" class="mb-10">
-            <pre style="margin: 0; font-size: 12px;">{{ debugInfo }}</pre>
-          </el-alert>
-
-          <el-tree
-            ref="categoryTreeRef"
-            :data="knowledgeCategoryTree"
-            :props="treeProps"
-            node-key="id"
-            :default-expanded-keys="defaultExpandedKeys"
-            highlight-current
-          >
-            <template #default="{ node, data }">
-              <div class="custom-tree-node">
-                <span class="node-name">
-                  <el-tag v-if="getCategoryLevel(data) === 1" size="small" type="danger">科目</el-tag>
-                  <el-tag v-else-if="getCategoryLevel(data) === 2" size="small" type="warning">章节</el-tag>
-                  <el-tag v-else-if="getCategoryLevel(data) === 3" size="small" type="info">考点分类</el-tag>
-                  <el-tag v-else-if="getCategoryLevel(data) === 4" size="small" type="success">具体考点</el-tag>
-                  {{ node.label }}
-                </span>
-                <span class="node-info">
-                  <el-tag size="small" type="info">{{ data.CategoryCode }}</el-tag>
-                  <el-tag size="small" :type="data.QuestionCount > 0 ? 'primary' : 'info'" effect="dark">
-                    {{ data.QuestionCount || 0 }}题
-                  </el-tag>
-                  <el-tag :type="data.IsActive === 1 ? 'success' : 'danger'" size="small">
-                    {{ data.IsActive === 1 ? '启用' : '禁用' }}
-                  </el-tag>
-                </span>
-                <span class="node-actions">
-                  <el-button size="small" type="info" @click="handleCategoryNodeClick(data)">查看</el-button>
-                  <el-button size="small" @click="openEditKnowledgeCategoryModal(data)">编辑</el-button>
-                  <el-button v-if="getCategoryLevel(data) < 4" size="small" type="primary" @click="openAddChildCategoryModal(data)">
-                    {{ getCategoryLevel(data) === 1 ? '添加章节' : (getCategoryLevel(data) === 2 ? '添加考点分类' : '添加具体考点') }}
-                  </el-button>
-                  <el-button v-if="getCategoryLevel(data) >= 3" size="small" type="warning" @click="openMovePointModal(data)">移动</el-button>
-                  <el-button size="small" type="danger" @click="deleteKnowledgeCategory(data.id)">删除</el-button>
-                </span>
-              </div>
-            </template>
-          </el-tree>
-
-          <!-- 未分类考点列表 -->
-          <div class="uncategorized-kp-section mt-30">
-            <div class="section-header">
-              <h3>未分类（题目关联）</h3>
-              <div>
-                <el-button v-if="!uncategorizedKPsLoaded" type="primary" size="small" @click="loadUncategorizedKPs">
-                  <FolderOpened style="width: 14px; height: 14px; margin-right: 4px;" />
-                  加载未分类考点
-                </el-button>
-                <template v-else>
-                  <el-input v-model="kpSearchKeyword" placeholder="搜索考点" size="small" style="width: 200px; margin-right: 10px;" clearable @clear="kpSearchKeyword = ''" @keyup.enter="handleKPSearch" />
-                  <el-button size="small" @click="handleKPSearch">搜索</el-button>
-                  <el-button v-if="selectedUncategorizedKPs.length > 0" type="primary" size="small" @click="openBatchAddToCategoryModal">
-                    批量添加到分类 ({{ selectedUncategorizedKPs.length }})
-                  </el-button>
-                  <el-button type="warning" size="small" @click="openAIAutoClassifyModal" :loading="aiClassifying">
-                    <MagicStick style="width: 14px; height: 14px; margin-right: 4px;" />
-                    AI 自动分类
-                  </el-button>
-                  <el-button size="small" @click="fetchAllKnowledgePoints">刷新</el-button>
-                </template>
-              </div>
-            </div>
-            <el-table 
-              v-if="uncategorizedKPsLoaded"
-              :data="uncategorizedKPList" 
-              v-loading="loadingUncategorizedKPs" 
-              border 
-              stripe 
-              size="small"
-              @selection-change="handleUncategorizedKPSelectionChange"
-            >
-              <el-table-column type="selection" width="55" align="center" />
-              <el-table-column prop="KnowledgePointID" label="ID" width="80" align="center" />
-              <el-table-column prop="KPTitle" label="考点标题" min-width="200" show-overflow-tooltip />
-              <el-table-column prop="KPType" label="类型" width="100" align="center" />
-              <el-table-column prop="KPCode" label="代码" width="120" show-overflow-tooltip />
-              <el-table-column label="题目数" width="100" align="center">
-                <template #default="{ row }">
-                  <el-tag :type="row.QuestionCount > 0 ? 'primary' : 'info'" effect="dark" size="small">
-                    {{ row.QuestionCount || 0 }}题
-                  </el-tag>
-                </template>
-              </el-table-column>
-              <el-table-column label="操作" width="150" align="center" fixed="right">
-                <template #default="{ row }">
-                  <el-button size="small" type="primary" @click="editUncategorizedKP(row)">编辑</el-button>
-                  <el-button size="small" @click="openAddToCategoryModal(row)">添加到分类</el-button>
-                </template>
-              </el-table-column>
-            </el-table>
-          </div>
-        </div>
-      </el-tab-pane>
-
       <!-- 书籍管理 -->
       <el-tab-pane label="书籍管理" name="books">
         <div class="filter-card mb-20">
@@ -345,6 +216,136 @@
             </template>
           </el-table-column>
         </el-table>
+      </el-tab-pane>
+
+
+      <!-- 考点分类管理 -->
+      <el-tab-pane label="考点分类" name="knowledgeCategories">
+        <div class="knowledge-categories-container">
+          <div class="filter-bar mb-20">
+            <el-button type="primary" @click="openCreateSubjectModal">+ 添加科目</el-button>
+            <el-button @click="fetchKnowledgeCategories">刷新分类</el-button>
+            <el-button type="success" @click="refreshKnowledgeCategoriesCount" :loading="loadingKnowledgeCategories">
+              <Refresh style="width: 14px; height: 14px; margin-right: 4px;" /> 刷新题目数
+            </el-button>
+            <el-button type="warning" @click="fixKnowledgePointLinks" :loading="fixingLinks">
+              <Connection style="width: 14px; height: 14px; margin-right: 4px;" /> 修复题目关联
+            </el-button>
+            <el-tag type="info" size="large" v-if="totalCategoryQuestionCount > 0">
+              总题目数: {{ totalCategoryQuestionCount }}
+            </el-tag>
+            <el-input
+              v-model="categorySearchKeyword"
+              placeholder="搜索考点名称"
+              clearable
+              style="width: 200px; margin-left: 10px;"
+              @keyup.enter="searchCategory"
+            >
+              <template #append>
+                <el-button @click="searchCategory">
+                  <Search style="width: 14px; height: 14px;" />
+                </el-button>
+              </template>
+            </el-input>
+          </div>
+
+          <!-- 调试信息 -->
+          <el-alert v-if="debugInfo" type="info" :closable="false" class="mb-10">
+            <pre style="margin: 0; font-size: 12px;">{{ debugInfo }}</pre>
+          </el-alert>
+
+          <el-tree
+            ref="categoryTreeRef"
+            :data="knowledgeCategoryTree"
+            :props="treeProps"
+            node-key="id"
+            :default-expanded-keys="defaultExpandedKeys"
+            highlight-current
+          >
+            <template #default="{ node, data }">
+              <div class="custom-tree-node">
+                <span class="node-name">
+                  <el-tag v-if="getCategoryLevel(data) === 1" size="small" type="danger">科目</el-tag>
+                  <el-tag v-else-if="getCategoryLevel(data) === 2" size="small" type="warning">章节</el-tag>
+                  <el-tag v-else-if="getCategoryLevel(data) === 3" size="small" type="info">考点分类</el-tag>
+                  <el-tag v-else-if="getCategoryLevel(data) === 4" size="small" type="success">具体考点</el-tag>
+                  {{ node.label }}
+                </span>
+                <span class="node-info">
+                  <el-tag size="small" type="info">{{ data.CategoryCode }}</el-tag>
+                  <el-tag size="small" :type="data.QuestionCount > 0 ? 'primary' : 'info'" effect="dark">
+                    {{ data.QuestionCount || 0 }}题
+                  </el-tag>
+                  <el-tag :type="data.IsActive === 1 ? 'success' : 'danger'" size="small">
+                    {{ data.IsActive === 1 ? '启用' : '禁用' }}
+                  </el-tag>
+                </span>
+                <span class="node-actions">
+                  <el-button size="small" type="info" @click="handleCategoryNodeClick(data)">查看</el-button>
+                  <el-button size="small" @click="openEditKnowledgeCategoryModal(data)">编辑</el-button>
+                  <el-button v-if="getCategoryLevel(data) < 4" size="small" type="primary" @click="openAddChildCategoryModal(data)">
+                    {{ getCategoryLevel(data) === 1 ? '添加章节' : (getCategoryLevel(data) === 2 ? '添加考点分类' : '添加具体考点') }}
+                  </el-button>
+                  <el-button v-if="getCategoryLevel(data) >= 3" size="small" type="warning" @click="openMovePointModal(data)">移动</el-button>
+                  <el-button size="small" type="danger" @click="deleteKnowledgeCategory(data.id)">删除</el-button>
+                </span>
+              </div>
+            </template>
+          </el-tree>
+
+          <!-- 未分类考点列表 -->
+          <div class="uncategorized-kp-section mt-30">
+            <div class="section-header">
+              <h3>未分类（题目关联）</h3>
+              <div>
+                <el-button v-if="!uncategorizedKPsLoaded" type="primary" size="small" @click="loadUncategorizedKPs">
+                  <FolderOpened style="width: 14px; height: 14px; margin-right: 4px;" />
+                  加载未分类考点
+                </el-button>
+                <template v-else>
+                  <el-input v-model="kpSearchKeyword" placeholder="搜索考点" size="small" style="width: 200px; margin-right: 10px;" clearable @clear="kpSearchKeyword = ''" @keyup.enter="handleKPSearch" />
+                  <el-button size="small" @click="handleKPSearch">搜索</el-button>
+                  <el-button v-if="selectedUncategorizedKPs.length > 0" type="primary" size="small" @click="openBatchAddToCategoryModal">
+                    批量添加到分类 ({{ selectedUncategorizedKPs.length }})
+                  </el-button>
+                  <el-button type="warning" size="small" @click="openAIAutoClassifyModal" :loading="aiClassifying">
+                    <MagicStick style="width: 14px; height: 14px; margin-right: 4px;" />
+                    AI 自动分类
+                  </el-button>
+                  <el-button size="small" @click="fetchAllKnowledgePoints">刷新</el-button>
+                </template>
+              </div>
+            </div>
+            <el-table 
+              v-if="uncategorizedKPsLoaded"
+              :data="uncategorizedKPList" 
+              v-loading="loadingUncategorizedKPs" 
+              border 
+              stripe 
+              size="small"
+              @selection-change="handleUncategorizedKPSelectionChange"
+            >
+              <el-table-column type="selection" width="55" align="center" />
+              <el-table-column prop="KnowledgePointID" label="ID" width="80" align="center" />
+              <el-table-column prop="KPTitle" label="考点标题" min-width="200" show-overflow-tooltip />
+              <el-table-column prop="KPType" label="类型" width="100" align="center" />
+              <el-table-column prop="KPCode" label="代码" width="120" show-overflow-tooltip />
+              <el-table-column label="题目数" width="100" align="center">
+                <template #default="{ row }">
+                  <el-tag :type="row.QuestionCount > 0 ? 'primary' : 'info'" effect="dark" size="small">
+                    {{ row.QuestionCount || 0 }}题
+                  </el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column label="操作" width="150" align="center" fixed="right">
+                <template #default="{ row }">
+                  <el-button size="small" type="primary" @click="editUncategorizedKP(row)">编辑</el-button>
+                  <el-button size="small" @click="openAddToCategoryModal(row)">添加到分类</el-button>
+                </template>
+              </el-table-column>
+            </el-table>
+          </div>
+        </div>
       </el-tab-pane>
 
 
@@ -1260,11 +1261,7 @@
                     <el-col :span="6">
                       <el-form-item label="业务类型">
                         <el-select v-model="detail.BusType" style="width: 100%" @change="sortDetails" size="small">
-                          <el-option label="analysis" value="analysis" />
-                          <el-option label="answer" value="answer" />
-                          <el-option label="commentary" value="commentary" />
-                          <el-option label="keypoint" value="keypoint" />
-                          <el-option label="solution" value="solution" />
+                          <el-option v-for="type in busTypeOptions" :key="type" :label="type" :value="type" />
                         </el-select>
                       </el-form-item>
                     </el-col>
@@ -1456,6 +1453,9 @@
         </el-form-item>
         <el-form-item label="排序">
           <el-input-number v-model="editingBook.SortOrder" :min="0" style="width: 100%" />
+        </el-form-item>
+        <el-form-item label="设为新书">
+          <el-switch v-model="editingBook.IsNew" :active-value="1" :inactive-value="0" />
         </el-form-item>
         <el-form-item label="描述">
           <el-input v-model="editingBook.Description" type="textarea" rows="3" placeholder="书籍描述" />
@@ -1754,7 +1754,7 @@ import { adminApi } from '../api'
 import katex from 'katex'
 import 'katex/dist/katex.min.css'
 
-const activeTab = ref('knowledgeCategories')
+const activeTab = ref('books')
 
 // 编辑题目导航
 const activeSection = ref('basic')
@@ -3264,6 +3264,7 @@ const openBookModal = (book = null) => {
       VersionInfo: '',
       LearnerCount: 0,
       SortOrder: 0,
+      IsNew: 0,
       Description: ''
     }
   }
@@ -3293,6 +3294,7 @@ const saveBook = async () => {
       VersionInfo: editingBook.value.VersionInfo,
       LearnerCount: editingBook.value.LearnerCount || 0,
       SortOrder: editingBook.value.SortOrder || 0,
+      IsNew: editingBook.value.IsNew || 0,
       Description: editingBook.value.Description
     }
     if (editingBook.value.BookID) {
@@ -3580,7 +3582,8 @@ const addSelectedQuestions = async () => {
 // 处理纠错
 const handleCorrection = async (correction) => {
   try {
-    await adminApi.updateMathCorrectionStatus(correction.ID, { status: 1 })
+    const correctionId = correction.ID || correction.id
+    await adminApi.updateMathCorrectionStatus(correctionId, { status: 1 })
     ElMessage.success('已标记为处理')
     fetchCorrections()
   } catch (error) {
@@ -3709,23 +3712,42 @@ const applyEntrySourceCode = () => {
 
     // 移除注释后解析JSON
     let jsonStr = entrySourceCode.value
-    // 移除单行注释
-    jsonStr = jsonStr.replace(/\/\/.*$/gm, '')
+    // 移除单行注释（但保留字符串内的//）
+    jsonStr = jsonStr.replace(/\/\/(?![^"]*"[^"]*(?:"[^"]*"[^"]*)*$).*$/gm, '')
     // 移除多行注释
-    jsonStr = jsonStr.replace(/\/\*[\s\S]*?\*\//g, '')
+    jsonStr = jsonStr.replace(/\/\*(?![^"]*"[^"]*(?:"[^"]*"[^"]*)*$)[\s\S]*?\*\//g, '')
     
-    // 处理JSON字符串值中未转义的控制字符
-    // 这是一个简化的处理：将字符串值内的实际换行符转义为 \n
-    jsonStr = jsonStr.replace(/"([^"\\]*(\\.[^"\\]*)*)"/g, (match, p1) => {
-      // 在字符串值内部，将实际换行符、制表符等转义
-      const escaped = p1
-        .replace(/\n/g, '\\n')
-        .replace(/\r/g, '\\r')
-        .replace(/\t/g, '\\t')
-      return '"' + escaped + '"'
-    })
-
-    const data = JSON.parse(jsonStr)
+    // 尝试直接解析
+    let data
+    try {
+      data = JSON.parse(jsonStr)
+    } catch (parseError) {
+      // 如果直接解析失败，尝试修复常见问题
+      // 1. 处理字符串值中未转义的控制字符
+      jsonStr = jsonStr.replace(/"([^"\\]*(\\.[^"\\]*)*)"/g, (match, p1) => {
+        const escaped = p1
+          .replace(/\n/g, '\\n')
+          .replace(/\r/g, '\\r')
+          .replace(/\t/g, '\\t')
+        return '"' + escaped + '"'
+      })
+      
+      // 2. 尝试修复未转义的引号（在LaTeX公式中常见）
+      // 将字符串值内的未转义引号转义
+      jsonStr = jsonStr.replace(/"([^"]*)"/g, (match, p1) => {
+        // 如果字符串内有未配对的引号，需要转义
+        let fixed = p1
+        // 检查是否有未转义的引号
+        const temp = p1.replace(/\\./g, '') // 先移除已转义的字符
+        if (temp.includes('"')) {
+          // 有未转义的引号，需要处理
+          fixed = p1.replace(/(?<!\\)"/g, '\\"')
+        }
+        return '"' + fixed + '"'
+      })
+      
+      data = JSON.parse(jsonStr)
+    }
 
     // 应用到表单
     entryForm.questionText = data.QuestionText || ''

@@ -59,6 +59,7 @@ const getCorrections = async (req, res) => {
     
     const formattedRows = rows.map(row => ({
       ...row,
+      ID: Number(row.ID || row.id),
       id: Number(row.id || row.ID),
       QuestionID: Number(row.QuestionID),
       Status: Number(row.Status)

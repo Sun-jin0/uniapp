@@ -709,7 +709,7 @@
                         .replace(/／/g, '/')
                         .replace(/\．/g, '.')
                         .replace(/\\r\\n/g, '\n')
-                        .replace(/\\n/g, '\n');
+                        .replace(/\\n(?![a-zA-Z])/g, '\n');
 
                     // 将 \\( 和 \\) 转换为 \( 和 \)，以便 KaTeX 识别
                     content = content.replace(/\\\\\(/g, '\\(').replace(/\\\\\)/g, '\\)');
