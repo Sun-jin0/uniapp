@@ -291,6 +291,13 @@ export const adminApi = {
   deleteComputerQuestion: (id) => service.delete(`/computer1/admin/questions/${id}`),
   updateComputerFeedbackStatus: (id, data) => service.put(`/computer1/feedbacks/${id}`, data),
   importComputerPaper: (data) => service.post('/computer1/import-paper', data),
+  // 考点分类管理
+  getComputerKnowledgeTags: (params) => service.get('/computer1/admin/tags', { params }),
+  getAllComputerKnowledgeTags: () => service.get('/computer1/admin/tags/all'),
+  createComputerKnowledgeTag: (data) => service.post('/computer1/admin/tags', data),
+  updateComputerKnowledgeTag: (id, data) => service.put(`/computer1/admin/tags/${id}`, data),
+  deleteComputerKnowledgeTag: (id) => service.delete(`/computer1/admin/tags/${id}`),
+  getComputerTagQuestions: (tagId) => service.get(`/computer1/admin/tags/${tagId}/questions`),
   
   // 计算机试卷管理
   getComputerPaperList: (params) => service.get('/computer1/admin/papers', { params }),

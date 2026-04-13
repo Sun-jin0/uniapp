@@ -229,7 +229,7 @@
       <el-form :model="manualQuestionForm" label-width="100px" class="question-edit-form">
         <!-- 基础信息行 -->
         <el-row :gutter="20">
-          <el-col :span="12">
+          <el-col :span="8">
             <el-form-item label="题型">
               <el-select v-model="manualQuestionForm.exercise_type" style="width: 100%;" @change="handleManualExerciseTypeChange">
                 <el-option label="单选题" :value="1" />
@@ -240,9 +240,50 @@
               </el-select>
             </el-form-item>
           </el-col>
-          <el-col :span="12">
+          <el-col :span="8">
             <el-form-item label="分值">
               <el-input-number v-model="manualQuestionForm.total_score" :min="0" :max="100" style="width: 100%;" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="8">
+            <el-form-item label="难度">
+              <el-rate v-model="manualQuestionForm.level" :max="5" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+
+        <!-- 科目章节考点行 -->
+        <el-row :gutter="20">
+          <el-col :span="8">
+            <el-form-item label="所属科目">
+              <el-select v-model="manualQuestionForm.major_id" style="width: 100%" @change="handleMajorChange">
+                <el-option v-for="s in subjects" :key="s.id" :label="s.name" :value="String(s.id)" />
+              </el-select>
+            </el-form-item>
+          </el-col>
+          <el-col :span="8">
+            <el-form-item label="所属章节">
+              <el-select v-model="manualQuestionForm.chapter_id" style="width: 100%" @change="handleChapterChange">
+                <el-option v-for="c in chapters" :key="c.id" :label="c.name" :value="String(c.id)" />
+              </el-select>
+            </el-form-item>
+          </el-col>
+          <el-col :span="8">
+            <el-form-item label="考点分类">
+              <el-select 
+                v-model="manualQuestionForm.tag_ids" 
+                multiple 
+                style="width: 100%" 
+                placeholder="选择考点"
+                :loading="loadingTags"
+              >
+                <el-option 
+                  v-for="t in knowledgeTags" 
+                  :key="String(t.tag_id)" 
+                  :label="t.tag_name" 
+                  :value="String(t.tag_id)" 
+                />
+              </el-select>
             </el-form-item>
           </el-col>
         </el-row>
@@ -423,8 +464,17 @@ const manualQuestionForm = reactive({
   answer: '',
   analysis: '',
   total_score: 2,
-  subs: [] // 解答题小题
+  subs: [], // 解答题小题
+  major_id: '',
+  chapter_id: '',
+  tag_ids: []
 })
+
+// 科目章节考点相关
+const subjects = ref([])
+const chapters = ref([])
+const knowledgeTags = ref([])
+const loadingTags = ref(false)
 
 // 查看题目
 const viewQuestionModalVisible = ref(false)
@@ -775,8 +825,12 @@ const confirmSaveManualQuestion = async () => {
       answer: manualQuestionForm.answer,
       analysis: manualQuestionForm.analysis,
       total_score: manualQuestionForm.total_score,
+      level: manualQuestionForm.level,
       options: optionsArray,
-      subs: manualQuestionForm.exercise_type === 4 ? manualQuestionForm.subs : null
+      subs: manualQuestionForm.exercise_type === 4 ? manualQuestionForm.subs : null,
+      major_id: manualQuestionForm.major_id,
+      chapter_id: manualQuestionForm.chapter_id,
+      tag_ids: manualQuestionForm.tag_ids
     }
 
     if (isEdit) {
@@ -868,6 +922,10 @@ const resetManualQuestionForm = () => {
   manualQuestionForm.analysis = ''
   manualQuestionForm.total_score = 2
   manualQuestionForm.subs = []
+  manualQuestionForm.level = 0
+  manualQuestionForm.major_id = ''
+  manualQuestionForm.chapter_id = ''
+  manualQuestionForm.tag_ids = []
 }
 
 // 查看题目
@@ -877,7 +935,7 @@ const viewQuestion = (question) => {
 }
 
 // 打开编辑题目弹窗
-const openEditQuestionModal = () => {
+const openEditQuestionModal = async () => {
   if (!currentQuestion.value) return
   
   console.log('当前题目:', currentQuestion.value)
@@ -891,6 +949,33 @@ const openEditQuestionModal = () => {
   manualQuestionForm.answer = currentQuestion.value.answer || ''
   manualQuestionForm.analysis = currentQuestion.value.analysis || ''
   manualQuestionForm.total_score = currentQuestion.value.total_score || 2
+  manualQuestionForm.level = currentQuestion.value.level || 0
+  
+  // 处理科目章节考点
+  manualQuestionForm.major_id = currentQuestion.value.major_id ? String(currentQuestion.value.major_id) : ''
+  manualQuestionForm.chapter_id = currentQuestion.value.chapter_id ? String(currentQuestion.value.chapter_id) : ''
+  
+  // 加载科目列表
+  if (subjects.value.length === 0) {
+    await fetchSubjects()
+  }
+  
+  // 如果有科目ID，加载章节列表
+  if (manualQuestionForm.major_id) {
+    await fetchComputerChapters(manualQuestionForm.major_id)
+  }
+  
+  // 如果有章节ID，加载考点分类
+  if (manualQuestionForm.chapter_id) {
+    await fetchKnowledgeTags(manualQuestionForm.chapter_id)
+  }
+  
+  // 处理考点分类ID
+  if (currentQuestion.value.tags && Array.isArray(currentQuestion.value.tags)) {
+    manualQuestionForm.tag_ids = currentQuestion.value.tags.map(t => String(t.tag_id || t.id))
+  } else {
+    manualQuestionForm.tag_ids = []
+  }
   
   // 处理选项数据 - 需要替换整个数组
   if (currentQuestion.value.options && currentQuestion.value.options.length > 0) {
@@ -968,6 +1053,68 @@ const stripHtml = (html) => {
 // 返回
 const goBack = () => {
   router.push('/computer/tutorials')
+}
+
+// 获取科目列表
+const fetchSubjects = async () => {
+  try {
+    const res = await adminApi.getComputerSubjects()
+    subjects.value = res.data || []
+  } catch (error) {
+    console.error('获取科目失败:', error)
+  }
+}
+
+// 获取计算机章节列表（用于编辑题目时的科目章节选择）
+const fetchComputerChapters = async (majorId) => {
+  if (!majorId) {
+    chapters.value = []
+    return
+  }
+  try {
+    const res = await adminApi.getComputerChapters({ majorId })
+    let data = res.data
+    if (data && data.chapters && Array.isArray(data.chapters)) {
+      data = data.chapters
+    }
+    chapters.value = data || []
+  } catch (error) {
+    console.error('获取章节失败:', error)
+  }
+}
+
+// 获取考点分类列表
+const fetchKnowledgeTags = async (chapterId) => {
+  if (!chapterId) {
+    knowledgeTags.value = []
+    return
+  }
+  loadingTags.value = true
+  try {
+    const res = await adminApi.getComputerKnowledgeTags({ chapterId })
+    let data = res.data?.tags || res.data
+    if (!Array.isArray(data)) {
+      data = data?.list || data?.items || []
+    }
+    knowledgeTags.value = data
+  } catch (error) {
+    console.error('获取考点分类失败:', error)
+  } finally {
+    loadingTags.value = false
+  }
+}
+
+// 处理科目变化
+const handleMajorChange = async (majorId) => {
+  manualQuestionForm.chapter_id = ''
+  manualQuestionForm.tag_ids = []
+  await fetchComputerChapters(majorId)
+}
+
+// 处理章节变化
+const handleChapterChange = async (chapterId) => {
+  manualQuestionForm.tag_ids = []
+  await fetchKnowledgeTags(chapterId)
 }
 
 onMounted(() => {
