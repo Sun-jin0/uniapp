@@ -488,9 +488,9 @@ exports.addDrawCount = async (req, res) => {
     
     console.log('addDrawCount接收到的参数:', { source, body: req.body });
     
-    // 如果是通过广告获取，增加2次；否则增加1次
-    const incrementCount = source === 'ad' ? 2 : 1;
-    const message = source === 'ad' ? '次数+2' : '次数+1';
+    // 无论是通过广告还是其他方式获取，都增加1次
+    const incrementCount = 1;
+    const message = '次数+1';
     
     console.log('增加次数:', incrementCount, '消息:', message);
     

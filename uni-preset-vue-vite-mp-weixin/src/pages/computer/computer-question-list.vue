@@ -28,6 +28,19 @@ const completedQuestionIds = ref(new Set());
 const lastQuestionId = ref(null);
 const scrollIntoId = ref('');
 
+// 原生模板广告事件监听
+const adLoad = () => {
+  console.log('原生模板广告加载成功');
+};
+
+const adError = (err) => {
+  console.error('原生模板广告加载失败', err);
+};
+
+const adClose = () => {
+  console.log('原生模板广告关闭');
+};
+
 // 虚拟滚动配置
 const ITEM_HEIGHT = 180; // 每个题目卡片预估高度(rpx)
 const BUFFER_SIZE = 1; // 上下缓冲区域题目数量（只缓冲1个，总共显示3个）
@@ -461,32 +474,43 @@ const goBack = () => {
           <text>{{ questions.length === 0 ? '该章节暂无题目' : '该分类下暂无题目' }}</text>
         </view>
         <view v-else class="question-list-normal">
-          <view 
-            :id="'question-' + question.question_id"
-            class="question-card" 
-            :class="{ 
-              'is-selected': isSelectMode && selectedQuestionIds.includes(question.question_id),
-              'is-completed': completedQuestionIds.has(String(question.question_id))
-            }"
-            v-for="(question, index) in filteredQuestions" 
-            :key="question.question_id"
-            @click="goToDetail(question)"
-          >
-            <view class="question-info">
-              <view v-if="isSelectMode" class="select-box">
-                <view class="checkbox" :class="{ checked: selectedQuestionIds.includes(question.question_id) }"></view>
-              </view>
-              <text class="info-item index">{{ index + 1 }}.</text>
-              <text class="info-item type">{{ question.exercise_type_name }}</text>
-              <text class="info-item source" v-if="question.exam_time || question.from_school || question.exam_code">
-                {{ [question.exam_time, question.from_school, question.exam_code].filter(Boolean).join(' · ') }}
+          <template v-for="(question, index) in filteredQuestions" :key="question.question_id">
+            <view 
+              :id="'question-' + question.question_id"
+              class="question-card" 
+              :class="{ 
+                'is-selected': isSelectMode && selectedQuestionIds.includes(question.question_id),
+                'is-completed': completedQuestionIds.has(String(question.question_id))
+              }"
+              @click="goToDetail(question)"
+            >
+              <view class="question-info">
+                <view v-if="isSelectMode" class="select-box">
+                  <view class="checkbox" :class="{ checked: selectedQuestionIds.includes(question.question_id) }"></view>
+                </view>
+                <text class="info-item index">{{ index + 1 }}.</text>
+                <text class="info-item type">{{ question.exercise_type_name }}</text>
+                <text class="info-item source" v-if="question.exam_time || question.from_school || question.exam_code">
+                  {{ [question.exam_time, question.from_school, question.exam_code].filter(Boolean).join(' · ') }}
               </text>
-              <text class="info-item score" v-if="question.total_score">{{ question.total_score }}分</text>
+                <text class="info-item score" v-if="question.total_score">{{ question.total_score }}分</text>
+              </view>
+              <view class="card-body">
+                <view class="question-stem" v-html="question.stem"></view>
+              </view>
             </view>
-            <view class="card-body">
-              <view class="question-stem" v-html="question.stem"></view>
+            <!-- 每20题显示一个广告 -->
+            <!-- #ifdef MP-WEIXIN -->
+            <view v-if="(index + 1) % 20 === 0" class="ad-container">
+              <ad-custom 
+                unit-id="adunit-f1d0e339a07022e6" 
+                @load="adLoad" 
+                @error="adError" 
+                @close="adClose"
+              ></ad-custom>
             </view>
-          </view>
+            <!-- #endif -->
+          </template>
         </view>
       </view>
     </scroll-view>
@@ -494,6 +518,14 @@ const goBack = () => {
 </template>
 
 <style scoped lang="scss">
+/* 原生模板广告容器 */
+.ad-container {
+  margin: 20rpx 24rpx;
+  background: #fff;
+  border-radius: 16rpx;
+  overflow: hidden;
+}
+
 .container {
   min-height: 100vh;
   background-color: #f8f9fa;

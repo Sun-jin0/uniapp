@@ -180,6 +180,13 @@
                 </view>
               </view>
               <view v-else class="no-data-state">暂无解析内容</view>
+              
+              <!-- 广告组件 - 解析部分下方 -->
+              <!-- #ifdef MP-WEIXIN -->
+              <view class="ad-container">
+                <ad-custom unit-id="adunit-f1d0e339a07022e6" @load="adLoad" @error="adError" @close="adClose"></ad-custom>
+              </view>
+              <!-- #endif -->
             </view>
 
             <!-- 考点 Tab -->
@@ -207,6 +214,12 @@
                     </view>
                     <!-- #endif -->
                   </view>
+                  <!-- 广告组件 - 只在最后一个考点下方显示 -->
+                  <!-- #ifdef MP-WEIXIN -->
+                  <view v-if="index === groupedKnowledgePoints.考点.length - 1" class="ad-container">
+                    <ad-custom unit-id="adunit-f1d0e339a07022e6" @load="adLoad" @error="adError" @close="adClose"></ad-custom>
+                  </view>
+                  <!-- #endif -->
                 </view>
               </view>
               <view v-else class="no-data-state">暂无考点内容</view>
@@ -1679,6 +1692,19 @@ const wrapLatexForMpHtml = (content) => {
   }
   
   return text;
+};
+
+// 广告事件处理
+const adLoad = () => {
+  console.log('原生模板广告加载成功');
+};
+
+const adError = (err) => {
+  console.error('原生模板广告加载失败', err);
+};
+
+const adClose = () => {
+  console.log('原生模板广告关闭');
 };
 
 const toggleFavorite = async () => {
@@ -4464,6 +4490,11 @@ watch(relatedExpanded, (newVal) => {
 
 .tab-content {
   animation: fadeIn 0.3s ease;
+}
+
+.ad-container {
+  margin-top: 20rpx;
+  width: 100%;
 }
 
 @keyframes fadeIn {

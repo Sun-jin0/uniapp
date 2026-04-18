@@ -789,7 +789,8 @@ onMounted(async () => {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 5px;
-  padding: 0 4px;
+  padding: 12px 4px;
+  min-height: 44px;
 }
 
 .section-header h2 {

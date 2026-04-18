@@ -227,6 +227,12 @@ const routes = [
     component: () => import('../pages/CardManage.vue'),
     meta: { title: '卡牌管理' }
   },
+  {
+    path: '/checkin',
+    name: 'CheckinManage',
+    component: () => import('../pages/CheckinManage.vue'),
+    meta: { title: '打卡管理' }
+  },
 ]
 
 const router = createRouter({

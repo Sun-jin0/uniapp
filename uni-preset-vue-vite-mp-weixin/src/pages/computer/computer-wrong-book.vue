@@ -51,38 +51,49 @@
         <text>加载中...</text>
       </view>
       <view v-else-if="wrongQuestions.length > 0" class="list-wrapper">
-        <view
-          v-for="(question, index) in wrongQuestions"
-          :key="question.id || question.question_id"
-          class="question-item"
-          @tap="goToQuestion(question, index)"
-        >
-          <view class="item-main">
-            <view class="item-left">
-              <view class="num-badge">{{ index + 1 }}</view>
-            </view>
-            <view class="item-content">
-              <view class="item-header">
-                <view class="header-left">
-                  <text class="type-text">{{ getQuestionTypeLabel(question.exercise_type) }}</text>
-                  <text :class="['status-tag', question.is_correct === 1 ? 'mastered' : 'pending']">
-                    {{ question.is_correct === 1 ? '已掌握' : '待复习' }}
-                  </text>
+        <template v-for="(question, index) in wrongQuestions" :key="question.id || question.question_id">
+          <view
+            class="question-item"
+            @tap="goToQuestion(question, index)"
+          >
+            <view class="item-main">
+              <view class="item-left">
+                <view class="num-badge">{{ index + 1 }}</view>
+              </view>
+              <view class="item-content">
+                <view class="item-header">
+                  <view class="header-left">
+                    <text class="type-text">{{ getQuestionTypeLabel(question.exercise_type) }}</text>
+                    <text :class="['status-tag', question.is_correct === 1 ? 'mastered' : 'pending']">
+                      {{ question.is_correct === 1 ? '已掌握' : '待复习' }}
+                    </text>
+                  </view>
+                  <text class="date-text">{{ formatDate(question.CreatedAt) }}</text>
                 </view>
-                <text class="date-text">{{ formatDate(question.CreatedAt) }}</text>
-              </view>
-              <view class="item-body">
-                <rich-text class="question-title" :nodes="question.processedStem"></rich-text>
-              </view>
-              <view class="item-footer" v-if="question.chapter_name">
-                <text class="chapter-tag">{{ question.chapter_name }}</text>
+                <view class="item-body">
+                  <rich-text class="question-title" :nodes="question.processedStem"></rich-text>
+                </view>
+                <view class="item-footer" v-if="question.chapter_name">
+                  <text class="chapter-tag">{{ question.chapter_name }}</text>
+                </view>
               </view>
             </view>
+            <view class="item-action" @tap.stop="removeFromWrongBook(question)">
+              <SvgIcon name="delete" size="32" fill="#ff4d4f" />
+            </view>
           </view>
-          <view class="item-action" @tap.stop="removeFromWrongBook(question)">
-            <SvgIcon name="delete" size="32" fill="#ff4d4f" />
+          <!-- 每15个显示一个广告 -->
+          <!-- #ifdef MP-WEIXIN -->
+          <view v-if="(index + 1) % 15 === 0" class="ad-container">
+            <ad-custom 
+              unit-id="adunit-f1d0e339a07022e6" 
+              @load="adLoad" 
+              @error="adError" 
+              @close="adClose"
+            ></ad-custom>
           </view>
-        </view>
+          <!-- #endif -->
+        </template>
       </view>
       <view v-else class="empty-state">
         <SvgIcon name="success" size="100" fill="#4caf50" />
@@ -103,6 +114,19 @@ const scrollHeight = ref('0px');
 const loading = ref(true);
 const wrongQuestions = ref([]);
 const masteredCount = ref(0);
+
+// 原生模板广告事件监听
+const adLoad = () => {
+  console.log('原生模板广告加载成功');
+};
+
+const adError = (err) => {
+  console.error('原生模板广告加载失败', err);
+};
+
+const adClose = () => {
+  console.log('原生模板广告关闭');
+};
 
 onMounted(async () => {
   await fetchWrongQuestions();
@@ -280,6 +304,14 @@ const goBack = () => {
 </script>
 
 <style lang="scss" scoped>
+/* 原生模板广告容器 */
+.ad-container {
+  margin: 20rpx 24rpx;
+  background: #fff;
+  border-radius: 16rpx;
+  overflow: hidden;
+}
+
 .container {
   min-height: 100vh;
   background-color: #f5f7fa;

@@ -54,6 +54,18 @@
         </view>
       </view>
 
+      <!-- 原生模板广告 -->
+      <!-- #ifdef MP-WEIXIN -->
+      <view class="ad-container-f1d0">
+        <ad-custom 
+          unit-id="adunit-f1d0e339a07022e6" 
+          @load="adLoadF1d0" 
+          @error="adErrorF1d0" 
+          @close="adCloseF1d0"
+        ></ad-custom>
+      </view>
+      <!-- #endif -->
+
       <!-- 排名筛选 (周期) - 仅显示本周、本月、全部 -->
       <view class="filter-pills">
         <view v-for="filter in rankingFilters" 
@@ -94,7 +106,19 @@
           </view>
         </view>
       </view>
-      
+
+      <!-- 原生模板广告 -->
+      <!-- #ifdef MP-WEIXIN -->
+      <view class="ad-container">
+        <ad-custom 
+          unit-id="adunit-2960f0cf4755f417" 
+          @load="adLoad" 
+          @error="adError" 
+          @close="adClose"
+        ></ad-custom>
+      </view>
+      <!-- #endif -->
+
       <view class="empty-state" v-if="filteredRankingData.length === 0">
         <text class="empty-text">暂无数据，快来占领榜单吧~</text>
       </view>
@@ -151,6 +175,32 @@ import { ref, computed, onMounted, onUnmounted, watch, getCurrentInstance } from
 
 // 获取组件实例以访问全局 $api
 const instance = getCurrentInstance();
+
+// 原生模板广告事件监听 (adunit-2960f0cf4755f417)
+const adLoad = () => {
+  console.log('原生模板广告加载成功');
+};
+
+const adError = (err) => {
+  console.error('原生模板广告加载失败', err);
+};
+
+const adClose = () => {
+  console.log('原生模板广告关闭');
+};
+
+// 原生模板广告事件监听 (adunit-f1d0e339a07022e6)
+const adLoadF1d0 = () => {
+  console.log('原生模板广告加载成功 (f1d0)');
+};
+
+const adErrorF1d0 = (err) => {
+  console.error('原生模板广告加载失败 (f1d0)', err);
+};
+
+const adCloseF1d0 = () => {
+  console.log('原生模板广告关闭 (f1d0)');
+};
 
 const DEFAULT_AVATAR = 'https://picsum.photos/id/1005/100/100';
 
@@ -421,6 +471,22 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+/* 原生模板广告容器 */
+.ad-container {
+  margin: 20rpx 24rpx;
+  background: #fff;
+  border-radius: 16rpx;
+  overflow: hidden;
+}
+
+/* 原生模板广告容器 (f1d0) */
+.ad-container-f1d0 {
+  margin: 20rpx 24rpx;
+  background: #fff;
+  border-radius: 16rpx;
+  overflow: hidden;
+}
+
 /* 基础样式 - 参考 ranking.html */
 .container {
   min-height: 100vh;

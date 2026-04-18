@@ -129,6 +129,18 @@
         </swiper>
       </section>
 
+      <!-- 原生模板广告 -->
+      <!-- #ifdef MP-WEIXIN -->
+      <view class="ad-container">
+        <ad-custom 
+          unit-id="adunit-2960f0cf4755f417" 
+          @load="adLoad" 
+          @error="adError" 
+          @close="adClose"
+        ></ad-custom>
+      </view>
+      <!-- #endif -->
+
       <!-- 加载状态 -->
       <div v-if="loading" class="loading-state">
         <div class="loading-spinner"></div>
@@ -149,6 +161,19 @@ const shareCode = ref('');
 
 // 试卷Tab相关 - 默认我的试卷
 const activePaperTab = ref('my');
+
+// 原生模板广告事件监听
+const adLoad = () => {
+  console.log('原生模板广告加载成功');
+};
+
+const adError = (err) => {
+  console.error('原生模板广告加载失败', err);
+};
+
+const adClose = () => {
+  console.log('原生模板广告关闭');
+};
 
 // 计算当前swiper索引
 const currentSwiperIndex = computed(() => {
@@ -335,6 +360,14 @@ onMounted(() => {
 </script>
 
 <style scoped>
+/* 原生模板广告容器 */
+.ad-container {
+  margin: 20rpx 24rpx;
+  background: #fff;
+  border-radius: 16rpx;
+  overflow: hidden;
+}
+
 .app-container {
   min-height: 100vh;
   background: #f5f7fa;

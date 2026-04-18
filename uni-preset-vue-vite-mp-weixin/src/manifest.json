@@ -98,7 +98,9 @@
             "request" : 60000,
             "downloadFile" : 60000
         },
-        "downloadFileDomain" : ["s3.hi168.com"]
+        "requestDomain" : ["s3.hi168.com"],
+        "downloadFileDomain" : ["s3.hi168.com"],
+        "uploadFileDomain" : ["s3.hi168.com"]
     },
     "mp-alipay" : {
         "usingComponents" : true

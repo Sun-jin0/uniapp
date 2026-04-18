@@ -45,29 +45,40 @@
       </view>
 
       <view v-else class="question-list">
-        <view 
-          v-for="(q, index) in filteredQuestions" 
-          :key="q.QuestionID"
-          class="question-item"
-          @tap="goToQuestion(q)"
-        >
-          <view class="question-top">
-            <text class="question-num">{{ index + 1 }}</text>
-            <view class="question-tags">
-              <text class="tag type-tag">{{ q.QuestionType }}</text>
-              <text v-if="q.bookType" class="tag book-tag">{{ getBookTypeText(q.bookType) }}</text>
+        <template v-for="(q, index) in filteredQuestions" :key="q.QuestionID">
+          <view 
+            class="question-item"
+            @tap="goToQuestion(q)"
+          >
+            <view class="question-top">
+              <text class="question-num">{{ index + 1 }}</text>
+              <view class="question-tags">
+                <text class="tag type-tag">{{ q.QuestionType }}</text>
+                <text v-if="q.bookType" class="tag book-tag">{{ getBookTypeText(q.bookType) }}</text>
+              </view>
+            </view>
+            <view class="question-content">
+              <image 
+                v-if="q.QuestionImg" 
+                :src="q.QuestionImg.replace('http://', 'https://')" 
+                class="question-img" 
+                mode="widthFix"
+              />
+              <view v-else class="question-text">{{ formatText(q.QuestionText) }}</view>
             </view>
           </view>
-          <view class="question-content">
-            <image 
-              v-if="q.QuestionImg" 
-              :src="q.QuestionImg.replace('http://', 'https://')" 
-              class="question-img" 
-              mode="widthFix"
-            />
-            <view v-else class="question-text">{{ formatText(q.QuestionText) }}</view>
+          <!-- 每15个显示一个广告 -->
+          <!-- #ifdef MP-WEIXIN -->
+          <view v-if="(index + 1) % 15 === 0" class="ad-container">
+            <ad-custom 
+              unit-id="adunit-f1d0e339a07022e6" 
+              @load="adLoad" 
+              @error="adError" 
+              @close="adClose"
+            ></ad-custom>
           </view>
-        </view>
+          <!-- #endif -->
+        </template>
       </view>
     </scroll-view>
 
@@ -145,6 +156,19 @@ const questionTypes = ref([
 ]);
 const questions = ref([]);
 const loading = ref(false);
+
+// 原生模板广告事件监听
+const adLoad = () => {
+  console.log('原生模板广告加载成功');
+};
+
+const adError = (err) => {
+  console.error('原生模板广告加载失败', err);
+};
+
+const adClose = () => {
+  console.log('原生模板广告关闭');
+};
 
 const filteredQuestions = computed(() => {
   let result = questions.value;
@@ -338,6 +362,14 @@ onMounted(() => {
 </script>
 
 <style scoped>
+/* 原生模板广告容器 */
+.ad-container {
+  margin: 20rpx 24rpx;
+  background: #fff;
+  border-radius: 16rpx;
+  overflow: hidden;
+}
+
 .page {
   min-height: 100vh;
   background: #f8f9fa;

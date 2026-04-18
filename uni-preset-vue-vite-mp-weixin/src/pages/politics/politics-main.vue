@@ -60,6 +60,18 @@
             <view>查看更多 (共{{ section.books.length }}个)</view>
           </view>
         </view>
+        
+        <!-- 第二个 section 下方添加广告 -->
+        <!-- #ifdef MP-WEIXIN -->
+        <view v-if="index === 1" class="ad-container">
+          <ad-custom 
+            unit-id="adunit-f1d0e339a07022e6" 
+            @load="adLoad" 
+            @error="adError" 
+            @close="adClose"
+          ></ad-custom>
+        </view>
+        <!-- #endif -->
       </view>
     </view>
 
@@ -90,6 +102,19 @@ const sections = ref([]);
 const expandedSections = ref(new Set());
 const currentBottomTab = ref('recite');
 const showModal = ref(false);
+
+// 原生模板广告事件监听
+const adLoad = () => {
+  console.log('原生模板广告加载成功');
+};
+
+const adError = (err) => {
+  console.error('原生模板广告加载失败', err);
+};
+
+const adClose = () => {
+  console.log('原生模板广告关闭');
+};
 
 // 获取可见书籍（受 display_rows 限制）
 const getVisibleBooks = (section) => {
@@ -171,6 +196,14 @@ const goToBook = (book) => {
 </script>
 
 <style scoped>
+/* 原生模板广告容器 */
+.ad-container {
+  margin: 20rpx 24rpx;
+  background: #fff;
+  border-radius: 16rpx;
+  overflow: hidden;
+}
+
 .container {
   min-height: 100vh;
   background-color: #f5f5f5;

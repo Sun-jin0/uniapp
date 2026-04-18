@@ -96,6 +96,18 @@
           <navigator url="/pages/math/math-bookshelf" open-type="reLaunch" class="go-study-btn">去刷题</navigator>
         </div>
       </section>
+
+      <!-- 原生模板广告 -->
+      <!-- #ifdef MP-WEIXIN -->
+      <view class="ad-container">
+        <ad-custom 
+          unit-id="adunit-2960f0cf4755f417" 
+          @load="adLoad" 
+          @error="adError" 
+          @close="adClose"
+        ></ad-custom>
+      </view>
+      <!-- #endif -->
     </main>
   </view>
 </template>
@@ -106,6 +118,19 @@ import { onShow } from '@dcloudio/uni-app';
 import { request } from '../../api/request';
 import { katexRenderWithRetry, parseTextWithLatexForMp, containsLatex } from '../../utils/latex';
 import SvgIcon from '@/components/SvgIcon/SvgIcon.vue';
+
+// 原生模板广告事件监听
+const adLoad = () => {
+  console.log('原生模板广告加载成功');
+};
+
+const adError = (err) => {
+  console.error('原生模板广告加载失败', err);
+};
+
+const adClose = () => {
+  console.log('原生模板广告关闭');
+};
 
 const favorites = ref([]);
 const categories = ref([]);
@@ -427,6 +452,14 @@ onMounted(() => {
 </script>
 
 <style scoped>
+/* 原生模板广告容器 */
+.ad-container {
+  margin: 20rpx 24rpx;
+  background: #fff;
+  border-radius: 16rpx;
+  overflow: hidden;
+}
+
 .app-container {
   background-color: #f5f7fa;
   min-height: 100vh;

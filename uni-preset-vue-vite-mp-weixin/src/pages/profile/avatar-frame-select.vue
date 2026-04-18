@@ -35,6 +35,18 @@
 
     </view>
 
+    <!-- 原生模板广告 -->
+    <!-- #ifdef MP-WEIXIN -->
+    <view class="ad-container">
+      <ad-custom 
+        unit-id="adunit-2960f0cf4755f417" 
+        @load="adLoad" 
+        @error="adError" 
+        @close="adClose"
+      ></ad-custom>
+    </view>
+    <!-- #endif -->
+
     <view v-if="loading" class="loading-container">
       <text class="loading-text">加载中...</text>
     </view>
@@ -58,7 +70,8 @@
         :disabled="submitting"
         @click="confirmSelection"
       >
-        {{ submitting ? '保存中...' : '确认选择' }}
+        <text v-if="submitting">保存中...</text>
+        <text v-else>确认选择(看广告)</text>
       </button>
     </view>
   </view>
@@ -69,6 +82,88 @@ import { ref, onMounted } from 'vue';
 import { getCurrentInstance } from 'vue';
 
 const instance = getCurrentInstance();
+
+// 原生模板广告事件监听
+const adLoad = () => {
+  console.log('原生模板广告加载成功');
+};
+
+const adError = (err) => {
+  console.error('原生模板广告加载失败', err);
+};
+
+const adClose = () => {
+  console.log('原生模板广告关闭');
+};
+
+// 激励视频广告实例
+let rewardedVideoAd = null;
+
+// 初始化激励视频广告
+const initRewardedVideoAd = () => {
+  // #ifdef MP-WEIXIN
+  if (wx.createRewardedVideoAd) {
+    rewardedVideoAd = wx.createRewardedVideoAd({
+      adUnitId: 'adunit-87b769e2258374d7'
+    });
+
+    rewardedVideoAd.onLoad(() => {
+      console.log('激励视频广告加载成功');
+    });
+
+    rewardedVideoAd.onError((err) => {
+      console.error('激励视频广告加载失败', err);
+    });
+  }
+  // #endif
+};
+
+// 显示激励视频广告并保存头像框
+const showRewardedAdAndSave = () => {
+  // #ifdef MP-WEIXIN
+  if (!rewardedVideoAd) {
+    initRewardedVideoAd();
+  }
+
+  if (rewardedVideoAd) {
+    // 监听广告关闭事件
+    const onAdClose = (res) => {
+      rewardedVideoAd.offClose(onAdClose);
+      if (res && res.isEnded) {
+        // 正常播放结束，执行保存
+        console.log('广告观看完成，保存头像框');
+        doConfirmSelection();
+      } else {
+        // 播放中途退出
+        console.log('广告观看中途退出');
+        uni.showToast({ title: '需要完整观看广告才能更换头像框', icon: 'none' });
+      }
+    };
+
+    rewardedVideoAd.onClose(onAdClose);
+
+    rewardedVideoAd.show().catch(() => {
+      // 失败重试
+      rewardedVideoAd.load()
+        .then(() => rewardedVideoAd.show())
+        .catch(err => {
+          console.error('激励视频广告显示失败', err);
+          // 广告显示失败时，直接允许保存
+          uni.showToast({ title: '广告加载失败，免费为您更换', icon: 'none' });
+          doConfirmSelection();
+        });
+    });
+  } else {
+    // 不支持广告，直接保存
+    doConfirmSelection();
+  }
+  // #endif
+
+  // #ifndef MP-WEIXIN
+  // 非微信小程序环境，直接保存
+  doConfirmSelection();
+  // #endif
+};
 
 const isDarkMode = ref(false);
 const loading = ref(false);
@@ -89,9 +184,14 @@ const getFrameImageUrl = (frame) => {
 onMounted(() => {
   const currentTheme = uni.getStorageSync('themeMode') || 'light';
   isDarkMode.value = currentTheme === 'dark';
-  
+
   loadUserInfo();
   loadAvatarFrames();
+
+  // #ifdef MP-WEIXIN
+  // 预加载激励视频广告
+  initRewardedVideoAd();
+  // #endif
 });
 
 const loadUserInfo = async () => {
@@ -149,21 +249,22 @@ const onImageError = (frame) => {
   }
 };
 
-const confirmSelection = async () => {
+// 实际执行保存操作
+const doConfirmSelection = async () => {
   if (submitting.value) return;
-  
+
   submitting.value = true;
   try {
     const res = await instance.appContext.config.globalProperties.$api.userApi.setUserAvatarFrame({
       avatar_frame_id: selectedFrameId.value
     });
-    
+
     if (res.code === 0) {
       uni.showToast({
         title: '设置成功',
         icon: 'success'
       });
-      
+
       setTimeout(() => {
         uni.navigateBack();
       }, 1500);
@@ -183,9 +284,25 @@ const confirmSelection = async () => {
     submitting.value = false;
   }
 };
+
+// 确认选择（显示广告后保存）
+const confirmSelection = async () => {
+  if (submitting.value) return;
+
+  // 显示激励视频广告，观看完成后保存
+  showRewardedAdAndSave();
+};
 </script>
 
 <style scoped>
+/* 原生模板广告容器 */
+.ad-container {
+  margin: 20rpx 24rpx;
+  background: #fff;
+  border-radius: 16rpx;
+  overflow: hidden;
+}
+
 .container {
   min-height: 100vh;
   background-color: #f5f5f5;

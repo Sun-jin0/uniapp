@@ -38,6 +38,7 @@ app.use('/api', require('./routes/examRoutes'));
 app.use('/api/redeem-codes', require('./routes/redeemCodeRoutes'));
 app.use('/api', require('./routes/studyRoutes'));
 app.use('/api/checkin', require('./routes/checkinRoutes'));
+app.use('/api/checkin-category', require('./routes/checkinCategoryRoutes'));
 app.use('/api/essay', require('./routes/essayRoutes'));
 app.use('/api/admin', require('./routes/adminRoutes'));
 app.use('/api/med', require('./routes/medRoutes'));
@@ -74,6 +75,54 @@ app.use('/test-pdf-export.html', express.static(path.join(__dirname, 'public/tes
 
 // PDF 导出路由
 app.use('/api/pdf', require('./routes/pdfRoutes'));
+
+// 图片代理路由 (解决H5跨域问题)
+app.get('/api/proxy-image', async (req, res) => {
+  const imageUrl = req.query.url;
+  if (!imageUrl) {
+    return res.status(400).json({ error: 'Missing url parameter' });
+  }
+  
+  try {
+    const fetch = (await import('node-fetch')).default;
+    const response = await fetch(imageUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+      }
+    });
+    
+    // 设置CORS头（无论成功失败都设置）
+    res.set('Access-Control-Allow-Origin', '*');
+    res.set('Access-Control-Allow-Methods', 'GET, OPTIONS');
+    res.set('Access-Control-Allow-Headers', 'Content-Type');
+    
+    if (!response.ok) {
+      console.log(`Proxy image failed: ${imageUrl} - Status: ${response.status}`);
+      // 返回1x1透明像素图片
+      const transparentPixel = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64');
+      res.set('Content-Type', 'image/png');
+      res.set('Cache-Control', 'no-cache');
+      return res.send(transparentPixel);
+    }
+    
+    // 设置响应头
+    const contentType = response.headers.get('content-type') || 'image/png';
+    res.set('Content-Type', contentType);
+    res.set('Cache-Control', 'public, max-age=86400');
+    
+    // 转发图片数据
+    const buffer = await response.buffer();
+    res.send(buffer);
+  } catch (error) {
+    console.error('Proxy image error:', error);
+    // 返回1x1透明像素图片
+    const transparentPixel = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64');
+    res.set('Access-Control-Allow-Origin', '*');
+    res.set('Content-Type', 'image/png');
+    res.set('Cache-Control', 'no-cache');
+    res.send(transparentPixel);
+  }
+});
 
 app.use(notFound);
 app.use(errorHandler);

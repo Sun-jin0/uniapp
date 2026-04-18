@@ -207,6 +207,18 @@
               <text>暂无教辅数据</text>
             </view>
           </view>
+
+          <!-- 原生模板广告 -->
+          <!-- #ifdef MP-WEIXIN -->
+          <view class="ad-container">
+            <ad-custom 
+              unit-id="adunit-2960f0cf4755f417" 
+              @load="adLoad" 
+              @error="adError" 
+              @close="adClose"
+            ></ad-custom>
+          </view>
+          <!-- #endif -->
         </scroll-view>
       </template>
     </view>
@@ -252,6 +264,19 @@
 import { ref, onMounted, computed } from 'vue';
 import { request } from '@/api/request';
 import SvgIcon from '@/components/SvgIcon/SvgIcon.vue';
+
+// 原生模板广告事件监听
+const adLoad = () => {
+  console.log('原生模板广告加载成功');
+};
+
+const adError = (err) => {
+  console.error('原生模板广告加载失败', err);
+};
+
+const adClose = () => {
+  console.log('原生模板广告关闭');
+};
 
 const statusBarHeight = ref(0);
 const currentMode = ref('smart'); // 'smart' | 'chapter' | 'year' | 'random'
@@ -479,6 +504,14 @@ const closeCollectionPopup = () => {
 </script>
 
 <style lang="scss" scoped>
+/* 原生模板广告容器 */
+.ad-container {
+  margin: 20rpx 24rpx;
+  background: #fff;
+  border-radius: 16rpx;
+  overflow: hidden;
+}
+
 .container {
   height: 100vh;
   background-color: #f8f9fa;

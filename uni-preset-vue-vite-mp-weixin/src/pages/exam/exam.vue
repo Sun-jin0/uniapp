@@ -61,8 +61,9 @@
       :show-scrollbar="false"
       :enhanced="true"
     >
+      <!-- 置顶文章列表 -->
       <view 
-        v-for="item in materials" 
+        v-for="item in topMaterials" 
         :key="item._id" 
         class="material-card"
         @click="goToDetail(item)"
@@ -88,6 +89,57 @@
             ></image>
           </view>
       </view>
+
+      <!-- 置顶文章后的广告 -->
+      <!-- #ifdef MP-WEIXIN -->
+      <view v-if="topMaterials.length > 0" class="ad-container">
+        <ad-custom 
+          unit-id="adunit-f1d0e339a07022e6" 
+          @load="adLoad" 
+          @error="adError" 
+          @close="adClose"
+        ></ad-custom>
+      </view>
+      <!-- #endif -->
+
+      <!-- 普通文章列表，每12条显示一个广告 -->
+      <template v-for="(item, index) in normalMaterials" :key="item._id">
+        <view 
+          class="material-card"
+          @click="goToDetail(item)"
+        >
+          <view class="material-content">
+              <view class="material-info">
+                <view class="title-container">
+                  <text v-if="item.linkUrl" class="wechat-tag">微信</text>
+                  <text class="material-title">{{ item.title }}</text>
+                </view>
+                <text v-if="item.noticeType !== 'pan_resource' && item.description" class="material-desc">{{ item.description }}</text>
+                <view class="material-meta">
+                  <text class="material-view-count">{{ item.viewCount || 0 }}阅读</text>
+                  <text class="material-date">{{ formatDate(item.createdAt) }}</text>
+                </view>
+              </view>
+              <image 
+                v-if="item.imageUrl" 
+                :src="item.imageUrl" 
+                mode="aspectFill" 
+                class="material-cover"
+              ></image>
+            </view>
+        </view>
+        <!-- 每12条显示一个广告 -->
+        <!-- #ifdef MP-WEIXIN -->
+        <view v-if="(index + 1) % 12 === 0" class="ad-container">
+          <ad-custom 
+            unit-id="adunit-f1d0e339a07022e6" 
+            @load="adLoad" 
+            @error="adError" 
+            @close="adClose"
+          ></ad-custom>
+        </view>
+        <!-- #endif -->
+      </template>
 
       <!-- 加载状态 -->
       <view class="loading-status" v-if="loading">
@@ -122,6 +174,23 @@ const materials = ref([]);
 const loading = ref(false);
 const hasMore = ref(true);
 const page = ref(1);
+
+// 原生模板广告事件监听
+const adLoad = () => {
+  console.log('原生模板广告加载成功');
+};
+
+const adError = (err) => {
+  console.error('原生模板广告加载失败', err);
+};
+
+const adClose = () => {
+  console.log('原生模板广告关闭');
+};
+
+// 分离置顶文章和普通文章
+const topMaterials = computed(() => materials.value.filter(item => Number(item.isTop) === 1));
+const normalMaterials = computed(() => materials.value.filter(item => Number(item.isTop) !== 1));
 
 // 从API获取分类列表
 const categories = ref(['全部']);
@@ -317,6 +386,14 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+/* 原生模板广告容器 */
+.ad-container {
+  margin: 20rpx 24rpx;
+  background: #fff;
+  border-radius: 16rpx;
+  overflow: hidden;
+}
+
 .container {
   height: 100vh;
   display: flex;

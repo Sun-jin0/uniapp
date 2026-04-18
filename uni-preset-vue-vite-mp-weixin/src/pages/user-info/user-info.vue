@@ -60,6 +60,18 @@
         </view>
         <view class="avatar-hint">点击更换头像</view>
       </view>
+
+      <!-- 原生模板广告 -->
+      <!-- #ifdef MP-WEIXIN -->
+      <view class="ad-container-f1d0">
+        <ad-custom 
+          unit-id="adunit-f1d0e339a07022e6" 
+          @load="adLoadF1d0" 
+          @error="adErrorF1d0" 
+          @close="adCloseF1d0"
+        ></ad-custom>
+      </view>
+      <!-- #endif -->
       
       <!-- 用户信息表单 -->
       <view class="info-group">
@@ -133,6 +145,19 @@ import { checkTextContent } from '@/utils/contentSecurity.js';
 import { BASE_URL } from '@/api/request.js';
 
 const instance = getCurrentInstance();
+
+// 原生模板广告事件监听 (adunit-f1d0e339a07022e6)
+const adLoadF1d0 = () => {
+  console.log('原生模板广告加载成功');
+};
+
+const adErrorF1d0 = (err) => {
+  console.error('原生模板广告加载失败', err);
+};
+
+const adCloseF1d0 = () => {
+  console.log('原生模板广告关闭');
+};
 
 // 确保头像URL是完整的
 const getFullAvatarUrl = (avatar) => {
@@ -454,6 +479,14 @@ onShow(() => {
 </script>
 
 <style>
+/* 原生模板广告容器 (f1d0) */
+.ad-container-f1d0 {
+  margin: 20rpx 0;
+  background: #fff;
+  border-radius: 16rpx;
+  overflow: hidden;
+}
+
 .container {
   background: linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%);
   min-height: 100vh;

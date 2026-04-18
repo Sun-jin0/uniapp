@@ -6,7 +6,7 @@ const getBaseUrl = () => {
   // #endif
   
   // #ifdef MP-WEIXIN
-  // 微信小程序使用服务器后端
+  // 微信小程序使用服务器后端（正式）
   return 'https://yizhancs.cn/api';
   // #endif
   
@@ -152,6 +152,22 @@ request.post = (url, data = {}) => {
   return request({
     url,
     method: 'POST',
+    data
+  });
+};
+
+request.put = (url, data = {}) => {
+  return request({
+    url,
+    method: 'PUT',
+    data
+  });
+};
+
+request.delete = (url, data = {}) => {
+  return request({
+    url,
+    method: 'DELETE',
     data
   });
 };

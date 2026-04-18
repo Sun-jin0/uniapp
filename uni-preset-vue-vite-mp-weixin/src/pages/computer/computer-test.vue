@@ -46,6 +46,19 @@ const handlePaperClick = (paper) => {
   });
 };
 
+// 原生模板广告事件监听
+const adLoad = () => {
+  console.log('原生模板广告加载成功');
+};
+
+const adError = (err) => {
+  console.error('原生模板广告加载失败', err);
+};
+
+const adClose = () => {
+  console.log('原生模板广告关闭');
+};
+
 const goBack = () => {
   uni.navigateBack();
 };
@@ -86,54 +99,102 @@ const goBack = () => {
     <!-- 试卷列表 -->
     <scroll-view scroll-y class="paper-list">
       <view v-if="currentTab === 'real'" class="paper-section">
-        <view class="paper-card" v-for="paper in realPapers" :key="paper.id" @click="handlePaperClick(paper)">
-          <view class="paper-header">
-            <view class="title-row">
-              <text class="paper-year">{{ paper.year }}</text>
-              <text class="paper-title">{{ paper.title }}</text>
+        <template v-for="(paper, index) in realPapers" :key="paper.id">
+          <view class="paper-card" @click="handlePaperClick(paper)">
+            <view class="paper-header">
+              <view class="title-row">
+                <text class="paper-year">{{ paper.year }}</text>
+                <text class="paper-title">{{ paper.title }}</text>
+              </view>
+              <view class="paper-tag" :class="paper.type === '统考' ? 'tag-unified' : 'tag-school'">
+                {{ paper.type }}
+              </view>
             </view>
-            <view class="paper-tag" :class="paper.type === '统考' ? 'tag-unified' : 'tag-school'">
-              {{ paper.type }}
-            </view>
-          </view>
-          <view class="paper-info">
-            <text class="info-item">{{ paper.from_school }}</text>
-            <text class="info-item">{{ paper.questionCount }}道题</text>
-            <view class="difficulty-inline">
-              <text class="difficulty-label">难度：</text>
-              <view class="difficulty-stars">
-                <text v-for="i in 5" :key="i" class="star" :class="{ filled: i <= paper.difficulty }">★</text>
+            <view class="paper-info">
+              <text class="info-item">{{ paper.from_school }}</text>
+              <text class="info-item">{{ paper.questionCount }}道题</text>
+              <view class="difficulty-inline">
+                <text class="difficulty-label">难度：</text>
+                <view class="difficulty-stars">
+                  <text v-for="i in 5" :key="i" class="star" :class="{ filled: i <= paper.difficulty }">★</text>
+                </view>
               </view>
             </view>
           </view>
-        </view>
+          <!-- 第4个真题卷后显示广告 -->
+          <!-- #ifdef MP-WEIXIN -->
+          <view v-if="index === 3" class="ad-container">
+            <ad-custom 
+              unit-id="adunit-f1d0e339a07022e6" 
+              @load="adLoad" 
+              @error="adError" 
+              @close="adClose"
+            ></ad-custom>
+          </view>
+          <!-- #endif -->
+          <!-- 最后一个真题卷后显示广告（当总数超过4个时） -->
+          <!-- #ifdef MP-WEIXIN -->
+          <view v-if="index === realPapers.length - 1 && index > 3" class="ad-container">
+            <ad-custom 
+              unit-id="adunit-f1d0e339a07022e6" 
+              @load="adLoad" 
+              @error="adError" 
+              @close="adClose"
+            ></ad-custom>
+          </view>
+          <!-- #endif -->
+        </template>
         <view v-if="realPapers.length === 0" class="empty-state">
           <text class="empty-text">暂无真题卷</text>
         </view>
       </view>
 
       <view v-if="currentTab === 'mock'" class="paper-section">
-        <view class="paper-card" v-for="paper in mockPapers" :key="paper.id" @click="handlePaperClick(paper)">
-          <view class="paper-header">
-            <view class="title-row">
-              <text class="paper-year">{{ paper.year }}</text>
-              <text class="paper-title">{{ paper.title }}</text>
+        <template v-for="(paper, index) in mockPapers" :key="paper.id">
+          <view class="paper-card" @click="handlePaperClick(paper)">
+            <view class="paper-header">
+              <view class="title-row">
+                <text class="paper-year">{{ paper.year }}</text>
+                <text class="paper-title">{{ paper.title }}</text>
+              </view>
+              <view class="paper-tag tag-mock">
+                模拟卷
+              </view>
             </view>
-            <view class="paper-tag tag-mock">
-              模拟卷
-            </view>
-          </view>
-          <view class="paper-info">
-            <text class="info-item">{{ paper.from_school }}</text>
-            <text class="info-item">{{ paper.questionCount }}道题</text>
-            <view class="difficulty-inline">
-              <text class="difficulty-label">难度：</text>
-              <view class="difficulty-stars">
-                <text v-for="i in 5" :key="i" class="star" :class="{ filled: i <= paper.difficulty }">★</text>
+            <view class="paper-info">
+              <text class="info-item">{{ paper.from_school }}</text>
+              <text class="info-item">{{ paper.questionCount }}道题</text>
+              <view class="difficulty-inline">
+                <text class="difficulty-label">难度：</text>
+                <view class="difficulty-stars">
+                  <text v-for="i in 5" :key="i" class="star" :class="{ filled: i <= paper.difficulty }">★</text>
+                </view>
               </view>
             </view>
           </view>
-        </view>
+          <!-- 第4个模拟卷后显示广告 -->
+          <!-- #ifdef MP-WEIXIN -->
+          <view v-if="index === 3" class="ad-container">
+            <ad-custom 
+              unit-id="adunit-f1d0e339a07022e6" 
+              @load="adLoad" 
+              @error="adError" 
+              @close="adClose"
+            ></ad-custom>
+          </view>
+          <!-- #endif -->
+          <!-- 最后一个模拟卷后显示广告（当总数超过4个时） -->
+          <!-- #ifdef MP-WEIXIN -->
+          <view v-if="index === mockPapers.length - 1 && index > 3" class="ad-container">
+            <ad-custom 
+              unit-id="adunit-f1d0e339a07022e6" 
+              @load="adLoad" 
+              @error="adError" 
+              @close="adClose"
+            ></ad-custom>
+          </view>
+          <!-- #endif -->
+        </template>
         <view v-if="mockPapers.length === 0" class="empty-state">
           <text class="empty-text">暂无模拟卷</text>
         </view>
@@ -149,6 +210,14 @@ const goBack = () => {
 </template>
 
 <style scoped>
+/* 原生模板广告容器 */
+.ad-container {
+  margin: 20rpx 24rpx;
+  background: #fff;
+  border-radius: 16rpx;
+  overflow: hidden;
+}
+
 .app-container {
   --primary-color: #4db6ac;
   --primary-gradient: linear-gradient(135deg, #4db6ac 0%, #80cbc4 100%);

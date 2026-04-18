@@ -271,22 +271,30 @@
         </div>
         <div class="modal-body">
           <div class="print-options-info">
-            <p>您今日剩余打印次数：{{ printOptionsData.printCountText }}</p>
-            <p>剩余打印解析次数：{{ printOptionsData.analysisCountText }}</p>
+            <p class="print-option-item">
+              <span class="option-label">仅试卷：</span>
+              <span class="option-value">观看广告即可打印</span>
+            </p>
+            <p class="print-option-item">
+              <span class="option-label">试卷+解析：</span>
+              <span class="option-value" :class="{ 'has-count': printOptionsData.canPrintAnalysis, 'no-count': !printOptionsData.canPrintAnalysis }">
+                {{ printOptionsData.canPrintAnalysis ? `剩余 ${printOptionsData.analysisRemaining}` : '次数已用完' }}
+              </span>
+            </p>
           </div>
           <p class="print-options-question">请选择打印方式：</p>
         </div>
         <div class="modal-footer print-options-footer">
           <div class="print-options-row">
+            <button class="confirm-btn secondary" @click="handlePrintOption('withoutAnalysis')">仅试卷</button>
             <button 
-              class="confirm-btn secondary" 
-              :disabled="!printOptionsData.canPrintPaper"
-              :class="{ 'disabled': !printOptionsData.canPrintPaper }"
-              @click="handlePrintOption('withoutAnalysis')"
+              class="confirm-btn" 
+              :disabled="!printOptionsData.canPrintAnalysis"
+              :class="{ 'disabled': !printOptionsData.canPrintAnalysis }"
+              @click="handlePrintOption('withAnalysis')"
             >
-              试卷
+              试卷+解析
             </button>
-            <button class="confirm-btn" @click="handlePrintOption('withAnalysis')">试卷+解析</button>
           </div>
           <div class="print-options-row">
             <button class="cancel-btn full-width" @click="handlePrintOption('cancel')">取消</button>
@@ -382,21 +390,127 @@ const printAlertCanClose = ref(false);
 // 打印选项弹窗状态
 const showPrintOptionsModal = ref(false);
 const printOptionsData = ref({
-  printCountText: '',
-  analysisCountText: '',
-  canPrintAnalysis: false,
+  canPrintAnalysis: true,
   canPrintPaper: true
 });
 
-// 处理打印选项
-const handlePrintOption = (option) => {
-  showPrintOptionsModal.value = false;
+// 激励视频广告实例
+let rewardedVideoAd = null;
+
+// 初始化激励视频广告
+const initRewardedVideoAd = () => {
+  // #ifdef MP-WEIXIN
+  if (wx.createRewardedVideoAd) {
+    rewardedVideoAd = wx.createRewardedVideoAd({
+      adUnitId: 'adunit-87b769e2258374d7'
+    });
+    
+    rewardedVideoAd.onLoad(() => {
+      console.log('激励视频广告加载成功');
+    });
+    
+    rewardedVideoAd.onError((err) => {
+      console.error('激励视频广告加载失败', err);
+    });
+  }
+  // #endif
+};
+
+// 待执行的打印选项
+let pendingPrintOption = null;
+
+// 显示激励视频广告并执行打印
+const showRewardedAdAndPrint = (option) => {
+  pendingPrintOption = option;
+
+  // #ifdef MP-WEIXIN
+  if (!rewardedVideoAd) {
+    initRewardedVideoAd();
+  }
+
+  if (rewardedVideoAd) {
+    // 监听广告关闭事件
+    const onAdClose = (res) => {
+      rewardedVideoAd.offClose(onAdClose);
+      if (res && res.isEnded) {
+        // 正常播放结束，执行打印
+        console.log('广告观看完成，执行打印');
+        executePrint(pendingPrintOption);
+      } else {
+        // 播放中途退出
+        console.log('广告观看中途退出');
+        uni.showToast({ title: '需要完整观看广告才能打印', icon: 'none' });
+      }
+    };
+
+    rewardedVideoAd.onClose(onAdClose);
+
+    rewardedVideoAd.show().catch(() => {
+      // 失败重试
+      rewardedVideoAd.load()
+        .then(() => rewardedVideoAd.show())
+        .catch(err => {
+          console.error('激励视频广告显示失败', err);
+          // 广告显示失败时，直接允许打印
+          uni.showToast({ title: '广告加载失败，免费为您打印', icon: 'none' });
+          executePrint(pendingPrintOption);
+        });
+    });
+  } else {
+    // 不支持广告，直接打印
+    executePrint(pendingPrintOption);
+  }
+  // #endif
+
+  // #ifndef MP-WEIXIN
+  // 非微信小程序环境，直接打印
+  executePrint(pendingPrintOption);
+  // #endif
+};
+
+// 处理试卷+解析打印（带次数检查）
+const handlePrintWithAnalysis = () => {
+  const analysisRemaining = printPermission.value.analysis.remaining;
+  const hasUnlimitedAnalysis = analysisRemaining === null || analysisRemaining === -1;
+  const canPrintAnalysis = printPermission.value.analysis.allowed && (hasUnlimitedAnalysis || analysisRemaining > 0);
+
+  if (canPrintAnalysis) {
+    // 有次数，直接打印（不观看广告）
+    generatePrintLink(true);
+  } else {
+    // 无次数，不能打印解析
+    uni.showModal({
+      title: '解析打印次数已用完',
+      content: '您今日解析打印次数已用完，无法打印试卷+解析。您可以选择仅打印试卷（需观看广告）。',
+      showCancel: false,
+      confirmText: '知道了'
+    });
+  }
+};
+
+// 执行打印
+const executePrint = (option) => {
   if (option === 'withAnalysis') {
     generatePrintLink(true);
   } else if (option === 'withoutAnalysis') {
     generatePrintLink(false);
   }
-  // option === 'cancel' 时不做任何操作
+};
+
+// 处理打印选项
+const handlePrintOption = (option) => {
+  showPrintOptionsModal.value = false;
+  if (option === 'cancel') {
+    return;
+  }
+
+  if (option === 'withoutAnalysis') {
+    // 仅试卷：观看广告后打印
+    showRewardedAdAndPrint('withoutAnalysis');
+  } else if (option === 'withAnalysis') {
+    // 试卷+解析：检查次数，有次数直接打印，无次数提示观看广告
+    handlePrintWithAnalysis();
+  }
 };
 
 // 显示打印提示弹窗（带倒计时）
@@ -846,33 +960,6 @@ const replaceQuestion = async (q, index) => {
   }
 };
 
-// 打印权限信息
-const printPermission = ref({
-  print: { allowed: false, remaining: 0 },
-  analysis: { allowed: false, remaining: 0 }
-});
-
-// 获取打印权限
-const fetchPrintPermission = async () => {
-  try {
-    console.log('获取打印权限...');
-    const res = await request({
-      url: '/math/print-permission',
-      method: 'GET'
-    });
-    console.log('打印权限响应:', res);
-    if (res.code === 0 && res.data) {
-      printPermission.value = res.data;
-    } else {
-      console.error('获取打印权限失败:', res.message);
-      uni.showToast({ title: '获取权限失败: ' + res.message, icon: 'none' });
-    }
-  } catch (err) {
-    console.error('获取打印权限失败:', err);
-    uni.showToast({ title: '获取权限失败', icon: 'none' });
-  }
-};
-
 // 分享试卷 - 获取或生成分享编码
 const handleSharePaper = async () => {
   if (!paperId.value) {
@@ -935,60 +1022,43 @@ const generateShareCode = async (isWeeklyTest = false) => {
   }
 };
 
+// 打印权限信息（仅用于检查解析打印次数）
+const printPermission = ref({
+  print: { allowed: true, remaining: null },
+  analysis: { allowed: false, remaining: 0 }
+});
+
+// 获取打印权限（仅获取解析次数）
+const fetchPrintPermission = async () => {
+  try {
+    const res = await request({
+      url: '/math/print-permission',
+      method: 'GET'
+    });
+    if (res.code === 0 && res.data) {
+      printPermission.value = res.data;
+    }
+  } catch (err) {
+    console.error('获取打印权限失败:', err);
+  }
+};
+
 const handlePrint = async () => {
   console.log('开始打印流程');
-  // 先检查打印权限
+  
+  // 获取解析打印权限
   await fetchPrintPermission();
-  console.log('打印权限信息:', printPermission.value);
   
-  // 处理 null 值（超级管理员无限制）
-  const printRemaining = printPermission.value.print.remaining;
   const analysisRemaining = printPermission.value.analysis.remaining;
-  const hasUnlimitedPrint = printRemaining === null || printRemaining === -1;
   const hasUnlimitedAnalysis = analysisRemaining === null || analysisRemaining === -1;
-  
-  const canPrintPaper = printPermission.value.print.allowed;
   const canPrintAnalysis = printPermission.value.analysis.allowed && (hasUnlimitedAnalysis || analysisRemaining > 0);
   
-  // 如果既不能打印试卷也不能打印解析，提示无权限
-  if (!canPrintPaper && !canPrintAnalysis) {
-    uni.showModal({
-      title: '打印受限',
-      content: printPermission.value.print.message || '您没有打印权限',
-      showCancel: false,
-      confirmText: '知道了'
-    });
-    return;
-  }
-  
-  // 格式化显示次数
-  const printCountText = hasUnlimitedPrint ? '无限制' : `${printRemaining}次`;
-  const analysisCountText = hasUnlimitedAnalysis ? '无限制' : `${analysisRemaining}次`;
-  
-  if (canPrintAnalysis) {
-    // 使用自定义弹窗支持三个按钮（可以选择打印试卷或打印解析）
-    showPrintOptionsModal.value = true;
-    printOptionsData.value = {
-      printCountText,
-      analysisCountText,
-      canPrintAnalysis,
-      canPrintPaper  // 添加是否可以打印试卷的标志
-    };
-  } else if (canPrintPaper) {
-    // 只能打印试卷
-    uni.showModal({
-      title: '打印确认',
-      content: `您今日剩余打印次数：${printCountText}\n\n生成打印链接后将消耗1次打印次数，无法取消。是否继续？`,
-      confirmText: '继续',
-      cancelText: '取消',
-      success: (res) => {
-        if (res.confirm) {
-          generatePrintLink(false);
-        }
-        // 点击取消不做任何操作，直接关闭弹窗
-      }
-    });
-  }
+  // 显示打印选项弹窗
+  showPrintOptionsModal.value = true;
+  printOptionsData.value = {
+    canPrintAnalysis: canPrintAnalysis,
+    analysisRemaining: hasUnlimitedAnalysis ? '无限制' : `${analysisRemaining}次`
+  };
 };
 
 // 生成加密打印链接
@@ -1125,6 +1195,11 @@ onLoad((options) => {
     uni.showToast({ title: '参数错误', icon: 'none' });
     setTimeout(() => goBack(), 1500);
   }
+  
+  // #ifdef MP-WEIXIN
+  // 预加载激励视频广告
+  initRewardedVideoAd();
+  // #endif
 });
 </script>
 
@@ -2390,10 +2465,31 @@ onLoad((options) => {
   margin-bottom: 20rpx;
 }
 
-.print-options-info p {
+.print-option-item {
+  display: flex;
+  align-items: center;
   font-size: 28rpx;
-  color: #666;
   line-height: 1.8;
+  margin: 10rpx 0;
+}
+
+.option-label {
+  color: #666;
+  font-weight: 500;
+  min-width: 160rpx;
+}
+
+.option-value {
+  color: #333;
+  flex: 1;
+}
+
+.option-value.has-count {
+  color: #52c41a;
+}
+
+.option-value.no-count {
+  color: #ff4d4f;
 }
 
 .print-options-question {

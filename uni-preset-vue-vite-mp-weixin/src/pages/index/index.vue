@@ -243,6 +243,18 @@
             <view :class="['chart-period-btn', period === 'three_months' ? 'active' : '']" @tap.stop="changePeriod('three_months')">季</view>
           </view>
         </view>
+
+        <!-- 原生模板广告 -->
+        <!-- #ifdef MP-WEIXIN -->
+        <view class="ad-container-f1d0">
+          <ad-custom 
+            unit-id="adunit-f1d0e339a07022e6" 
+            @load="adLoadF1d0" 
+            @error="adErrorF1d0" 
+            @close="adCloseF1d0"
+          ></ad-custom>
+        </view>
+        <!-- #endif -->
         
         <view class="chart-body" v-if="studyHistory.length > 0">
           <view class="chart-y-axis">
@@ -316,6 +328,18 @@
         </view>
       </view>
     </view>
+
+    <!-- 原生模板广告 -->
+    <!-- #ifdef MP-WEIXIN -->
+    <view class="ad-container">
+      <ad-custom 
+        unit-id="adunit-2960f0cf4755f417" 
+        @load="adLoad" 
+        @error="adError" 
+        @close="adClose"
+      ></ad-custom>
+    </view>
+    <!-- #endif -->
   </view>
 
   <!-- 公告/广告弹窗 -->
@@ -350,6 +374,32 @@ import { onShow } from '@dcloudio/uni-app';
 import SvgIcon from '@/components/SvgIcon/SvgIcon.vue';
 
 const instance = getCurrentInstance();
+
+// 原生模板广告事件监听 (adunit-2960f0cf4755f417)
+const adLoad = () => {
+  console.log('原生模板广告加载成功');
+};
+
+const adError = (err) => {
+  console.error('原生模板广告加载失败', err);
+};
+
+const adClose = () => {
+  console.log('原生模板广告关闭');
+};
+
+// 原生模板广告事件监听 (adunit-f1d0e339a07022e6)
+const adLoadF1d0 = () => {
+  console.log('原生模板广告加载成功 (f1d0)');
+};
+
+const adErrorF1d0 = (err) => {
+  console.error('原生模板广告加载失败 (f1d0)', err);
+};
+
+const adCloseF1d0 = () => {
+  console.log('原生模板广告关闭 (f1d0)');
+};
 
 // 版本更新相关
 const showUpdateModal = ref(false);
@@ -1636,6 +1686,22 @@ const handleAdClick = () => {
 </script>
 
 <style>
+/* 原生模板广告容器 */
+.ad-container {
+  margin: 20rpx 24rpx;
+  background: #fff;
+  border-radius: 16rpx;
+  overflow: hidden;
+}
+
+/* 原生模板广告容器 (f1d0) */
+.ad-container-f1d0 {
+  margin: 20rpx 24rpx;
+  background: #fff;
+  border-radius: 16rpx;
+  overflow: hidden;
+}
+
 /* 确保页面可以滚动 */
 page {
   width: 100%;

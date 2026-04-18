@@ -221,7 +221,7 @@
                 <!-- 解析卡片 -->
                 <view class="explanation-card card-style" v-if="shouldShowAnswer(qIndex) && ((question.explanation && question.explanation !== '暂无解析') || question.explanation_richtext)">
                   <!-- 解析内容区域 -->
-                  <view class="explanation-main" :style="{ fontSize: dynamicFontSize.explanation }">
+                  <view class="explanation-main" :style="{ fontSize: dynamicFontSize.explanation }" :class="{ 'explanation-collapsed': !questionStates[qIndex]?.isExplanationExpanded && question.explanation && question.explanation.length > 100 }">
                     <view class="section-header" :class="{ 'no-margin': isChoiceQuestion(question) }">
                       <view class="section-title">
                         <view class="title-line"></view>
@@ -247,6 +247,12 @@
 
                 <!-- 笔记部分 (独立卡片) -->
                 <view class="notes-section card-style">
+                  <!-- 广告组件 - 与笔记区域绑定 -->
+                  <!-- #ifdef MP-WEIXIN -->
+                  <view class="ad-container">
+                    <ad-custom unit-id="adunit-f1d0e339a07022e6" @load="adLoad" @error="adError" @close="adClose"></ad-custom>
+                  </view>
+                  <!-- #endif -->
                   <view class="notes-header">
                     <view class="section-title">
                       <view class="title-line"></view>
@@ -458,7 +464,7 @@
                 </view>
               </view>
 
-              <!-- 笔记部分 (独立卡片) -->
+              <!-- 笔记部分 (独立卡片) - 知识卡模式不显示广告 -->
               <view v-if="questionStates[qIndex]?.showCardAnswer || settings.recitationMode" class="notes-section card-style">
                   <view class="notes-header">
                     <view class="section-title">
@@ -1802,6 +1808,19 @@ const saveProgress = async (index) => {
   }
 };
 
+// 广告事件处理
+const adLoad = () => {
+  console.log('原生模板广告加载成功');
+};
+
+const adError = (err) => {
+  console.error('原生模板广告加载失败', err);
+};
+
+const adClose = () => {
+  console.log('原生模板广告关闭');
+};
+
 const formatContent = (text, type = 'explanation', isRich = false) => {
   if (!text) return '';
   
@@ -2812,11 +2831,31 @@ const goBack = () => {
     }
   }
 
+  .explanation-collapsed {
+    max-height: 350rpx;
+    overflow: hidden;
+    position: relative;
+    
+    &::after {
+      content: '';
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 80rpx;
+      background: linear-gradient(transparent, rgba(255,255,255,0.9));
+      pointer-events: none;
+    }
+  }
+
 
 .night-mode .explanation-card {
   .section-title text { color: #eee; }
   .explanation-main {
     color: #bbb;
+  }
+  .explanation-collapsed::after {
+    background: linear-gradient(transparent, rgba(45,45,45,0.9));
   }
 }
 
@@ -3275,6 +3314,11 @@ const goBack = () => {
   margin-top: 20rpx;
   padding-top: 20rpx;
   border-top: 1rpx solid #f0f0f0;
+
+  .ad-container {
+    margin-bottom: 20rpx;
+    width: 100%;
+  }
 
   .notes-header {
     display: flex;

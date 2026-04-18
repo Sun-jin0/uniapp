@@ -172,6 +172,18 @@
             </view>
           </view>
         </section>
+
+        <!-- 原生模板广告1 -->
+        <!-- #ifdef MP-WEIXIN -->
+        <view class="section-ad-container">
+          <ad-custom 
+            unit-id="adunit-2960f0cf4755f417" 
+            @load="adLoad" 
+            @error="adError" 
+            @close="adClose"
+          ></ad-custom>
+        </view>
+        <!-- #endif -->
       </template>
 
       <!-- 手动组卷模式内容 -->
@@ -215,6 +227,18 @@
             <p class="tip" style="font-size: 24rpx; margin-top: 10rpx;">您可以从书架、收藏夹选择，或直接输入 ID</p>
           </view>
         </section>
+
+        <!-- 原生模板广告2 -->
+        <!-- #ifdef MP-WEIXIN -->
+        <view class="section-ad-container">
+          <ad-custom 
+            unit-id="adunit-2960f0cf4755f417" 
+            @load="adLoad" 
+            @error="adError" 
+            @close="adClose"
+          ></ad-custom>
+        </view>
+        <!-- #endif -->
       </template>
 
       <!-- 我的组卷列表 -->
@@ -493,7 +517,10 @@
         </view>
         <view class="modal-footer">
           <button class="cancel-btn" @click="showModal = false">取消</button>
-          <button class="confirm-btn" @click="confirmGenerate" :disabled="!paperTitle">确定组卷</button>
+          <button class="confirm-btn" @click="confirmGenerate" :disabled="!paperTitle">
+            <text class="btn-text">确定组卷</text>
+            <text class="btn-subtext">(观看广告后生成)</text>
+          </button>
         </view>
       </view>
     </view>
@@ -1138,6 +1165,11 @@ watch(manualQuestions, () => {
 onMounted(() => {
   loadDraftFromStorage();
   fetchPaperPermission();
+  
+  // #ifdef MP-WEIXIN
+  // 预加载激励视频广告
+  initRewardedVideoAd();
+  // #endif
 });
 
 // 获取用户组卷权限
@@ -1423,9 +1455,92 @@ const showNamingPopup = () => {
   showModal.value = true;
 };
 
+// 原生模板广告事件监听
+const adLoad = () => {
+  console.log('原生模板广告加载成功');
+};
+
+const adError = (err) => {
+  console.error('原生模板广告加载失败', err);
+};
+
+const adClose = () => {
+  console.log('原生模板广告关闭');
+};
+
+// 激励视频广告实例
+let rewardedVideoAd = null;
+
+// 初始化激励视频广告
+const initRewardedVideoAd = () => {
+  // #ifdef MP-WEIXIN
+  if (wx.createRewardedVideoAd) {
+    rewardedVideoAd = wx.createRewardedVideoAd({
+      adUnitId: 'adunit-87b769e2258374d7'
+    });
+    
+    rewardedVideoAd.onLoad(() => {
+      console.log('激励视频广告加载成功');
+    });
+    
+    rewardedVideoAd.onError((err) => {
+      console.error('激励视频广告加载失败', err);
+      // 广告加载失败时，直接允许用户生成组卷
+      uni.showToast({ title: '广告加载失败，免费为您生成组卷', icon: 'none' });
+      generatePaper();
+    });
+    
+    rewardedVideoAd.onClose((res) => {
+      // 用户点击了【关闭广告】按钮
+      if (res && res.isEnded) {
+        // 正常播放结束，可以下发奖励
+        console.log('广告观看完成，生成组卷');
+        generatePaper();
+      } else {
+        // 播放中途退出，不下发奖励
+        console.log('广告观看中途退出');
+        uni.showToast({ title: '需要完整观看广告才能生成组卷', icon: 'none' });
+      }
+    });
+  }
+  // #endif
+};
+
+// 显示激励视频广告
+const showRewardedVideoAd = () => {
+  // #ifdef MP-WEIXIN
+  if (!rewardedVideoAd) {
+    initRewardedVideoAd();
+  }
+  
+  if (rewardedVideoAd) {
+    rewardedVideoAd.show().catch(() => {
+      // 失败重试
+      rewardedVideoAd.load()
+        .then(() => rewardedVideoAd.show())
+        .catch(err => {
+          console.error('激励视频广告显示失败', err);
+          // 广告显示失败时，直接允许用户生成组卷
+          uni.showToast({ title: '广告加载失败，免费为您生成组卷', icon: 'none' });
+          generatePaper();
+        });
+    });
+  } else {
+    // 不支持广告，直接生成
+    generatePaper();
+  }
+  // #endif
+  
+  // #ifndef MP-WEIXIN
+  // 非微信小程序环境，直接生成
+  generatePaper();
+  // #endif
+};
+
 const confirmGenerate = () => {
   showModal.value = false;
-  generatePaper();
+  // 显示激励视频广告，观看完成后生成组卷
+  showRewardedVideoAd();
 };
 
 // 题目数量弹窗数据
@@ -3755,6 +3870,14 @@ watch(selectedSubjectId, (newId) => {
   text-align: center;
 }
 
+/* 原生模板广告容器 - 嵌入在section之间 */
+.section-ad-container {
+  margin: 20rpx 24rpx;
+  background: #fff;
+  border-radius: 16rpx;
+  overflow: hidden;
+}
+
 .papers-list {
   display: flex;
   flex-direction: column;
@@ -3954,6 +4077,22 @@ watch(selectedSubjectId, (newId) => {
   color: #fff;
   border: none;
   box-shadow: 0 4rpx 12rpx rgba(77, 182, 172, 0.2);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 16rpx 32rpx;
+}
+
+.confirm-btn .btn-text {
+  font-size: 30rpx;
+  font-weight: 600;
+}
+
+.confirm-btn .btn-subtext {
+  font-size: 20rpx;
+  opacity: 0.9;
+  margin-top: 4rpx;
 }
 
 .confirm-btn:disabled {

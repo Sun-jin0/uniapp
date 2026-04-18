@@ -1,8 +1,18 @@
 import axios from 'axios'
 import { ElMessage } from 'element-plus'
 
+const getBaseURL = () => {
+  if (import.meta.env.VITE_API_BASE_URL) {
+    return import.meta.env.VITE_API_BASE_URL
+  }
+  if (import.meta.env.DEV) {
+    return '/api'
+  }
+  return 'https://yizhancs.cn/api'
+}
+
 const service = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || 'https://yizhancs.cn/api',
+  baseURL: getBaseURL(),
   timeout: 30000
 })
 
@@ -24,6 +34,9 @@ service.interceptors.request.use(
 // 响应拦截器
 service.interceptors.response.use(
   response => {
+    if (response.config.responseType === 'blob') {
+      return response.data
+    }
     const res = response.data
     if (res.code !== 0 && res.code !== 200) {
       ElMessage.error(res.message || '请求失败')
@@ -335,6 +348,19 @@ export const adminApi = {
   getImageDetail: (id) => service.get(`/admin/images/${id}`),
   updateImageUsage: (id, data) => service.put(`/admin/images/${id}/usage`, data),
   scanAllImages: (data) => service.post('/admin/images/scan', data),
+  
+  // 打卡管理
+  getCheckinCategories: () => service.get('/checkin-category/admin/categories'),
+  createCheckinCategory: (data) => service.post('/checkin-category/categories', data),
+  updateCheckinCategory: (id, data) => service.put(`/checkin-category/categories/${id}`, data),
+  deleteCheckinCategory: (id) => service.delete(`/checkin-category/categories/${id}`),
+  getCheckinRecords: (params) => service.get('/checkin-category/admin/records', { params }),
+  deleteCheckinRecord: (id) => service.delete(`/checkin-category/admin/records/${id}`),
+  getCheckinComments: (params) => service.get('/checkin-category/admin/comments', { params }),
+  deleteCheckinComment: (id) => service.delete(`/checkin-category/admin/comments/${id}`),
+  getPreRegisters: (categoryId) => service.get(`/checkin-category/admin/categories/${categoryId}/pre-registers`),
+  getUserRecordsByCategory: (categoryId, userId) => service.get(`/checkin-category/admin/categories/${categoryId}/users/${userId}/records`),
+  exportRecords: (params) => service.get('/checkin-category/admin/export', { params, responseType: 'blob' }),
 }
 
 export const publicApi = {

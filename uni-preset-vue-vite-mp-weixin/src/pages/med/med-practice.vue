@@ -181,19 +181,6 @@
                 </view>
               </view>
 
-              <!-- 思维导图 (有的话就展示) -->
-              <view v-if="question.mind_map" class="explanation-card card-style">
-                <view class="section-header">
-                  <view class="section-title">
-                    <view class="title-line"></view>
-                    <text>思维导图</text>
-                  </view>
-                </view>
-                <view class="mind-map-container">
-                  <image :src="question.mind_map" mode="widthFix" class="mind-map-img" @tap="previewImage(question.mind_map)"></image>
-                </view>
-              </view>
-
               <!-- 题目解析 (有的话就展示) -->
               <view v-if="question.explanation" class="explanation-card card-style">
                 <view class="section-header">
@@ -277,19 +264,6 @@
                 </view>
               </view>
 
-              <!-- 思维导图 -->
-              <view v-if="question.mind_map_image" class="explanation-card card-style">
-                <view class="section-header">
-                  <view class="section-title">
-                    <view class="title-line"></view>
-                    <text>思维导图</text>
-                  </view>
-                </view>
-                <view class="mind-map-box">
-                  <image :src="question.mind_map_image" mode="widthFix" @tap="previewImage(question.mind_map_image)"></image>
-                </view>
-              </view>
-
               <!-- 考点总结图 -->
               <view v-if="question.knowledge_image" class="explanation-card card-style">
                 <view class="section-header">
@@ -305,6 +279,12 @@
 
               <!-- 笔记部分 (参考公共刷题页面完善) -->
               <view class="notes-section card-style">
+                <!-- 广告组件 - 与笔记区域绑定 -->
+                <!-- #ifdef MP-WEIXIN -->
+                <view class="ad-container">
+                  <ad-custom unit-id="adunit-f1d0e339a07022e6" @load="adLoad" @error="adError" @close="adClose"></ad-custom>
+                </view>
+                <!-- #endif -->
                 <view class="notes-header">
                   <view class="section-title">
                     <view class="title-line"></view>
@@ -1603,6 +1583,19 @@ const previewImage = (url) => {
   });
 };
 
+// 广告事件处理
+const adLoad = () => {
+  console.log('原生模板广告加载成功');
+};
+
+const adError = (err) => {
+  console.error('原生模板广告加载失败', err);
+};
+
+const adClose = () => {
+  console.log('原生模板广告关闭');
+};
+
 const formatImageList = (images) => {
   if (!images) return [];
   if (Array.isArray(images)) return images;
@@ -1966,7 +1959,7 @@ const playVideo = (url) => {
   font-size: 26rpx;
 }
 
-.mind-map-box, .knowledge-image-box {
+.knowledge-image-box {
   image { width: 100%; border-radius: 8rpx; }
 }
 
@@ -1974,6 +1967,11 @@ const playVideo = (url) => {
   margin-top: 12rpx;
   padding-top: 12rpx;
   border-top: 1rpx solid #f0f0f0;
+
+  .ad-container {
+    margin-bottom: 20rpx;
+    width: 100%;
+  }
 
   .notes-header {
     display: flex;

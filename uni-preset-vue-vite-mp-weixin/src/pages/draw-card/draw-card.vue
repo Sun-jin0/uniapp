@@ -56,7 +56,17 @@
       </view>
     </view>
 
-
+    <!-- 原生模板广告2 -->
+    <!-- #ifdef MP-WEIXIN -->
+    <view class="ad-container">
+      <ad-custom 
+        unit-id="adunit-2960f0cf4755f417" 
+        @load="adLoad" 
+        @error="adError" 
+        @close="adClose"
+      ></ad-custom>
+    </view>
+    <!-- #endif -->
 
     <!-- 卡片详情弹窗 -->
     <view class="modal" v-if="showModal" @tap="closeModal">
@@ -134,6 +144,18 @@
       </view>
     </view>
 
+    <!-- 原生模板广告1 -->
+    <!-- #ifdef MP-WEIXIN -->
+    <view class="ad-container">
+      <ad-custom 
+        unit-id="adunit-2960f0cf4755f417" 
+        @load="adLoad" 
+        @error="adError" 
+        @close="adClose"
+      ></ad-custom>
+    </view>
+    <!-- #endif -->
+
     <!-- 名师名言 -->
     <view class="quote-box" v-if="todayQuote">
       <text class="quote-label">💡 名师口头禅</text>
@@ -152,6 +174,19 @@
 import { ref, computed, onMounted, getCurrentInstance } from 'vue';
 
 const instance = getCurrentInstance();
+
+// 原生模板广告事件监听
+const adLoad = () => {
+  console.log('原生模板广告加载成功');
+};
+
+const adError = (err) => {
+  console.error('原生模板广告加载失败', err);
+};
+
+const adClose = () => {
+  console.log('原生模板广告关闭');
+};
 
 // 激励视频广告实例
 let rewardedVideoAd = null;
@@ -300,7 +335,7 @@ const addDrawCountByAd = async () => {
       remainingDraws.value = res.data.remaining;
       checkCanDraw();
       uni.showToast({
-        title: res.data.message || '获得2次抽卡机会',
+        title: res.data.message || '获得1次抽卡机会',
         icon: 'success'
       });
     } else {
@@ -532,6 +567,14 @@ onMounted(async () => {
 </script>
 
 <style lang="scss" scoped>
+/* 原生模板广告容器 */
+.ad-container {
+  margin: 20rpx 0;
+  background: #fff;
+  border-radius: 16rpx;
+  overflow: hidden;
+}
+
 .container {
   min-height: 100vh;
   background-image: url('https://s3.hi168.com/hi168-26998-7111ilq6/uploads/1775023040746-ex79fg.png');

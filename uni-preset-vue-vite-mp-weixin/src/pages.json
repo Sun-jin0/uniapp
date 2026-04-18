@@ -104,6 +104,32 @@
 			}
 		},
 		{
+			"path": "pages/checkin/checkin-home",
+			"style": {
+				"navigationBarTitleText": "每日打卡"
+			}
+		},
+		{
+			"path": "pages/checkin/checkin-category",
+			"style": {
+				"navigationBarTitleText": "打卡详情"
+			}
+		},
+		{
+			"path": "pages/checkin/checkin",
+			"style": {
+				"navigationBarTitleText": "每日打卡",
+				"navigationStyle": "custom"
+			}
+		},
+		{
+			"path": "pages/checkin/checkin-history",
+			"style": {
+				"navigationBarTitleText": "打卡记录",
+				"navigationStyle": "custom"
+			}
+		},
+		{
 			"path": "pages/privacy/app-privacy",
 			"style": {
 				"navigationBarTitleText": "用户服务协议",

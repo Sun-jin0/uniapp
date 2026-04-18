@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<script setup>
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<script setup>
 import { ref, onMounted, computed, watch, nextTick } from 'vue';
 import { onShareAppMessage, onShareTimeline } from '@dcloudio/uni-app';
 import { onLoad } from '@dcloudio/uni-app';
@@ -28,6 +28,15 @@ const hasCodeBlock = (text) => {
   // 检测 <pre> 标签
   if (/<pre[\s\S]*?<\/pre>/i.test(text)) return true;
   return false;
+};
+
+// 检查内容是否有实际意义（去除HTML标签和空白字符后是否为空）
+const hasRealContent = (text) => {
+  if (!text || typeof text !== 'string') return false;
+  // 移除所有HTML标签
+  const textWithoutTags = text.replace(/<[^>]+>/g, '');
+  // 移除所有空白字符后检查是否为空
+  return textWithoutTags.trim().length > 0;
 };
 
 // 解析内容，将图片和非图片内容分离
@@ -79,16 +88,35 @@ const addImageStyles = (text) => {
   let result = text;
   
   // 1. 先将 Markdown 图片 ![alt](url) 转换为 HTML <img>
-  result = result.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1" style="max-width: 100%; height: auto; display: block;">');
+  // 使用更宽松的正则，匹配 URL 直到 .png/.jpg 等扩展名及后续参数
+  result = result.replace(/!\[([^\]]*)\]\((https?:\/\/[^\s]+?\.(?:png|jpg|jpeg|gif|webp|svg|bmp)[^\)]*)\)/gi, (match, alt, url) => {
+    // 处理图片 URL
+    const processedUrl = adjustImageUrl(url);
+    return `<img src="${processedUrl}" alt="${alt}" style="max-width: 100%; height: auto; display: block;" />`;
+  });
   
-  // 2. 给已有的 HTML img 标签添加样式
+  // 2. 给已有的 HTML img 标签添加样式，并处理 src
   result = result.replace(/<img([^>]*)>/gi, (match, attrs) => {
-    // 如果已经有 style 属性，则替换它
-    if (/style="[^"]*"/i.test(attrs)) {
-      return match.replace(/style="[^"]*"/i, 'style="max-width: 100%; height: auto; display: block;"');
+    // 提取 src
+    let src = '';
+    const srcMatch = attrs.match(/src=["']([^"']+)["']/i);
+    if (srcMatch) {
+      src = adjustImageUrl(srcMatch[1]);
     }
-    // 否则添加 style 属性
-    return match.replace(/<img/i, '<img style="max-width: 100%; height: auto; display: block;"');
+    
+    // 移除原有的 src 属性
+    let newAttrs = attrs.replace(/\s*src=["'][^"']*["']/i, '');
+    
+    // 如果已经有 style 属性，则替换它
+    if (/style="[^"]*"/i.test(newAttrs)) {
+      newAttrs = newAttrs.replace(/style="[^"]*"/i, 'style="max-width: 100%; height: auto; display: block;"');
+    } else {
+      // 否则添加 style 属性
+      newAttrs = newAttrs + ' style="max-width: 100%; height: auto; display: block;"';
+    }
+    
+    // 重新组合 img 标签，确保 src 是第一个属性
+    return `<img src="${src}"${newAttrs}>`;
   });
   
   return result;
@@ -1103,8 +1131,16 @@ const adjustImageUrl = (imageUrl) => {
 const fixHtmlImages = (html) => {
   if (!html) return html;
   
+  let result = html;
+  
+  // 0. 先将 Markdown 图片 ![alt](url) 转换为 HTML <img>
+  // 使用更宽松的正则，匹配 URL 直到 .png/.jpg 等扩展名及后续参数
+  result = result.replace(/!\[([^\]]*)\]\((https?:\/\/[^\s]+?\.(?:png|jpg|jpeg|gif|webp|svg|bmp)[^\)]*)\)/gi, (match, alt, url) => {
+    return `<img src="${url}" alt="${alt}" style="max-width: 100%; height: auto; display: block;" />`;
+  });
+  
   // 1. 处理 <img> 标签及其所有属性
-  return html.replace(/<img([^>]+)>/gi, (match, fullAttrs) => {
+  return result.replace(/<img([^>]+)>/gi, (match, fullAttrs) => {
     // 提取 src
     let src = '';
     const srcMatch = fullAttrs.match(/src=["']([^"']+)["']/i);
@@ -1481,6 +1517,7 @@ const handleSelect = (qIndex, oIndex) => {
   const optionKey = String.fromCharCode(65 + oIndex);
   
   if (question.exercise_type === 2) {
+    // 多选题：切换选择状态，不立即提交
     let selected = state.userAnswer ? state.userAnswer.split('') : [];
     const idx = selected.indexOf(optionKey);
     if (idx > -1) {
@@ -1490,8 +1527,8 @@ const handleSelect = (qIndex, oIndex) => {
     }
     state.userAnswer = selected.sort().join('');
   } else {
+    // 单选题：选择答案，不立即提交（等待点击确定按钮）
     state.userAnswer = optionKey;
-    confirmAnswer(qIndex);
   }
 };
 
@@ -2189,6 +2226,40 @@ const formatContent = (text, type = 'explanation', isRich = false, qIndex = -1, 
 const formatTitle = (text, qIndex = -1, exerciseType = null) => formatContent(text, 'title', false, qIndex, exerciseType);
 const formatExplanation = (text, qIndex = -1, exerciseType = null) => formatContent(text, 'explanation', false, qIndex, exerciseType);
 
+// 预处理内容（用于 mp-html 渲染）
+const preprocessContent = (content) => {
+  if (!content) return '';
+
+  let text = content;
+
+  // 处理裸图片 URL（不在 Markdown 格式中的图片链接）
+  // 使用负向前瞻确保不匹配到 HTML 标签内的 URL，也不匹配 Markdown 图片格式中的 URL
+  text = text.replace(/(?<!!\[)(https?:\/\/[^\s<>"]+\.(?:png|jpg|jpeg|gif|webp|svg|bmp))(?:_yjs|_thumb|_small|_medium|_large)?(?!["'])(?![^<]*>)/gi, (match, url) => {
+    let cleanUrl = url.replace(/(_yjs|_thumb|_small|_medium|_large)$/i, '');
+    return `![image](${cleanUrl})`;
+  });
+
+  // 处理 Markdown 格式图片，移除 _yjs 等后缀
+  text = text.replace(/!\[([^\]]*)\]\((https?:\/\/[^\s]+?\.(?:png|jpg|jpeg|gif|webp|svg|bmp))(?:_yjs|_thumb|_small|_medium|_large)?([^\)]*)\)/gi, (match, alt, url, rest) => {
+    return `![${alt}](${url}${rest})`;
+  });
+
+  return text;
+};
+
+// 广告事件处理
+const adLoad = () => {
+  console.log('原生模板广告加载成功');
+};
+
+const adError = (err) => {
+  console.error('原生模板广告加载失败', err);
+};
+
+const adClose = () => {
+  console.log('原生模板广告关闭');
+};
+
 const openCorrection = (question) => {
   showFeedback.value = true;
 };
@@ -2394,6 +2465,11 @@ onShareTimeline(() => {
             </view>
           </view>
 
+          <!-- 确定答案按钮 (选择题且未显示答案时显示) -->
+          <view v-if="[1, 2, 5].includes(currentQuestion.exercise_type) && !shouldShowAnswer(currentIndex) && questionStates[currentIndex]?.userAnswer" class="confirm-btn-wrap">
+            <button class="main-action-btn" @tap="confirmAnswer(currentIndex)">确定答案</button>
+          </view>
+
           <!-- 填空题 输入区域 -->
           <view v-if="currentQuestion.exercise_type === 3" class="blank-input-section">
             <view class="blank-input-card">
@@ -2425,7 +2501,29 @@ onShareTimeline(() => {
                   <mp-html :content="sub.stem" @imgtap="handleImageTap"></mp-html>
                   <!-- #endif -->
                   <!-- #ifdef MP-WEIXIN -->
-                  <rich-text :nodes="addImageStyles(sub.stem)" class="sub-stem-text"></rich-text>
+                  <template v-if="hasCodeBlock(sub.stem)">
+                    <view v-for="(segment, idx) in parseContentWithCodeBlocks(sub.stem)" :key="idx">
+                      <view v-if="segment.type === 'code'" class="code-block-wrapper">
+                        <scroll-view class="code-block-scroll" scroll-x="true" scroll-with-animation="true">
+                          <view class="code-block-content">
+                            <view class="code-content-text">{{ segment.content }}</view>
+                          </view>
+                        </scroll-view>
+                      </view>
+                      <template v-else>
+                        <template v-for="(item, i) in parseContentWithImages(segment.content)" :key="i">
+                          <mp-html v-if="item.type === 'html'" :content="item.content" markdown domain="https://s3.hi168.com" @imgtap="handleImageTap"></mp-html>
+                          <rich-text v-else-if="item.type === 'image'" :nodes="item.content"></rich-text>
+                        </template>
+                      </template>
+                    </view>
+                  </template>
+                  <template v-else>
+                    <template v-for="(item, idx) in parseContentWithImages(sub.stem)" :key="idx">
+                      <mp-html v-if="item.type === 'html'" :content="item.content" markdown domain="https://s3.hi168.com" @imgtap="handleImageTap"></mp-html>
+                      <rich-text v-else-if="item.type === 'image'" :nodes="item.content"></rich-text>
+                    </template>
+                  </template>
                   <!-- #endif -->
                 </view>
                 <textarea 
@@ -2457,10 +2555,20 @@ onShareTimeline(() => {
                               </view>
                             </scroll-view>
                           </view>
-                          <rich-text v-else :nodes="addImageStyles(segment.content)" class="sub-answer-text"></rich-text>
+                          <template v-else>
+                            <template v-for="(item, i) in parseContentWithImages(segment.content)" :key="i">
+                              <mp-html v-if="item.type === 'html'" :content="item.content" markdown domain="https://s3.hi168.com" @imgtap="handleImageTap"></mp-html>
+                              <rich-text v-else-if="item.type === 'image'" :nodes="item.content"></rich-text>
+                            </template>
+                          </template>
                         </view>
                       </template>
-                      <rich-text v-else :nodes="addImageStyles(sub.answer || sub.originalAnswer || sub.standard_answer || sub.correct_answer)" class="sub-answer-text"></rich-text>
+                      <template v-else>
+                        <template v-for="(item, idx) in parseContentWithImages(sub.answer || sub.originalAnswer || sub.standard_answer || sub.correct_answer)" :key="idx">
+                          <mp-html v-if="item.type === 'html'" :content="item.content" markdown domain="https://s3.hi168.com" @imgtap="handleImageTap"></mp-html>
+                          <rich-text v-else-if="item.type === 'image'" :nodes="item.content"></rich-text>
+                        </template>
+                      </template>
                       <!-- #endif -->
                     </view>
                   </view>
@@ -2480,10 +2588,20 @@ onShareTimeline(() => {
                               </view>
                             </scroll-view>
                           </view>
-                          <rich-text v-else :nodes="addImageStyles(segment.content)" class="sub-answer-text"></rich-text>
+                          <template v-else>
+                            <template v-for="(item, i) in parseContentWithImages(segment.content)" :key="i">
+                              <mp-html v-if="item.type === 'html'" :content="item.content" markdown domain="https://s3.hi168.com" @imgtap="handleImageTap"></mp-html>
+                              <rich-text v-else-if="item.type === 'image'" :nodes="item.content"></rich-text>
+                            </template>
+                          </template>
                         </view>
                       </template>
-                      <rich-text v-else :nodes="addImageStyles(sub.analysis || sub.commentary || sub.method || sub.explanation || sub.solution)" class="sub-answer-text"></rich-text>
+                      <template v-else>
+                        <template v-for="(item, idx) in parseContentWithImages(sub.analysis || sub.commentary || sub.method || sub.explanation || sub.solution)" :key="idx">
+                          <mp-html v-if="item.type === 'html'" :content="item.content" markdown domain="https://s3.hi168.com" @imgtap="handleImageTap"></mp-html>
+                          <rich-text v-else-if="item.type === 'image'" :nodes="item.content"></rich-text>
+                        </template>
+                      </template>
                       <!-- #endif -->
                     </view>
                   </view>
@@ -2612,7 +2730,7 @@ onShareTimeline(() => {
           </view>
 
           <!-- 题目解析 -->
-          <view v-if="currentQuestion.analysis" class="explanation-card card-style">
+          <view v-if="hasRealContent(currentQuestion.analysis)" class="explanation-card card-style">
             <view class="section-header">
               <view class="section-title">
                 <view class="title-line"></view>
@@ -2670,6 +2788,12 @@ onShareTimeline(() => {
 
           <!-- 笔记区域 -->
           <view class="notes-section card-style">
+            <!-- 广告组件 - 笔记区域上方 -->
+            <!-- #ifdef MP-WEIXIN -->
+            <view class="ad-container">
+              <ad-custom unit-id="adunit-f1d0e339a07022e6" @load="adLoad" @error="adError" @close="adClose"></ad-custom>
+            </view>
+            <!-- #endif -->
             <view class="notes-header">
               <view class="section-title">
                 <view class="title-line"></view>
@@ -3742,6 +3866,11 @@ onShareTimeline(() => {
   }
 }
 
+.confirm-btn-wrap {
+  margin: 30rpx 0;
+  padding: 0 40rpx;
+}
+
 .answer-section {
   margin-top: 30rpx;
 }
@@ -3908,6 +4037,11 @@ onShareTimeline(() => {
 }
 
 .notes-section {
+  .ad-container {
+    margin-bottom: 20rpx;
+    width: 100%;
+  }
+
   .notes-header {
     display: flex;
     justify-content: space-between;
@@ -4630,20 +4764,27 @@ onShareTimeline(() => {
           color: #333;
           line-height: 1.6;
           margin-bottom: 10rpx;
-          display: flex;
-          align-items: flex-start;
+          display: block;
         }
 
         .sub-stem .sub-index {
           font-weight: bold;
           color: var(--primary-color);
           margin-right: 12rpx;
-          flex-shrink: 0;
+          display: inline;
         }
 
         .sub-stem :deep(p) {
           margin: 0;
           padding: 0;
+          display: inline;
+        }
+        
+        .sub-stem :deep(img) {
+          max-width: 100%;
+          height: auto;
+          display: block;
+          margin: 10rpx 0;
         }
       }
     }

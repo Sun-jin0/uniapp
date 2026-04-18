@@ -67,6 +67,34 @@
         
         <!-- 功能菜单区域 -->
         <view class="menu-container">
+          <!-- 快捷功能入口 -->
+          <view class="quick-menu-row">
+            <view class="quick-menu-item" @click="goToPrintMiniProgram">
+              <view class="quick-icon-box print-bg">
+                <view class="quick-inner-icon print"></view>
+              </view>
+              <text class="quick-label">打印资料</text>
+            </view>
+            <view class="quick-menu-item" @click="goToQQGroups">
+              <view class="quick-icon-box qq-bg">
+                <view class="quick-inner-icon qq"></view>
+              </view>
+              <text class="quick-label">Q群讨论</text>
+            </view>
+            <view class="quick-menu-item" @click="goToCheckin">
+              <view class="quick-icon-box checkin-bg">
+                <view class="quick-inner-icon checkin"></view>
+              </view>
+              <text class="quick-label">每日打卡</text>
+            </view>
+            <view class="quick-menu-item" @tap="goToDrawCard">
+              <view class="quick-icon-box relax-bg">
+                <view class="quick-inner-icon relax"></view>
+              </view>
+              <text class="quick-label">放松一下</text>
+            </view>
+          </view>
+          
           <!-- 核心功能组 -->
           <view class="menu-group-card">
             <view class="menu-item-row" @click="goToRanking">
@@ -85,31 +113,34 @@
               <view class="item-arrow"></view>
             </view>
             <view class="menu-divider"></view>
-            <view class="menu-item-row" @tap="goToDrawCard">
-              <view class="icon-box relax-bg">
-                <view class="inner-icon relax"></view>
+            <view class="menu-item-row" @click="showRewardModal">
+              <view class="icon-box reward-bg">
+                <view class="inner-icon reward"></view>
               </view>
-              <text class="item-label">放松一下</text>
+              <text class="item-label">赞赏支持</text>
               <view class="item-arrow"></view>
             </view>
           </view>
 
           <!-- 设置与隐私组 -->
           <view class="menu-group-card">
-            <view class="menu-item-row" @click="goToQQGroups">
-              <view class="icon-box qq-bg">
-                <view class="inner-icon qq"></view>
-              </view>
-              <text class="item-label">Q群讨论</text>
-              <view class="item-arrow"></view>
-            </view>
-            <view class="menu-divider"></view>
             <view class="menu-item-row" @click="goToPrivacyPolicy">
               <view class="icon-box privacy-bg">
                 <view class="inner-icon privacy"></view>
               </view>
               <text class="item-label">隐私政策</text>
               <view class="item-arrow"></view>
+            </view>
+          </view>
+
+          <!-- 赞赏弹窗 -->
+          <view class="modal" v-if="showReward" @tap="closeRewardModal">
+            <view class="modal-box reward-box" @tap.stop>
+              <text class="modal-title">赞赏支持</text>
+              <text class="modal-subtitle">感谢你的支持，我们会继续努力！</text>
+              <image class="reward-qrcode" src="https://s3.hi168.com/hi168-26998-7111ilq6/uploads/1776400965165-u9b90x.jpg" mode="aspectFit" show-menu-by-longpress></image>
+              <text class="reward-tip">长按识别二维码赞赏</text>
+              <button class="close-btn" @tap="closeRewardModal">关闭</button>
             </view>
           </view>
 
@@ -148,6 +179,8 @@ const avatarFrameId = ref(null);
 const questionRank = ref(0);
 // 登录状态
 const isLoggedIn = ref(false);
+// 赞赏弹窗显示状态
+const showReward = ref(false);
 
 // 检查登录状态
 const checkLoginStatus = () => {
@@ -260,6 +293,13 @@ const copyUserId = async () => {
 const goToMyCollections = () => {
   uni.navigateTo({
     url: '/pages/article/my-collections'
+  });
+};
+
+// 跳转到打卡页面
+const goToCheckin = () => {
+  uni.navigateTo({
+    url: '/pages/checkin/checkin-home'
   });
 };
 
@@ -453,6 +493,24 @@ const goToPrivacyPolicy = () => {
   });
 };
 
+// 跳转到刺猬打印小程序
+const goToPrintMiniProgram = () => {
+  uni.navigateToMiniProgram({
+    appId: 'wx9580c9208762a7c5',
+    path: 'pages/index/index?scene=dc%3D497866710783758336',
+    success(res) {
+      console.log('跳转刺猬打印小程序成功');
+    },
+    fail(err) {
+      console.error('跳转刺猬打印小程序失败:', err);
+      uni.showToast({
+        title: '跳转失败，请重试',
+        icon: 'none'
+      });
+    }
+  });
+};
+
 // 跳转到Q群讨论
 const goToQQGroups = () => {
   uni.navigateTo({
@@ -479,6 +537,17 @@ const logout = () => {
     }
   });
 };
+
+// 显示赞赏弹窗
+const showRewardModal = () => {
+  showReward.value = true;
+};
+
+// 关闭赞赏弹窗
+const closeRewardModal = () => {
+  showReward.value = false;
+};
+
 </script>
 
 <style>
@@ -697,6 +766,51 @@ const logout = () => {
   padding: 30rpx;
 }
 
+/* 快捷功能入口 */
+.quick-menu-row {
+  display: flex;
+  justify-content: space-between;
+  background: white;
+  border-radius: 30rpx;
+  padding: 20rpx 20rpx;
+  margin-bottom: 20rpx;
+  box-shadow: 0 4rpx 15rpx rgba(0, 0, 0, 0.02);
+}
+
+.quick-menu-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 1;
+}
+
+.quick-icon-box {
+  width: 72rpx;
+  height: 72rpx;
+  border-radius: 20rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 8rpx;
+}
+
+.quick-inner-icon {
+  width: 36rpx;
+  height: 36rpx;
+  background-color: white;
+  mask-size: contain;
+  -webkit-mask-size: contain;
+  mask-repeat: no-repeat;
+  -webkit-mask-repeat: no-repeat;
+  mask-position: center;
+  -webkit-mask-position: center;
+}
+
+.quick-label {
+  font-size: 24rpx;
+  color: #333;
+}
+
 .menu-group-card {
   background: white;
   border-radius: 30rpx;
@@ -750,6 +864,9 @@ const logout = () => {
 .collection-bg { background: #fef3c7; }
 .collection { background-color: #f59e0b; mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>'); }
 
+.checkin-bg { background: #e0e7ff; }
+.checkin { background-color: #6366f1; mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>'); }
+
 .relax-bg { background: #fce7f3; }
 .relax { background-color: #ec4899; mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"/></svg>'); }
 
@@ -758,6 +875,12 @@ const logout = () => {
 
 .privacy-bg { background: #e0e7ff; }
 .privacy { background-color: #6366f1; mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/></svg>'); }
+
+.print-bg { background: #fef3c7; }
+.print { background-color: #f59e0b; mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 8H5c-1.66 0-3 1.34-3 3v6h4v4h12v-4h4v-6c0-1.66-1.34-3-3-3zm-3 11H8v-5h8v5zm3-7c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1zm-1-9H6v4h12V3z"/></svg>'); }
+
+.reward-bg { background: #fee2e2; }
+.reward { background-color: #ef4444; mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>'); }
 
 .item-badge {
   padding: 4rpx 16rpx;
@@ -979,5 +1102,104 @@ const logout = () => {
 
 .dark-mode .unlogin-desc {
   color: #9ca3af;
+}
+
+/* 赞赏弹窗样式 */
+.modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal-box {
+  background: white;
+  border-radius: 24rpx;
+  padding: 40rpx;
+  width: 80%;
+  max-width: 560rpx;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.reward-box {
+  padding: 50rpx 40rpx;
+}
+
+.modal-title {
+  font-size: 36rpx;
+  font-weight: bold;
+  color: #1f2937;
+  margin-bottom: 16rpx;
+}
+
+.modal-subtitle {
+  font-size: 28rpx;
+  color: #6b7280;
+  margin-bottom: 40rpx;
+  text-align: center;
+}
+
+.reward-qrcode {
+  width: 400rpx;
+  height: 400rpx;
+  border-radius: 16rpx;
+  margin-bottom: 30rpx;
+}
+
+.reward-tip {
+  font-size: 26rpx;
+  color: #9ca3af;
+  margin-bottom: 40rpx;
+}
+
+.close-btn {
+  width: 100%;
+  height: 80rpx;
+  background: #f3f4f6;
+  color: #4b5563;
+  font-size: 30rpx;
+  border-radius: 40rpx;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.close-btn:active {
+  background: #e5e7eb;
+}
+
+/* 夜间模式 - 赞赏弹窗 */
+.dark-mode .modal-box {
+  background: #1f2937;
+}
+
+.dark-mode .modal-title {
+  color: #f9fafb;
+}
+
+.dark-mode .modal-subtitle {
+  color: #9ca3af;
+}
+
+.dark-mode .reward-tip {
+  color: #6b7280;
+}
+
+.dark-mode .close-btn {
+  background: #374151;
+  color: #d1d5db;
+}
+
+.dark-mode .close-btn:active {
+  background: #4b5563;
 }
 </style>
