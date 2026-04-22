@@ -436,3 +436,5 @@ server {
 ---
 
 **最后更新**: 2026-02-27
+
+math_questions，math_questiondetails，math_knowledgepoints请你写一个脚本来修改这三个表中的内容，将“<”改为“ <”，将“.$png”改为“.png”,将“$,$$”改为“$,$ $”，将“$.$$”改为“$.$ $”
