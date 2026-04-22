@@ -780,13 +780,24 @@ onLoad((options) => {
   const { mode, courseId, chapterId, year, title: pageTitle } = options;
   title.value = pageTitle || '西医综合';
   
+  // 生成 progressKey
+  let progressKey = 'med_general';
+  if (chapterId) {
+    progressKey = `med_chapter_${chapterId}`;
+  } else if (courseId) {
+    progressKey = `med_course_${courseId}`;
+  } else if (year) {
+    progressKey = `med_year_${year}`;
+  }
+  
   // 更新最近练习
   const practiceItem = {
     id: courseId || chapterId || year || 'med',
     title: pageTitle || '西医综合',
-    icon: 'paint-brush', // 西医图标
+    icon: 'paint-brush',
     url: `/pages/med/med-practice?mode=${mode}&courseId=${courseId}&chapterId=${chapterId}&year=${year}&title=${pageTitle}`,
-    category: 'professional'
+    category: 'professional',
+    progressKey
   };
   uni.setStorageSync('lastPracticeSubject', practiceItem);
   
@@ -975,6 +986,63 @@ const onSwiperChange = (e) => {
   if (newIndex >= questions.value.length - 5 && hasMore.value) {
     loadMore();
   }
+  
+  // 保存进度到本地
+  savePracticeProgressToList(newIndex);
+};
+
+// 保存进度到列表
+const savePracticeProgressToList = (index) => {
+  const question = questions.value[index];
+  if (!question) return;
+  
+  const params = initialParams.value;
+  let progressKey = 'med_general';
+  let url = `/pages/med/med-practice?mode=${params.mode}`;
+  
+  if (params.chapter_id) {
+    progressKey = `med_chapter_${params.chapter_id}`;
+    url += `&chapterId=${params.chapter_id}`;
+  } else if (params.course_id) {
+    progressKey = `med_course_${params.course_id}`;
+    url += `&courseId=${params.course_id}`;
+  } else if (params.year) {
+    progressKey = `med_year_${params.year}`;
+    url += `&year=${params.year}`;
+  }
+  
+  url += `&title=${encodeURIComponent(title.value)}&startIndex=${index}`;
+  
+  const practiceItem = {
+    type: 'med',
+    subject: '医学',
+    id: params.chapter_id || params.course_id || params.year || 'med',
+    title: title.value,
+    url: url,
+    icon: 'paint-brush',
+    progressKey,
+    currentIndex: index + 1,
+    totalQuestions: totalCount.value,
+    timestamp: Date.now()
+  };
+  
+  let progressList = uni.getStorageSync('practiceProgressList') || [];
+  if (!Array.isArray(progressList)) {
+    progressList = [];
+  }
+  
+  const existingIndex = progressList.findIndex(item => item.progressKey === progressKey);
+  if (existingIndex !== -1) {
+    progressList.splice(existingIndex, 1);
+  }
+  
+  progressList.unshift(practiceItem);
+  
+  if (progressList.length > 10) {
+    progressList = progressList.slice(0, 10);
+  }
+  
+  uni.setStorageSync('practiceProgressList', progressList);
 };
 
 const shouldShowAnswer = (index) => {

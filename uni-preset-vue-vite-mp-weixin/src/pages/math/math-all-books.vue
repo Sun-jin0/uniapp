@@ -230,6 +230,17 @@ const handleBookClick = (book) => {
       selectedBookIds.value.push(book.BookID);
     }
   } else {
+    // 检查是否有保存的进度
+    const progressKey = `math_book_${book.BookID}`;
+    const progressList = uni.getStorageSync('practiceProgressList') || [];
+    const savedProgress = progressList.find(item => item.progressKey === progressKey);
+    
+    // 如果有保存的进度且进度中有 URL，直接跳转到刷题页面
+    if (savedProgress && savedProgress.url && savedProgress.currentIndex > 1) {
+      uni.navigateTo({ url: savedProgress.url });
+      return;
+    }
+    
     const url = `/pages/math/math-question-detail?bookId=${book.BookID}&bookTitle=${encodeURIComponent(book.BookTitle)}`;
     
     // 保存为最近练习科目，以便在首页显示
@@ -241,7 +252,9 @@ const handleBookClick = (book) => {
       bookTitle: book.BookTitle,
       bookId: book.BookID,
       url: url,
-      icon: 'math'
+      icon: 'math',
+      progressKey,
+      timestamp: Date.now()
     };
     uni.setStorageSync('lastPracticeSubject', practiceItem);
 

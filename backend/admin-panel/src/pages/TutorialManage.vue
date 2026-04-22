@@ -20,7 +20,21 @@
                   </template>
                 </el-input>
               </el-col>
-              <el-col :span="18" style="text-align: right;">
+              <el-col :span="8">
+                <el-input
+                  v-model="globalQuestionIdSearch"
+                  placeholder="输入题目ID定位到题目..."
+                  clearable
+                  @keyup.enter="searchQuestionById"
+                >
+                  <template #append>
+                    <el-button type="primary" @click="searchQuestionById" :loading="searchingQuestion">
+                      <el-icon><Search /></el-icon>
+                    </el-button>
+                  </template>
+                </el-input>
+              </el-col>
+              <el-col :span="10" style="text-align: right;">
                 <el-button type="success" @click="openCreateTutorialModal">
                   <el-icon><Plus /></el-icon> 创建教辅
                 </el-button>
@@ -52,19 +66,123 @@
                 {{ formatDate(row.created_at) }}
               </template>
             </el-table-column>
-            <el-table-column label="操作" width="250" align="center" fixed="right">
+            <el-table-column label="操作" width="300" align="center" fixed="right">
               <template #default="{ row }">
                 <div class="action-buttons">
+                  <el-button size="small" type="primary" @click="viewTutorialDetail(row)">详情</el-button>
                   <el-button size="small" type="primary" @click="viewTutorialChapters(row)">章节</el-button>
                   <el-button size="small" type="warning" @click="viewTutorialQuestions(row)">题目</el-button>
                   <el-button size="small" type="success" @click="openEditTutorialModal(row)">编辑</el-button>
-                  <el-button size="small" type="info" @click="openCopyTutorialModal(row)">复制</el-button>
                 </div>
               </template>
             </el-table-column>
           </el-table>
         </div>
       </el-tab-pane>
+
+      <!-- 教辅详情对话框 -->
+      <el-dialog 
+        v-model="detailModalVisible" 
+        :title="currentDetailTutorial?.name + ' - 详情'" 
+        width="95%" 
+        top="3vh"
+        :fullscreen="isDetailFullscreen"
+        destroy-on-close
+      >
+        <template #header>
+          <div class="dialog-header">
+            <span>{{ currentDetailTutorial?.name }} - 详情</span>
+            <el-button type="primary" size="small" @click="isDetailFullscreen = !isDetailFullscreen">
+              {{ isDetailFullscreen ? '退出全屏' : '全屏' }}
+            </el-button>
+          </div>
+        </template>
+        
+        <div v-if="currentDetailTutorial" class="tutorial-detail" v-loading="loadingDetailQuestions">
+          <div class="tutorial-info-form">
+            <div class="info-row">
+              <div class="info-item">
+                <span class="info-label">教辅名称</span>
+                <el-input v-model="currentDetailTutorial.name" size="small" placeholder="教辅名称" />
+              </div>
+              <div class="info-item small">
+                <span class="info-label">版本</span>
+                <el-input v-model="currentDetailTutorial.version" size="small" placeholder="版本" />
+              </div>
+              <div class="info-item small">
+                <span class="info-label">年份</span>
+                <el-input v-model="currentDetailTutorial.year" size="small" placeholder="年份" />
+              </div>
+              <div class="info-item small">
+                <span class="info-label">状态</span>
+                <el-select v-model="currentDetailTutorial.status" size="small" style="width: 100%;">
+                  <el-option label="启用" :value="1" />
+                  <el-option label="禁用" :value="0" />
+                </el-select>
+              </div>
+            </div>
+          </div>
+          
+          <div class="mt-10 flex-end">
+            <el-button type="primary" size="small" @click="saveTutorialInfo" :loading="savingTutorialInfo">保存教辅信息</el-button>
+          </div>
+          
+          <div class="mt-20 flex-between">
+            <h3>题目列表（共 {{ detailQuestions.length }} 题）</h3>
+            <el-input 
+              v-model="detailSearchKeyword" 
+              placeholder="搜索ID或题干..." 
+              style="width: 300px"
+              clearable
+              @input="filterDetailQuestions"
+            />
+          </div>
+          
+          <div class="questions-list mt-10" ref="detailQuestionsListRef">
+            <div 
+              v-for="(q, index) in filteredDetailQuestions" 
+              :key="q.question_id" 
+              class="question-item"
+              :class="{ 'highlighted': highlightedQuestionId === q.question_id }"
+              :id="'question-' + q.question_id"
+            >
+              <div class="question-header">
+                <span class="question-index">第 {{ index + 1 }} 题</span>
+                <span class="question-type">{{ q.exercise_type_name }}</span>
+                <el-tag size="small" type="info">ID: {{ q.question_id }}</el-tag>
+                <el-button type="primary" size="small" @click.stop="handleDetailEditQuestion(q, index)">编辑</el-button>
+              </div>
+              
+              <div class="question-content math-content" v-html="renderMath(q.stem)"></div>
+              
+              <div v-if="q.options && q.options.length > 0" class="question-options">
+                <div v-for="opt in q.options" :key="opt.option_key" class="option-item-inline">
+                  <span class="option-label">{{ opt.option_key }}.</span>
+                  <span class="math-content" v-html="renderMath(opt.option_value)"></span>
+                </div>
+              </div>
+              
+              <div v-if="q.subs && q.subs.length > 0" class="question-subs">
+                <div v-for="(sub, subIdx) in q.subs" :key="subIdx" class="sub-item">
+                  <div class="sub-header">({{ String.fromCharCode(97 + subIdx) }})</div>
+                  <div class="sub-content math-content" v-html="renderMath(sub.stem || sub.sub_stem)"></div>
+                  <div v-if="sub.answer || sub.sub_answer" class="sub-answer">
+                    <strong>答案：</strong><span class="math-content" v-html="renderMath(sub.answer || sub.sub_answer)"></span>
+                  </div>
+                </div>
+              </div>
+              
+              <div class="question-answer">
+                <strong>答案：</strong><span class="math-content" v-html="renderMath(q.answer)"></span>
+              </div>
+              
+              <div v-if="q.analysis" class="question-analysis">
+                <strong>解析：</strong><span class="math-content" v-html="renderMath(q.analysis)"></span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </el-dialog>
 
       <!-- 合集管理 -->
       <el-tab-pane label="合集管理" name="collections">
@@ -442,7 +560,7 @@
             <span>共 {{ tutorialQuestions.length }} 题</span>
             <el-input 
               v-model="questionSearchKeyword" 
-              placeholder="搜索题目..." 
+              placeholder="搜索ID或题干..." 
               size="small"
               clearable
               @input="filterQuestions"
@@ -667,6 +785,66 @@ const tutorials = ref([])
 const tutorialFilter = reactive({
   keyword: ''
 })
+
+// 全局题目ID搜索
+const globalQuestionIdSearch = ref('')
+const searchingQuestion = ref(false)
+
+const searchQuestionById = async () => {
+  const questionId = globalQuestionIdSearch.value.trim()
+  if (!questionId) {
+    ElMessage.warning('请输入题目ID')
+    return
+  }
+  
+  searchingQuestion.value = true
+  try {
+    // 先获取所有教辅
+    const res = await adminApi.getTutorials()
+    const allTutorials = res.data?.list || []
+    
+    if (allTutorials.length === 0) {
+      ElMessage.warning('暂无教辅数据')
+      return
+    }
+    
+    // 遍历每个教辅查找题目
+    for (const tutorial of allTutorials) {
+      try {
+        const questionsRes = await adminApi.getTutorialQuestions(tutorial.id)
+        const questions = questionsRes.data || []
+        
+        const matchedQuestion = questions.find(q => 
+          q.question_id && q.question_id.toLowerCase().includes(questionId.toLowerCase())
+        )
+        
+        if (matchedQuestion) {
+          // 找到匹配的题目，打开详情
+          ElMessage.success(`找到题目，所属教辅：${tutorial.name}`)
+          
+          // 打开教辅详情
+          await viewTutorialDetail(tutorial)
+          
+          // 设置搜索关键词并触发定位
+          detailSearchKeyword.value = questionId
+          filterDetailQuestions()
+          
+          return
+        }
+      } catch (e) {
+        // 继续查找下一个教辅
+        continue
+      }
+    }
+    
+    ElMessage.warning('未找到该题目ID，请检查ID是否正确')
+  } catch (error) {
+    console.error('搜索题目失败:', error)
+    ElMessage.error('搜索题目失败')
+  } finally {
+    searchingQuestion.value = false
+  }
+}
 
 // 获取教辅列表
 const fetchTutorials = async () => {
@@ -919,6 +1097,100 @@ const viewTutorialChapters = (row) => {
   router.push(`/computer/tutorials/${row.id}/chapters`)
 }
 
+// ==================== 教辅详情 ====================
+const detailModalVisible = ref(false)
+const currentDetailTutorial = ref(null)
+const detailQuestions = ref([])
+const filteredDetailQuestions = ref([])
+const loadingDetailQuestions = ref(false)
+const detailSearchKeyword = ref('')
+const isDetailFullscreen = ref(false)
+const savingTutorialInfo = ref(false)
+const detailEditingIndex = ref(null)
+
+const viewTutorialDetail = async (row) => {
+  currentDetailTutorial.value = { ...row }
+  detailModalVisible.value = true
+  isDetailFullscreen.value = false
+  await fetchDetailQuestions(row.id)
+}
+
+const fetchDetailQuestions = async (tutorialId) => {
+  loadingDetailQuestions.value = true
+  try {
+    const res = await adminApi.getTutorialQuestions(tutorialId)
+    detailQuestions.value = res.data || []
+    filteredDetailQuestions.value = [...detailQuestions.value]
+  } catch (error) {
+    console.error('获取题目列表失败:', error)
+    ElMessage.error('获取题目列表失败')
+  } finally {
+    loadingDetailQuestions.value = false
+  }
+}
+
+const detailQuestionsListRef = ref(null)
+const highlightedQuestionId = ref(null)
+
+const filterDetailQuestions = () => {
+  const keyword = detailSearchKeyword.value.toLowerCase().trim()
+  if (!keyword) {
+    filteredDetailQuestions.value = [...detailQuestions.value]
+    highlightedQuestionId.value = null
+    return
+  }
+  
+  // 检查是否是ID搜索（纯数字或长度较长）
+  const isIdSearch = /^\d+$/.test(keyword) || keyword.length > 15
+  
+  if (isIdSearch) {
+    // ID搜索：显示所有题目，高亮匹配的题目并滚动到该位置
+    filteredDetailQuestions.value = [...detailQuestions.value]
+    
+    const matchedQuestion = detailQuestions.value.find(q => 
+      q.question_id && q.question_id.toLowerCase().includes(keyword)
+    )
+    
+    if (matchedQuestion) {
+      highlightedQuestionId.value = matchedQuestion.question_id
+      // 滚动到该题目位置
+      setTimeout(() => {
+        const element = document.getElementById('question-' + matchedQuestion.question_id)
+        if (element && detailQuestionsListRef.value) {
+          element.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        }
+      }, 100)
+    } else {
+      highlightedQuestionId.value = null
+    }
+  } else {
+    // 普通文本搜索：过滤显示
+    filteredDetailQuestions.value = detailQuestions.value.filter(q => 
+      (q.stem && q.stem.toLowerCase().includes(keyword))
+    )
+    highlightedQuestionId.value = null
+  }
+}
+
+const saveTutorialInfo = async () => {
+  savingTutorialInfo.value = true
+  try {
+    await adminApi.updateTutorial(currentDetailTutorial.value.id, currentDetailTutorial.value)
+    ElMessage.success('保存成功')
+    fetchTutorials()
+  } catch (error) {
+    console.error('保存失败:', error)
+    ElMessage.error('保存失败')
+  } finally {
+    savingTutorialInfo.value = false
+  }
+}
+
+const handleDetailEditQuestion = (question, index) => {
+  detailEditingIndex.value = index
+  openEditQuestionModal(question)
+}
+
 // ==================== 题目查看/编辑 ====================
 const questionsModalVisible = ref(false)
 const currentTutorial = ref(null)
@@ -1095,8 +1367,8 @@ const saveQuestion = async () => {
   if (!editingQuestionForm.value) return
   
   savingQuestion.value = true
-  // 保存当前题目索引
   const savedIndex = currentQuestionIndex.value
+  const savedDetailIndex = detailEditingIndex.value
   
   try {
     const saveData = {
@@ -1109,9 +1381,15 @@ const saveQuestion = async () => {
     ElMessage.success('保存成功')
     editQuestionModalVisible.value = false
     
-    // 刷新题目列表，保持当前索引
     if (currentTutorial.value) {
       await fetchTutorialQuestions(currentTutorial.value.id, savedIndex)
+    }
+    
+    if (currentDetailTutorial.value) {
+      await fetchDetailQuestions(currentDetailTutorial.value.id)
+      if (savedDetailIndex !== null) {
+        detailEditingIndex.value = null
+      }
     }
   } catch (error) {
     console.error('保存失败:', error)
@@ -1977,5 +2255,199 @@ onMounted(() => {
     flex-direction: column;
     padding: 0 20px;
   }
+}
+
+/* 教辅详情样式 */
+.tutorial-info-form {
+  border: 1px solid #e4e7ed;
+  border-radius: 4px;
+  padding: 15px;
+  background: #fafafa;
+}
+
+.tutorial-info-form .info-row {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.tutorial-info-form .info-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+.tutorial-info-form .info-item .el-input {
+  width: 300px;
+}
+
+.tutorial-info-form .info-item.small {
+  flex: 0 0 auto;
+}
+
+.tutorial-info-form .info-item.small .el-input {
+  width: 80px;
+}
+
+.tutorial-info-form .info-item.small .el-select {
+  width: 100px;
+}
+
+.tutorial-info-form .info-label {
+  font-size: 13px;
+  color: #606266;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.dialog-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+
+.flex-between {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.flex-end {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.tutorial-detail .questions-list {
+  max-height: calc(100vh - 350px);
+  overflow-y: auto;
+}
+
+.tutorial-detail .question-item {
+  display: block;
+  border: 1px solid #e4e7ed;
+  border-radius: 8px;
+  padding: 15px;
+  margin-bottom: 15px;
+  background: #f5f7fa;
+  cursor: default;
+}
+
+.tutorial-detail .question-header {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  margin-bottom: 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px dashed #dcdfe6;
+}
+
+.tutorial-detail .question-index {
+  font-weight: bold;
+  color: #409eff;
+  font-size: 16px;
+}
+
+.tutorial-detail .question-type {
+  font-size: 12px;
+  color: #909399;
+  background: #e9e9eb;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.tutorial-detail .question-content {
+  padding: 0;
+  background: transparent;
+}
+
+.tutorial-detail .question-options {
+  margin: 10px 0;
+  padding: 10px;
+  background: white;
+  border-radius: 4px;
+}
+
+.tutorial-detail .option-item-inline {
+  display: flex;
+  gap: 8px;
+  padding: 6px 0;
+  line-height: 1.5;
+}
+
+.tutorial-detail .option-label {
+  font-weight: bold;
+  color: #409eff;
+  min-width: 20px;
+}
+
+.tutorial-detail .question-subs {
+  margin: 10px 0;
+  padding: 10px;
+  background: white;
+  border-radius: 4px;
+}
+
+.tutorial-detail .sub-item {
+  margin-bottom: 10px;
+  padding: 10px;
+  background: #f0f2f5;
+  border-radius: 4px;
+}
+
+.tutorial-detail .sub-header {
+  font-weight: bold;
+  color: #409eff;
+  margin-bottom: 6px;
+}
+
+.tutorial-detail .question-answer {
+  margin-top: 10px;
+  padding: 10px;
+  background: #f0f9eb;
+  border-radius: 4px;
+  color: #67c23a;
+}
+
+.tutorial-detail .question-analysis {
+  margin-top: 10px;
+  padding: 10px;
+  background: #fdf6ec;
+  border-radius: 4px;
+  color: #e6a23c;
+}
+
+.tutorial-detail .math-content :deep(p) {
+  margin: 0 0 8px 0;
+}
+
+.tutorial-detail .math-content :deep(img) {
+  max-width: 100%;
+  height: auto;
+}
+
+/* 高亮样式 */
+.tutorial-detail .question-item.highlighted {
+  border: 2px solid #409eff;
+  background: #ecf5ff;
+  box-shadow: 0 0 10px rgba(64, 158, 255, 0.3);
+  animation: highlight-pulse 2s ease-in-out;
+}
+
+@keyframes highlight-pulse {
+  0%, 100% {
+    box-shadow: 0 0 10px rgba(64, 158, 255, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 20px rgba(64, 158, 255, 0.6);
+  }
+}
+
+/* 保留换行符 */
+.tutorial-detail .math-content {
+  white-space: pre-wrap;
+  word-wrap: break-word;
 }
 </style>

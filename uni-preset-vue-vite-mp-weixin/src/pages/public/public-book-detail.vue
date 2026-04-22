@@ -324,6 +324,29 @@ const handleClearRecord = () => {
 };
 
 const startPractice = (mode, extra = null) => {
+  // 检查是否有保存的进度
+  let progressKey = null;
+  if (mode === 'continue') {
+    progressKey = `public_book_${bookId.value}`;
+  } else if (mode === 'chapter' && extra && extra.id) {
+    progressKey = `public_chapter_${extra.id}`;
+  } else if (mode === 'wrong') {
+    progressKey = `public_wrong_${bookId.value}`;
+  } else if (mode === 'favorite') {
+    progressKey = `public_favorite_${bookId.value}`;
+  }
+  
+  if (progressKey) {
+    const progressList = uni.getStorageSync('practiceProgressList') || [];
+    const savedProgress = progressList.find(item => item.progressKey === progressKey);
+    
+    // 如果有保存的进度且进度中有 URL，直接跳转到刷题页面
+    if (savedProgress && savedProgress.url && savedProgress.currentIndex > 1) {
+      uni.navigateTo({ url: savedProgress.url });
+      return;
+    }
+  }
+  
   let url = `/pages/public/public-practice?bookId=${bookId.value}&mode=${mode}&title=${encodeURIComponent(bookInfo.value.title || '练习')}`;
   
   if (mode === 'category') {

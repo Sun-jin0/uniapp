@@ -10,7 +10,7 @@
           <text class="stats-text">{{ checkinCount }} 次打卡</text>
         </view>
         <view class="time-info" v-if="categoryStartTime || categoryEndTime">
-          <image class="time-icon" src="https://img.icons8.com/ios/50/ffffff/clock.png" mode="aspectFit" />
+          <image class="time-icon" src="/static/icons/clock.png" mode="aspectFit" />
           <text class="time-text" v-if="categoryStartTime && !categoryEndTime">开始: {{ formatDateTime(categoryStartTime) }}</text>
           <text class="time-text" v-else-if="!categoryStartTime && categoryEndTime">截止: {{ formatDateTime(categoryEndTime) }}</text>
           <text class="time-text" v-else>{{ formatDateTime(categoryStartTime) }} ~ {{ formatDateTime(categoryEndTime) }}</text>
@@ -61,7 +61,7 @@
         <image 
           class="sort-icon" 
           :class="{ 'sort-asc': sortOrder === 'asc' }"
-          src="https://img.icons8.com/ios/50/999999/sort.png" 
+          src="/static/icons/paixu.png" 
           mode="aspectFit" 
         />
         <text class="sort-text">{{ sortOrder === 'desc' ? '倒序' : '正序' }}</text>
@@ -89,7 +89,7 @@
             </view>
           </view>
           <view v-if="isAdmin" class="admin-delete-btn" @click="adminDeleteRecord(item)">
-            <image class="delete-icon-small" src="https://img.icons8.com/ios/50/ff6b6b/delete.png" mode="aspectFit" />
+            <image class="delete-icon-small" src="/static/icons/shanchu.png" mode="aspectFit" />
           </view>
         </view>
         <view class="dynamic-content">
@@ -111,13 +111,13 @@
             <view class="action-btn" @click="likeDynamic(item)">
               <image 
                 class="heart-icon" 
-                :src="item.isLiked ? 'https://img.icons8.com/ios/50/ff6b6b/like.png' : 'https://img.icons8.com/ios/50/999999/like.png'" 
+                :src="item.isLiked ? '/static/icons/like-full.png' : '/static/icons/like.png'" 
                 mode="aspectFit" 
               />
               <text class="action-count">{{ item.likeCount }}</text>
             </view>
             <view class="action-btn" @click="commentDynamic(item)">
-              <image class="comment-icon" src="https://img.icons8.com/ios/50/999999/speech-bubble.png" mode="aspectFit" />
+              <image class="comment-icon" src="/static/icons/pinglun.png" mode="aspectFit" />
               <text class="action-count">{{ item.commentCount || (item.comments ? item.comments.length : 0) }}</text>
             </view>
           </view>
@@ -192,7 +192,7 @@
                     <image class="record-action-icon" src="https://img.icons8.com/ios/50/999999/pencil.png" mode="aspectFit" />
                   </view>
                   <view class="action-icon-btn delete-icon-btn" @click="deleteRecord(record)">
-                    <image class="record-action-icon" src="https://img.icons8.com/ios/50/999999/delete.png" mode="aspectFit" />
+                    <image class="record-action-icon" src="/static/icons/shanchu.png" mode="aspectFit" />
                   </view>
                 </view>
               </view>
@@ -205,11 +205,11 @@
     <!-- 底部打卡按钮 -->
     <view class="bottom-bar" v-if="canCheckin || isEnded || hasCheckedInToday">
       <view v-if="canCheckin" class="checkin-float-btn" @click="showCheckinModal">
-        <image class="check-icon" src="https://img.icons8.com/ios/50/ffffff/ok.png" mode="aspectFit" />
+        <image class="check-icon" src="/static/icons/daka.png" mode="aspectFit" />
         <text class="btn-label">打卡</text>
       </view>
       <view v-else-if="hasCheckedInToday" class="checkin-float-btn checked-in">
-        <image class="check-icon" src="https://img.icons8.com/ios/50/ffffff/checkmark.png" mode="aspectFit" />
+        <image class="check-icon" src="/static/icons/daka.png" mode="aspectFit" />
         <text class="btn-label">今日已打卡</text>
       </view>
       <view v-else-if="isEnded" class="checkin-float-btn ended">
@@ -225,7 +225,7 @@
         <view class="modal-header">
           <text class="modal-title">今日打卡</text>
           <view class="close-btn" @click="closeModal">
-            <image class="close-icon" src="https://img.icons8.com/ios/50/666666/delete-sign.png" mode="aspectFit" />
+            <image class="close-icon" src="/static/icons/close.png" mode="aspectFit" />
           </view>
         </view>
         
@@ -294,11 +294,11 @@
               <view class="upload-item" v-for="(img, idx) in checkinImages" :key="idx">
                 <image class="upload-img" :src="String(img || '')" mode="aspectFill" />
                 <view class="delete-img" @click="checkinImages.splice(idx, 1)">
-                  <image class="delete-icon" src="https://img.icons8.com/ios/50/ffffff/delete-sign.png" mode="aspectFit" />
+                  <image class="delete-icon" src="/static/icons/close.png" mode="aspectFit" />
                 </view>
               </view>
               <view class="upload-add" @click="chooseImage" v-if="checkinImages.length < 9">
-                <image class="plus-icon" src="https://img.icons8.com/ios/50/FF8C42/plus-math.png" mode="aspectFit" />
+                <image class="plus-icon" src="/static/icons/plus.png" mode="aspectFit" />
                 <text class="upload-text">添加</text>
               </view>
             </view>
@@ -319,7 +319,7 @@
       <view class="modal-header">
         <text class="modal-title">评论</text>
         <view class="close-btn" @click="closeCommentModal">
-          <image class="close-icon" src="https://img.icons8.com/ios/50/666666/delete-sign.png" mode="aspectFit" />
+          <image class="close-icon" src="/static/icons/close.png" mode="aspectFit" />
         </view>
       </view>
       
@@ -369,7 +369,7 @@
                   <text class="action-text">修改</text>
                 </view>
                 <view class="action-item delete" @click="deleteComment(comment.id)">
-                  <image class="action-icon" src="https://img.icons8.com/ios/50/ff6b6b/delete.png" mode="aspectFit" />
+                  <image class="action-icon" src="/static/icons/shanchu.png" mode="aspectFit" />
                   <text class="action-text delete-text">删除</text>
                 </view>
               </view>
@@ -402,7 +402,7 @@
       <view class="modal-header">
         <text class="modal-title">编辑打卡</text>
         <view class="close-btn" @click="closeEditModal">
-          <image class="close-icon" src="https://img.icons8.com/ios/50/666666/delete-sign.png" mode="aspectFit" />
+          <image class="close-icon" src="/static/icons/close.png" mode="aspectFit" />
         </view>
       </view>
       
@@ -445,11 +445,11 @@
             <view class="upload-item" v-for="(img, idx) in editImages" :key="idx">
               <image class="upload-img" :src="String(img || '')" mode="aspectFill" />
               <view class="delete-img" @click="editImages.splice(idx, 1)">
-                <image class="delete-icon" src="https://img.icons8.com/ios/50/ffffff/delete-sign.png" mode="aspectFit" />
+                <image class="delete-icon" src="/static/icons/close.png" mode="aspectFit" />
               </view>
             </view>
             <view class="upload-add" @click="chooseEditImage" v-if="editImages.length < 9">
-              <image class="plus-icon" src="https://img.icons8.com/ios/50/FF8C42/plus-math.png" mode="aspectFit" />
+              <image class="plus-icon" src="/static/icons/plus.png" mode="aspectFit" />
               <text class="upload-text">添加</text>
             </view>
           </view>
@@ -468,7 +468,7 @@
       <view class="modal-header">
         <text class="modal-title">打卡成就</text>
         <view class="close-btn" @click="closeShareCardModal">
-          <image class="close-icon" src="https://img.icons8.com/ios/50/666666/delete-sign.png" mode="aspectFit" />
+          <image class="close-icon" src="/static/icons/close.png" mode="aspectFit" />
         </view>
       </view>
       
@@ -541,6 +541,7 @@
 import { ref, computed, onMounted, watch } from 'vue';
 import request, { BASE_URL } from '../../api/request.js';
 import * as htmlToImage from 'html-to-image';
+import { checkTextContent, checkImageContent } from '../../utils/contentSecurity.js';
 
 // 原生模板广告事件监听
 const adLoad = () => {
@@ -1602,11 +1603,21 @@ const chooseImage = async () => {
     sizeType: ['compressed'],
     sourceType: ['album', 'camera'],
     success: async (res) => {
-      uni.showLoading({ title: '处理图片中...' });
+      uni.showLoading({ title: '检测图片中...' });
       
       const uploadedUrls = [];
       for (const tempFilePath of res.tempFilePaths) {
         try {
+          // 先进行图片内容安全检测
+          const checkResult = await checkImageContent(tempFilePath);
+          if (!checkResult.isSafe) {
+            uni.hideLoading();
+            uni.showToast({ title: checkResult.message || '图片含有违规内容', icon: 'none' });
+            return;
+          }
+          
+          uni.showLoading({ title: '上传图片中...' });
+          
           const compressedPath = await compressImage(tempFilePath);
           const uploadedUrl = await uploadImage(compressedPath);
           uploadedUrls.push(uploadedUrl);
@@ -1652,6 +1663,18 @@ const submitCheckin = async () => {
       }
     });
     return;
+  }
+  
+  // 文本内容安全检测（scene=4 社交日志）
+  if (content && content.trim()) {
+    uni.showLoading({ title: '检测内容中...' });
+    const textCheckResult = await checkTextContent(content, 4);
+    uni.hideLoading();
+    
+    if (!textCheckResult.isSafe) {
+      uni.showToast({ title: textCheckResult.message || '内容含有违规信息', icon: 'none' });
+      return;
+    }
   }
   
   try {
@@ -2117,6 +2140,7 @@ export default {
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   z-index: 1;
   flex-shrink: 0;
+  margin-left: auto;
 }
 
 .sort-btn:active {

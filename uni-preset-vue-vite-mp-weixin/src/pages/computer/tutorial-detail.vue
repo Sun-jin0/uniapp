@@ -125,9 +125,33 @@ const goToPractice = (section) => {
   // 构建题目类型列表（用于筛选）
   const questionTypes = [...new Set(section.question_types || ['单选题', '多选题', '填空题', '解答题'])];
   
+  // 检查是否有保存的进度
+  const progressKey = `computer_chapter_${section.id}`;
+  const progressList = uni.getStorageSync('practiceProgressList') || [];
+  const savedProgress = progressList.find(item => item.progressKey === progressKey);
+  
+  // 确定要跳转的题目ID
+  let targetQuestionId = questionIds[0];
+  if (savedProgress && savedProgress.url) {
+    const queryString = savedProgress.url.split('?')[1];
+    if (queryString) {
+      const params = {};
+      queryString.split('&').forEach(pair => {
+        const [key, value] = pair.split('=');
+        if (key && value) {
+          params[key] = decodeURIComponent(value);
+        }
+      });
+      const savedQuestionId = params.questionId;
+      if (savedQuestionId && questionIds.includes(savedQuestionId)) {
+        targetQuestionId = savedQuestionId;
+      }
+    }
+  }
+  
   // 跳转到 computer-practice 页面
   uni.navigateTo({
-    url: `/pages/computer/computer-practice?questionId=${questionIds[0]}&context=chapter_${section.id}_types_${questionTypes.join(',')}&chapterId=${section.id}&majorId=tutorial`
+    url: `/pages/computer/computer-practice?questionId=${targetQuestionId}&context=chapter_${section.id}_types_${questionTypes.join(',')}&chapterId=${section.id}&majorId=tutorial`
   });
 };
 </script>

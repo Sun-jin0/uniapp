@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<script setup>
+﻿﻿﻿<script setup>
 import { ref, onMounted, computed, watch, nextTick } from 'vue';
 import { onShareAppMessage, onShareTimeline } from '@dcloudio/uni-app';
 import { onLoad } from '@dcloudio/uni-app';
@@ -59,13 +59,13 @@ const parseContentWithImages = (text) => {
       }
     }
 
-    // 添加图片，并强制添加样式限制宽度
+    // 提取图片 URL
     let imgTag = match[0];
-    // 移除已有的 style 属性
-    imgTag = imgTag.replace(/\s+style="[^"]*"/gi, '');
-    // 添加新的 style 属性
-    imgTag = imgTag.replace(/<img/i, '<img style="max-width: 100%; height: auto; display: block;"');
-    result.push({ type: 'image', content: imgTag });
+    const srcMatch = imgTag.match(/src=["']([^"']+)["']/i);
+    if (srcMatch) {
+      const processedSrc = adjustImageUrl(srcMatch[1]);
+      result.push({ type: 'image', src: processedSrc });
+    }
 
     lastIndex = match.index + match[0].length;
   }
@@ -304,10 +304,66 @@ const loadNearbyQuestions = async (centerIndex) => {
 
 onLoad((options) => {
   pageOptions.value = options || {};
+  
+  // 如果 URL 中没有指定 questionId，检查是否有保存的进度
+  if (!options.questionId) {
+    const savedProgress = getSavedProgress(options);
+    if (savedProgress && savedProgress.url) {
+      const urlParams = extractParamsFromUrl(savedProgress.url);
+      if (urlParams.questionId) {
+        pageOptions.value.questionId = urlParams.questionId;
+      }
+    }
+  }
+  
   // 在 onLoad 中调用 fetchQuestions，确保参数已设置
   fetchQuestions();
   fetchRelatedArticles();
 });
+
+// 从 URL 中提取参数
+const extractParamsFromUrl = (url) => {
+  const params = {};
+  if (!url) return params;
+  
+  const queryString = url.split('?')[1];
+  if (!queryString) return params;
+  
+  queryString.split('&').forEach(pair => {
+    const [key, value] = pair.split('=');
+    if (key && value) {
+      params[key] = decodeURIComponent(value);
+    }
+  });
+  
+  return params;
+};
+
+// 获取保存的进度
+const getSavedProgress = (options) => {
+  const progressList = uni.getStorageSync('practiceProgressList') || [];
+  if (!Array.isArray(progressList) || progressList.length === 0) return null;
+  
+  // 根据当前参数构建 progressKey
+  let currentProgressKey = null;
+  
+  if (options.mode === 'wrong_book') {
+    currentProgressKey = 'computer_wrong_book';
+  } else if (options.chapterId) {
+    currentProgressKey = `computer_chapter_${options.chapterId}`;
+  } else if (options.tagId) {
+    currentProgressKey = `computer_tag_${options.tagId}`;
+  } else if (options.examGroupId) {
+    currentProgressKey = `computer_exam_${options.examGroupId}`;
+  }
+  
+  // 如果有 progressKey，查找匹配的进度
+  if (currentProgressKey) {
+    return progressList.find(item => item.progressKey === currentProgressKey);
+  }
+  
+  return null;
+};
 
 const errorMsg = ref('');
 const showAnswerSheet = ref(false);
@@ -849,26 +905,61 @@ const saveCurrentPracticeState = () => {
     timestamp: Date.now()
   };
   
-  // 根据模式设置标题和URL
+  // 根据模式设置标题、URL 和唯一标识
   if (options.mode === 'wrong_book') {
     practiceState.title = '计算机 - 错题本';
     practiceState.url = `/pages/computer/computer-practice?mode=wrong_book`;
+    practiceState.progressKey = 'computer_wrong_book';
   } else if (options.chapterId) {
     practiceState.title = '计算机 - 章节练习';
     practiceState.url = `/pages/computer/computer-practice?questionId=${allQuestionIds.value[currentIndex.value]}&context=${options.context || ''}&chapterId=${options.chapterId}&majorId=${options.majorId || ''}`;
+    practiceState.progressKey = `computer_chapter_${options.chapterId}`;
+    practiceState.id = options.chapterId;
   } else if (options.tagId) {
     practiceState.title = '计算机 - 考点练习';
     practiceState.url = `/pages/computer/computer-practice?questionId=${allQuestionIds.value[currentIndex.value]}&context=${options.context || ''}&tagId=${options.tagId}&chapterId=${options.chapterId || ''}&majorId=${options.majorId || ''}`;
+    practiceState.progressKey = `computer_tag_${options.tagId}`;
+    practiceState.id = options.tagId;
   } else if (options.examGroupId) {
     practiceState.title = '计算机 - 历年真题';
     practiceState.url = `/pages/computer/computer-practice?questionId=${allQuestionIds.value[currentIndex.value]}&context=${options.context || ''}&examGroupId=${options.examGroupId}`;
+    practiceState.progressKey = `computer_exam_${options.examGroupId}`;
+    practiceState.id = options.examGroupId;
   } else {
     practiceState.title = '计算机刷题';
     practiceState.url = `/pages/computer/computer-practice?questionId=${allQuestionIds.value[currentIndex.value] || ''}`;
+    practiceState.progressKey = 'computer_general';
   }
   
-  // 保存到本地存储
-  uni.setStorageSync('lastPracticeSubject', practiceState);
+  // 保存到进度列表
+  savePracticeProgressToList(practiceState);
+};
+
+// 保存进度到列表
+const savePracticeProgressToList = (practiceItem) => {
+  if (!practiceItem || !practiceItem.progressKey) return;
+  
+  let progressList = uni.getStorageSync('practiceProgressList') || [];
+  
+  if (!Array.isArray(progressList)) {
+    progressList = [];
+  }
+  
+  const existingIndex = progressList.findIndex(item => 
+    item.progressKey === practiceItem.progressKey
+  );
+  
+  if (existingIndex !== -1) {
+    progressList.splice(existingIndex, 1);
+  }
+  
+  progressList.unshift(practiceItem);
+  
+  if (progressList.length > 10) {
+    progressList = progressList.slice(0, 10);
+  }
+  
+  uni.setStorageSync('practiceProgressList', progressList);
 };
 
 const fetchQuestions = async () => {
@@ -990,6 +1081,14 @@ const fetchQuestions = async () => {
           allQuestionIds.value = questionIds;
           // 初始化题目数组（用空对象占位）
           questions.value = new Array(questionIds.length).fill(null);
+          
+          // 如果有保存的 questionId，跳转到对应位置
+          if (questionId) {
+            const targetIndex = questionIds.findIndex(id => String(id) === String(questionId));
+            if (targetIndex !== -1) {
+              currentIndex.value = targetIndex;
+            }
+          }
         }
       } else {
         // 降级方案：根据参数获取
@@ -1286,7 +1385,7 @@ const processQuestionData = (data) => {
   if (data.options && data.options.length > 0) {
     data.content = data.content || {};
     data.content.options = data.options.map(opt => ({
-      text: opt.option_value || opt.content || opt.text || opt,
+      text: fixHtmlImages(opt.option_value || opt.content || opt.text || opt),
       label: opt.option_key || opt.label || opt.key || ''
     }));
   }
@@ -2402,10 +2501,20 @@ onShareTimeline(() => {
                             </view>
                           </scroll-view>
                         </view>
-                        <mp-html v-else :content="addImageStyles(segment.content)" class="title-rich-text" markdown @imgtap="handleImageTap"></mp-html>
+                        <template v-else>
+                          <template v-for="(item, i) in parseContentWithImages(segment.content)" :key="i">
+                            <mp-html v-if="item.type === 'html'" :content="item.content" markdown @imgtap="handleImageTap"></mp-html>
+                            <image v-else-if="item.type === 'image'" :src="item.src" mode="widthFix" style="max-width: 100%; display: block;" @click="previewImage(item.src)"></image>
+                          </template>
+                        </template>
                       </view>
                     </template>
-                    <mp-html v-else :content="addImageStyles(currentQuestion.truncatedStem || currentQuestion.stem)" class="title-rich-text" markdown @imgtap="handleImageTap"></mp-html>
+                    <template v-else>
+                      <template v-for="(item, idx) in parseContentWithImages(currentQuestion.truncatedStem || currentQuestion.stem)" :key="idx">
+                        <mp-html v-if="item.type === 'html'" :content="item.content" markdown @imgtap="handleImageTap"></mp-html>
+                        <image v-else-if="item.type === 'image'" :src="item.src" mode="widthFix" style="max-width: 100%; display: block;" @click="previewImage(item.src)"></image>
+                      </template>
+                    </template>
                   </template>
                   <template v-else>
                     <template v-if="hasCodeBlock(currentQuestion.truncatedStem || currentQuestion.originalStem)">
@@ -2421,10 +2530,20 @@ onShareTimeline(() => {
                             </view>
                           </scroll-view>
                         </view>
-                        <mp-html v-else :content="addImageStyles(segment.content)" class="title-rich-text" markdown @imgtap="handleImageTap"></mp-html>
+                        <template v-else>
+                          <template v-for="(item, i) in parseContentWithImages(segment.content)" :key="i">
+                            <mp-html v-if="item.type === 'html'" :content="item.content" markdown @imgtap="handleImageTap"></mp-html>
+                            <image v-else-if="item.type === 'image'" :src="item.src" mode="widthFix" style="max-width: 100%; display: block;" @click="previewImage(item.src)"></image>
+                          </template>
+                        </template>
                       </view>
                     </template>
-                    <mp-html v-else :content="addImageStyles(currentQuestion.truncatedStem || currentQuestion.originalStem)" class="title-rich-text" markdown @imgtap="handleImageTap"></mp-html>
+                    <template v-else>
+                      <template v-for="(item, idx) in parseContentWithImages(currentQuestion.truncatedStem || currentQuestion.originalStem)" :key="idx">
+                        <mp-html v-if="item.type === 'html'" :content="item.content" markdown @imgtap="handleImageTap"></mp-html>
+                        <image v-else-if="item.type === 'image'" :src="item.src" mode="widthFix" style="max-width: 100%; display: block;" @click="previewImage(item.src)"></image>
+                      </template>
+                    </template>
                   </template>
                   <!-- #endif -->
                 </view>
@@ -2438,9 +2557,9 @@ onShareTimeline(() => {
           </view>
           
           <!-- 选项列表 (选择题) -->
-          <view v-if="[1, 2, 5].includes(currentQuestion.exercise_type) && currentQuestion.content && currentQuestion.content.options" class="options-list">
+          <view v-if="[1, 2, 5].includes(currentQuestion.exercise_type) && currentQuestion.options && currentQuestion.options.length > 0" class="options-list">
             <view 
-              v-for="(option, index) in currentQuestion.content.options" 
+              v-for="(option, index) in currentQuestion.options" 
               :key="index"
               class="option-item"
               :class="getOptionClass(currentIndex, index)"
@@ -2448,15 +2567,10 @@ onShareTimeline(() => {
             >
               <view class="option-label">{{ String.fromCharCode(65 + index) }}</view>
               <view class="option-content" :style="{ fontSize: dynamicFontSize.option }">
-                <!-- #ifdef H5 -->
-                <mp-html :content="option.text || option" @imgtap="handleImageTap"></mp-html>
-                <!-- #endif -->
-                <!-- #ifdef MP-WEIXIN -->
-                <template v-for="(item, idx) in parseContentWithImages(option.text || option)" :key="idx">
-                  <mp-html v-if="item.type === 'html'" :content="item.content" markdown domain="https://s3.hi168.com" @imgtap="handleImageTap"></mp-html>
-                  <rich-text v-else-if="item.type === 'image'" :nodes="item.content"></rich-text>
+                <template v-for="(item, idx) in parseContentWithImages(option.option_value || option.text || option)" :key="idx">
+                  <mp-html v-if="item.type === 'html'" :content="item.content" markdown @imgtap="handleImageTap"></mp-html>
+                  <image v-else-if="item.type === 'image'" :src="item.src" mode="widthFix" style="max-width: 100%; display: block;" @click="previewImage(item.src)"></image>
                 </template>
-                <!-- #endif -->
               </view>
               <view v-if="shouldShowAnswer(currentIndex)" class="result-icon">
                 <SvgIcon v-if="isCorrectOption(currentQuestion, index)" name="correct" size="32" fill="#4caf50" />
@@ -2497,34 +2611,7 @@ onShareTimeline(() => {
                 </view>
                 <view class="sub-stem">
                   <view class="sub-index">{{ sIdx + 1 }}.</view>
-                  <!-- #ifdef H5 -->
-                  <mp-html :content="sub.stem" @imgtap="handleImageTap"></mp-html>
-                  <!-- #endif -->
-                  <!-- #ifdef MP-WEIXIN -->
-                  <template v-if="hasCodeBlock(sub.stem)">
-                    <view v-for="(segment, idx) in parseContentWithCodeBlocks(sub.stem)" :key="idx">
-                      <view v-if="segment.type === 'code'" class="code-block-wrapper">
-                        <scroll-view class="code-block-scroll" scroll-x="true" scroll-with-animation="true">
-                          <view class="code-block-content">
-                            <view class="code-content-text">{{ segment.content }}</view>
-                          </view>
-                        </scroll-view>
-                      </view>
-                      <template v-else>
-                        <template v-for="(item, i) in parseContentWithImages(segment.content)" :key="i">
-                          <mp-html v-if="item.type === 'html'" :content="item.content" markdown domain="https://s3.hi168.com" @imgtap="handleImageTap"></mp-html>
-                          <rich-text v-else-if="item.type === 'image'" :nodes="item.content"></rich-text>
-                        </template>
-                      </template>
-                    </view>
-                  </template>
-                  <template v-else>
-                    <template v-for="(item, idx) in parseContentWithImages(sub.stem)" :key="idx">
-                      <mp-html v-if="item.type === 'html'" :content="item.content" markdown domain="https://s3.hi168.com" @imgtap="handleImageTap"></mp-html>
-                      <rich-text v-else-if="item.type === 'image'" :nodes="item.content"></rich-text>
-                    </template>
-                  </template>
-                  <!-- #endif -->
+                  <mp-html :content="sub.stem" markdown @imgtap="handleImageTap"></mp-html>
                 </view>
                 <textarea 
                   v-if="questionStates[currentIndex]?.subAnswers"
@@ -2558,7 +2645,7 @@ onShareTimeline(() => {
                           <template v-else>
                             <template v-for="(item, i) in parseContentWithImages(segment.content)" :key="i">
                               <mp-html v-if="item.type === 'html'" :content="item.content" markdown domain="https://s3.hi168.com" @imgtap="handleImageTap"></mp-html>
-                              <rich-text v-else-if="item.type === 'image'" :nodes="item.content"></rich-text>
+                              <image v-else-if="item.type === 'image'" :src="item.src" mode="widthFix" style="max-width: 100%; display: block;" @click="previewImage(item.src)"></image>
                             </template>
                           </template>
                         </view>
@@ -2566,7 +2653,7 @@ onShareTimeline(() => {
                       <template v-else>
                         <template v-for="(item, idx) in parseContentWithImages(sub.answer || sub.originalAnswer || sub.standard_answer || sub.correct_answer)" :key="idx">
                           <mp-html v-if="item.type === 'html'" :content="item.content" markdown domain="https://s3.hi168.com" @imgtap="handleImageTap"></mp-html>
-                          <rich-text v-else-if="item.type === 'image'" :nodes="item.content"></rich-text>
+                          <image v-else-if="item.type === 'image'" :src="item.src" mode="widthFix" style="max-width: 100%; display: block;" @click="previewImage(item.src)"></image>
                         </template>
                       </template>
                       <!-- #endif -->
@@ -2591,7 +2678,7 @@ onShareTimeline(() => {
                           <template v-else>
                             <template v-for="(item, i) in parseContentWithImages(segment.content)" :key="i">
                               <mp-html v-if="item.type === 'html'" :content="item.content" markdown domain="https://s3.hi168.com" @imgtap="handleImageTap"></mp-html>
-                              <rich-text v-else-if="item.type === 'image'" :nodes="item.content"></rich-text>
+                              <image v-else-if="item.type === 'image'" :src="item.src" mode="widthFix" style="max-width: 100%; display: block;" @click="previewImage(item.src)"></image>
                             </template>
                           </template>
                         </view>
@@ -2599,7 +2686,7 @@ onShareTimeline(() => {
                       <template v-else>
                         <template v-for="(item, idx) in parseContentWithImages(sub.analysis || sub.commentary || sub.method || sub.explanation || sub.solution)" :key="idx">
                           <mp-html v-if="item.type === 'html'" :content="item.content" markdown domain="https://s3.hi168.com" @imgtap="handleImageTap"></mp-html>
-                          <rich-text v-else-if="item.type === 'image'" :nodes="item.content"></rich-text>
+                          <image v-else-if="item.type === 'image'" :src="item.src" mode="widthFix" style="max-width: 100%; display: block;" @click="previewImage(item.src)"></image>
                         </template>
                       </template>
                       <!-- #endif -->
@@ -2702,7 +2789,7 @@ onShareTimeline(() => {
               <!-- #ifdef MP-WEIXIN -->
               <template v-for="(item, idx) in parseContentWithImages(currentQuestion.displayAnswer || currentQuestion.answer)" :key="idx">
                 <mp-html v-if="item.type === 'html'" :content="item.content" markdown domain="https://s3.hi168.com" @imgtap="handleImageTap"></mp-html>
-                <rich-text v-else-if="item.type === 'image'" :nodes="item.content"></rich-text>
+                <image v-else-if="item.type === 'image'" :src="item.src" mode="widthFix" style="max-width: 100%; display: block;" @click="previewImage(item.src)"></image>
               </template>
               <!-- #endif -->
             </view>
@@ -2723,7 +2810,7 @@ onShareTimeline(() => {
               <!-- #ifdef MP-WEIXIN -->
               <template v-for="(item, idx) in parseContentWithImages(currentQuestion.answer)" :key="idx">
                 <mp-html v-if="item.type === 'html'" :content="item.content" markdown domain="https://s3.hi168.com" @imgtap="handleImageTap"></mp-html>
-                <rich-text v-else-if="item.type === 'image'" :nodes="item.content"></rich-text>
+                <image v-else-if="item.type === 'image'" :src="item.src" mode="widthFix" style="max-width: 100%; display: block;" @click="previewImage(item.src)"></image>
               </template>
               <!-- #endif -->
             </view>
@@ -2744,7 +2831,7 @@ onShareTimeline(() => {
               <!-- #ifdef MP-WEIXIN -->
               <template v-for="(item, idx) in parseContentWithImages(currentQuestion.analysis)" :key="idx">
                 <mp-html v-if="item.type === 'html'" :content="item.content" markdown domain="https://s3.hi168.com" @imgtap="handleImageTap"></mp-html>
-                <rich-text v-else-if="item.type === 'image'" :nodes="item.content"></rich-text>
+                <image v-else-if="item.type === 'image'" :src="item.src" mode="widthFix" style="max-width: 100%; display: block;" @click="previewImage(item.src)"></image>
               </template>
               <!-- #endif -->
             </view>

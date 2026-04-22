@@ -1803,9 +1803,67 @@ const saveProgress = async (index) => {
       bookId: bookId.value,
       lastIndex: index
     });
+    
+    // 保存到本地进度列表
+    savePracticeProgressToList(index);
   } catch (error) {
     console.error('saveProgress error:', error);
   }
+};
+
+// 保存进度到列表
+const savePracticeProgressToList = (index) => {
+  const question = questions.value[index];
+  if (!question) return;
+  
+  let progressKey = `public_book_${bookId.value}`;
+  if (mode.value === 'chapter' && chapterId.value) {
+    progressKey = `public_chapter_${chapterId.value}`;
+  } else if (mode.value === 'wrong') {
+    progressKey = `public_wrong_${bookId.value}`;
+  } else if (mode.value === 'favorite') {
+    progressKey = `public_favorite_${bookId.value}`;
+  } else if (mode.value === 'category' && questionType.value) {
+    progressKey = `public_type_${bookId.value}_${questionType.value}`;
+  }
+  
+  let url = `/pages/public/public-practice?bookId=${bookId.value}&mode=${mode.value}&title=${encodeURIComponent(bookTitle.value)}`;
+  if (chapterId.value) url += `&chapterId=${chapterId.value}`;
+  if (questionType.value) url += `&type=${questionType.value}`;
+  url += `&startIndex=${index}`;
+  
+  const practiceItem = {
+    type: 'public',
+    subject: '公共课',
+    id: bookId.value,
+    title: bookTitle.value,
+    bookTitle: bookTitle.value,
+    bookId: bookId.value,
+    url: url,
+    icon: 'books',
+    progressKey,
+    currentIndex: index + 1,
+    totalQuestions: totalCount.value,
+    timestamp: Date.now()
+  };
+  
+  let progressList = uni.getStorageSync('practiceProgressList') || [];
+  if (!Array.isArray(progressList)) {
+    progressList = [];
+  }
+  
+  const existingIndex = progressList.findIndex(item => item.progressKey === progressKey);
+  if (existingIndex !== -1) {
+    progressList.splice(existingIndex, 1);
+  }
+  
+  progressList.unshift(practiceItem);
+  
+  if (progressList.length > 10) {
+    progressList = progressList.slice(0, 10);
+  }
+  
+  uni.setStorageSync('practiceProgressList', progressList);
 };
 
 // 广告事件处理

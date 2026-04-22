@@ -31,7 +31,7 @@
 </template>
 
 <script setup>
-import { shallowRef, onBeforeUnmount, watch, ref } from 'vue'
+import { shallowRef, onBeforeUnmount, watch, ref, nextTick } from 'vue'
 import { Editor, Toolbar } from '@wangeditor/editor-for-vue'
 import '@wangeditor/editor/dist/css/style.css'
 import { adminApi } from '@/api'
@@ -73,11 +73,13 @@ const selectedModel = ref('deepseek-ai/DeepSeek-V3.2')
 // AI 格式化功能
 const aiFormat = async () => {
   const editor = editorRef.value
-  if (!editor) return
+  if (!editor || editor.isDestroyed) {
+    ElMessage.warning('编辑器未初始化')
+    return
+  }
   
   aiFormatting.value = true
   try {
-    // 获取当前 HTML 内容
     let html = editor.getHtml()
     
     if (!html || html === '<p><br></p>') {
@@ -85,10 +87,8 @@ const aiFormat = async () => {
       return
     }
     
-    // 保存原始内容
     const originalHtml = html
     
-    // 调用 AI API 进行格式化
     const res = await adminApi.aiFormatCode({
       content: html,
       instruction: '请格式化以下内容，删除所有多余空行，保持原有逻辑和内容不变。',
@@ -97,26 +97,27 @@ const aiFormat = async () => {
     
     let formattedContent = res.data.formattedContent || html
     
-    // 确保内容不为空
     if (!formattedContent || formattedContent.trim() === '' || formattedContent === '<p><br></p>') {
       ElMessage.warning('AI格式化后内容为空，已取消操作')
       return
     }
     
-    // 更新编辑器内容
-    try {
-      editor.setHtml(formattedContent)
-      
-      // 更新值
-      valueHtml.value = formattedContent
-      emit('update:modelValue', formattedContent)
-      emit('change', formattedContent)
-      
-      ElMessage.success('AI格式化完成')
-    } catch (editorError) {
-      console.error('编辑器更新失败:', editorError)
-      editor.setHtml(originalHtml)
-      ElMessage.error('编辑器更新失败，已恢复原内容')
+    await nextTick()
+    
+    if (editor && !editor.isDestroyed) {
+      try {
+        editor.setHtml(formattedContent)
+        valueHtml.value = formattedContent
+        emit('update:modelValue', formattedContent)
+        emit('change', formattedContent)
+        ElMessage.success('AI格式化完成')
+      } catch (editorError) {
+        console.error('编辑器更新失败:', editorError)
+        if (editor && !editor.isDestroyed) {
+          editor.setHtml(originalHtml)
+        }
+        ElMessage.error('编辑器更新失败，已恢复原内容')
+      }
     }
     
   } catch (error) {
@@ -130,11 +131,13 @@ const aiFormat = async () => {
 // 删除空行功能
 const removeEmptyLines = async () => {
   const editor = editorRef.value
-  if (!editor) return
+  if (!editor || editor.isDestroyed) {
+    ElMessage.warning('编辑器未初始化')
+    return
+  }
   
   cleaning.value = true
   try {
-    // 获取当前 HTML 内容
     let html = editor.getHtml()
     
     if (!html || html === '<p><br></p>') {
@@ -142,58 +145,48 @@ const removeEmptyLines = async () => {
       return
     }
     
-    // 保存原始内容用于恢复
     const originalHtml = html
     
-    // 使用正则表达式直接处理 HTML 字符串
     let cleanedHtml = html
     
-    // 1. 删除代码块内的 <br> 标签（替换为换行符）
     cleanedHtml = cleanedHtml.replace(/(<pre[^>]*>[\s\S]*?<\/pre>)/gi, (match) => {
       return match.replace(/<br\s*\/?>/gi, '\n')
     })
     
-    // 2. 删除所有空段落（只包含 <br> 或 &nbsp; 或空白的段落）
-    // 匹配 <p>...</p> 其中内容只有 <br> 或 &nbsp; 或空白
     cleanedHtml = cleanedHtml.replace(/<p[^>]*>\s*(<br\s*\/?>|&nbsp;|\s)*\s*<\/p>/gi, '')
     
-    // 3. 删除段落末尾的 <br>
     cleanedHtml = cleanedHtml.replace(/<br\s*\/?>\s*<\/p>/gi, '</p>')
     
-    // 4. 删除段落开头的 <br>
     cleanedHtml = cleanedHtml.replace(/<p>\s*<br\s*\/?>/gi, '<p>')
     
-    // 5. 删除开头的 <br>
     cleanedHtml = cleanedHtml.replace(/^\s*<br\s*\/?>/gi, '')
     
-    // 6. 删除结尾的 <br>
     cleanedHtml = cleanedHtml.replace(/<br\s*\/?>\s*$/gi, '')
     
-    // 7. 删除连续的 <br> 标签
     cleanedHtml = cleanedHtml.replace(/(<br\s*\/?>\s*){2,}/gi, '<br>')
     
-    // 确保内容不为空
     if (!cleanedHtml || cleanedHtml.trim() === '' || cleanedHtml === '<p><br></p>') {
       ElMessage.warning('清理后内容为空，已取消操作')
       cleaning.value = false
       return
     }
     
-    // 使用 setHtml 更新内容
-    try {
-      editor.setHtml(cleanedHtml)
-      
-      // 更新值
-      valueHtml.value = cleanedHtml
-      emit('update:modelValue', cleanedHtml)
-      emit('change', cleanedHtml)
-      
-      ElMessage.success('已删除多余空行')
-    } catch (editorError) {
-      console.error('编辑器更新失败:', editorError)
-      // 如果失败，尝试恢复原内容
-      editor.setHtml(originalHtml)
-      ElMessage.error('编辑器更新失败，已恢复原内容')
+    await nextTick()
+    
+    if (editor && !editor.isDestroyed) {
+      try {
+        editor.setHtml(cleanedHtml)
+        valueHtml.value = cleanedHtml
+        emit('update:modelValue', cleanedHtml)
+        emit('change', cleanedHtml)
+        ElMessage.success('已删除多余空行')
+      } catch (editorError) {
+        console.error('编辑器更新失败:', editorError)
+        if (editor && !editor.isDestroyed) {
+          editor.setHtml(originalHtml)
+        }
+        ElMessage.error('编辑器更新失败，已恢复原内容')
+      }
     }
     
   } catch (error) {
@@ -206,8 +199,19 @@ const removeEmptyLines = async () => {
 
 // 监听外部值变化
 watch(() => props.modelValue, (newVal) => {
+  const editor = editorRef.value
   if (newVal !== valueHtml.value) {
     valueHtml.value = newVal
+    if (editor && !editor.isDestroyed) {
+      try {
+        const currentHtml = editor.getHtml()
+        if (currentHtml !== newVal) {
+          editor.setHtml(newVal || '<p><br></p>')
+        }
+      } catch (e) {
+        console.warn('编辑器同步失败:', e)
+      }
+    }
   }
 })
 
@@ -281,9 +285,10 @@ const handleCreated = (editor) => {
 }
 
 const handleChange = (editor) => {
+  if (!editor || editor.isDestroyed) return
+  
   let html = editor.getHtml()
   
-  // 移除所有图片的硬编码宽高
   html = html.replace(/<img([^>]*?)style="[^"]*width\s*:\s*\d+(\.\d+)?(px|%)?[^"]*height\s*:\s*\d+(\.\d+)?(px|%)?[^"]*"([^>]*?)>/gi, '<img$1$6>')
              .replace(/<img([^>]*?)width="\d+(\.\d+)?"([^>]*?)height="\d+(\.\d+)?"([^>]*?)>/gi, '<img$1$3$5>')
              .replace(/<img([^>]*?)style="[^"]*width\s*:\s*\d+(\.\d+)?(px|%)?[^"]*"([^>]*?)>/gi, '<img$1$4>')
@@ -291,14 +296,12 @@ const handleChange = (editor) => {
              .replace(/<img([^>]*?)style="[^"]*height\s*:\s*\d+(\.\d+)?(px|%)?[^"]*"([^>]*?)>/gi, '<img$1$4>')
              .replace(/<img([^>]*?)height="\d+(\.\d+)?"([^>]*?)>/gi, '<img$1$3>')
   
-  // 清理空属性：alt="" data-href="" style=""
   html = html.replace(/<img\s+([^>]*?)alt=""\s*([^>]*?)>/gi, '<img $1$2>')
              .replace(/<img\s+([^>]*?)data-href=""\s*([^>]*?)>/gi, '<img $1$2>')
              .replace(/<img\s+([^>]*?)style=""\s*([^>]*?)>/gi, '<img $1$2>')
              .replace(/<img\s+([^>]*?)alt=""\s*([^>]*?)>/gi, '<img $1$2>')
              .replace(/<img\s+([^>]*?)data-href=""\s*([^>]*?)>/gi, '<img $1$2>')
              .replace(/<img\s+([^>]*?)style=""\s*([^>]*?)>/gi, '<img $1$2>')
-             // 清理重复空格和尾部属性
              .replace(/<img\s+/gi, '<img ')
              .replace(/\s*>/gi, '>')
   
@@ -310,8 +313,14 @@ const handleChange = (editor) => {
 // 组件销毁时，也及时销毁编辑器
 onBeforeUnmount(() => {
   const editor = editorRef.value
-  if (editor == null) return
-  editor.destroy()
+  if (editor && !editor.isDestroyed) {
+    try {
+      editor.destroy()
+    } catch (e) {
+      console.warn('编辑器销毁失败:', e)
+    }
+  }
+  editorRef.value = null
 })
 </script>
 

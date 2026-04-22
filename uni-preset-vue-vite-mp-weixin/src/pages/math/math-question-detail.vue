@@ -646,7 +646,7 @@ function setQueryParam(name, value) {
     const urlParams = new URLSearchParams(window.location.search);
     urlParams.set(name, value);
     const newUrl = `${window.location.origin}${window.location.pathname}?${urlParams.toString()}${window.location.hash}`;
-    window.history.pushState({}, '', newUrl);
+    window.history.replaceState({}, '', newUrl);
   }
   // #endif
   // 微信小程序不支持修改 URL，使用 storage 替代
@@ -2112,6 +2112,9 @@ const saveCurrentPracticeState = () => {
     practiceState.bookTitle = topNavTitle.value;
     practiceState.title = topNavTitle.value;
     practiceState.url = `/pages/math/math-question-detail?bookId=${currentBookId.value}&bookTitle=${encodeURIComponent(topNavTitle.value)}&questionId=${currentVisibleSourceId.value}`;
+    practiceState.progressKey = `math_book_${currentBookId.value}`;
+    practiceState.id = currentBookId.value;
+    practiceState.icon = 'math';
   } 
   // 如果是考点刷题模式（有ids参数）
   else if (sortedBookQuestionSourceIDs.value.length > 0) {
@@ -2119,17 +2122,51 @@ const saveCurrentPracticeState = () => {
     practiceState.ids = sortedBookQuestionSourceIDs.value.join(',');
     practiceState.title = topNavTitle.value || '考点刷题';
     practiceState.url = `/pages/math/math-question-detail?ids=${sortedBookQuestionSourceIDs.value.join(',')}&questionId=${currentVisibleSourceId.value}`;
+    practiceState.progressKey = `math_knowledge_${practiceState.ids.substring(0, 50)}`;
+    practiceState.icon = 'math';
   }
   // 单题模式
   else {
     practiceState.mode = 'single';
     practiceState.title = '题目详情';
     practiceState.url = `/pages/math/math-question-detail?questionId=${currentVisibleSourceId.value}`;
+    practiceState.progressKey = `math_single_${currentVisibleSourceId.value}`;
+    practiceState.icon = 'math';
   }
   
   // 保存到本地存储
   uni.setStorageSync('lastPracticeSubject', practiceState);
   uni.setStorageSync('currentPracticeState', practiceState);
+  
+  // 保存到进度列表
+  savePracticeProgressToList(practiceState);
+};
+
+// 保存进度到列表
+const savePracticeProgressToList = (practiceItem) => {
+  if (!practiceItem || !practiceItem.progressKey) return;
+  
+  let progressList = uni.getStorageSync('practiceProgressList') || [];
+  
+  if (!Array.isArray(progressList)) {
+    progressList = [];
+  }
+  
+  const existingIndex = progressList.findIndex(item => 
+    item.progressKey === practiceItem.progressKey
+  );
+  
+  if (existingIndex !== -1) {
+    progressList.splice(existingIndex, 1);
+  }
+  
+  progressList.unshift(practiceItem);
+  
+  if (progressList.length > 10) {
+    progressList = progressList.slice(0, 10);
+  }
+  
+  uni.setStorageSync('practiceProgressList', progressList);
 };
 
 const navigateToQuestion = (sourceId, bookIdForNav = null) => {
@@ -2223,14 +2260,14 @@ const navigateToQuestion = (sourceId, bookIdForNav = null) => {
   // 保存当前刷题状态到首页显示
   saveCurrentPracticeState();
 
-  // 更新URL历史记录
+  // 更新URL（使用 replaceState 避免添加历史记录，保证返回按钮正常工作）
   // #ifdef H5
   if (typeof window !== 'undefined' && window.history) {
     // 从 topNavTitle 获取当前书本标题，用于URL构建
     let currentBookTitle = topNavTitle.value || '';
     // 构建完整的URL，包含路由路径
     const newUrl = `${window.location.origin}${window.location.pathname}?questionId=${sourceId}&bookId=${targetBookId}#/pages/math/math-question-detail?bookId=${targetBookId}&bookTitle=${encodeURIComponent(currentBookTitle)}&questionId=${sourceId}`;
-    window.history.pushState(
+    window.history.replaceState(
       { sourceId, bookId: targetBookId },
       `题目 ${sourceId}`,
       newUrl
@@ -2837,21 +2874,6 @@ onMounted(() => {
   window.addEventListener('scroll', () => {
     showScrollToTop.value = window.pageYOffset > 200;
   });
-
-  window.addEventListener('popstate', (event) => {
-    const state = event.state || {};
-    const newSourceId = state.sourceId;
-    const newBookId = state.bookId;
-
-    if (newSourceId) {
-      currentVisibleSourceId.value = newSourceId;
-    }
-
-    if (newBookId) {
-      currentBookId.value = newBookId;
-      fetchBookDetails();
-    }
-  });
   // #endif
 });
 
@@ -2860,8 +2882,6 @@ onUnmounted(() => {
   window.removeEventListener('scroll', () => {
     showScrollToTop.value = window.pageYOffset > 200;
   });
-  
-  window.removeEventListener('popstate', () => {});
   
   document.body.style.overflow = '';
   // #endif

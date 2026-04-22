@@ -82,7 +82,7 @@
       </view>
 
       <!-- 右侧：当前在刷 -->
-      <view class="current-card" @click="handleContinuePractice">
+      <view class="current-card" @click="handleContinuePractice(getCurrentProgress())">
         <view class="current-header">
           <view class="current-label">当前在刷</view>
         </view>
@@ -90,18 +90,18 @@
           <view class="current-info">
             <view class="current-title">
               <view class="title-text">
-                {{ getCurrentPracticeTitle() }}
+                {{ getCurrentProgressTitle() }}
               </view>
               <view class="title-text duplicate">
-                {{ getCurrentPracticeTitle() }}
+                {{ getCurrentProgressTitle() }}
               </view>
             </view>
-            <view class="current-progress" v-if="lastPracticeSubject.currentIndex && lastPracticeSubject.totalQuestions">
-              第{{ lastPracticeSubject.currentIndex }}题/共{{ lastPracticeSubject.totalQuestions }}题
+            <view class="current-progress" v-if="getCurrentProgress()?.currentIndex && getCurrentProgress()?.totalQuestions">
+              第{{ getCurrentProgress().currentIndex }}题/共{{ getCurrentProgress().totalQuestions }}题
             </view>
             <view class="current-status" v-else>Learning</view>
           </view>
-          <SvgIcon :name="getCurrentPracticeIcon()" size="48" fill="#ff9800" />
+          <SvgIcon :name="getCurrentProgressIcon()" size="48" fill="#ff9800" />
         </view>
       </view>
     </view>
@@ -648,59 +648,130 @@ const checkLoginStatus = () => {
   return isLoggedIn.value;
 };
 
-// 最近练习科目
-const lastPracticeSubject = ref({
-  id: 1,
-  title: '26消1000题',
-  icon: 'paint-brush',
-  color: '#fff3e0',
-  textColor: '#ff9800'
-});
+// 最近练习科目列表（支持多个进度）
+const practiceProgressList = ref([]);
 
-// 加载最近练习科目
-const loadLastPracticeSubject = () => {
-  const saved = uni.getStorageSync('lastPracticeSubject');
-  if (saved) {
-    // 复制对象，避免引用问题
-    const practiceData = { ...saved };
-    // 确保有图标，如果没有则根据标题映射
-    if (!practiceData.icon || practiceData.icon === 'books') {
-      const titleIconMap = {
-        '计算机': 'computer',
-        '数学': 'math',
-        '政治': 'flag',
-        '英语': 'graduation-cap',
-        '全部': 'books'
-      };
-      for (const key in titleIconMap) {
-        if (practiceData.title && practiceData.title.includes(key)) {
-          practiceData.icon = titleIconMap[key];
-          break;
+// 加载最近练习科目列表
+const loadPracticeProgressList = () => {
+  const saved = uni.getStorageSync('practiceProgressList');
+  if (saved && Array.isArray(saved)) {
+    practiceProgressList.value = saved.map(item => {
+      const practiceData = { ...item };
+      if (!practiceData.icon || practiceData.icon === 'books') {
+        const titleIconMap = {
+          '计算机': 'computer',
+          '数学': 'math',
+          '政治': 'flag',
+          '英语': 'graduation-cap',
+          '全部': 'books'
+        };
+        for (const key in titleIconMap) {
+          if (practiceData.title && practiceData.title.includes(key)) {
+            practiceData.icon = titleIconMap[key];
+            break;
+          }
         }
       }
-    }
-    lastPracticeSubject.value = practiceData;
+      return practiceData;
+    });
+  } else {
+    practiceProgressList.value = [];
   }
 };
 
+// 获取练习图标
+const getPracticeIcon = (item) => {
+  if (item.icon) return item.icon;
+  const titleIconMap = {
+    '计算机': 'computer',
+    '数学': 'math',
+    '政治': 'flag',
+    '英语': 'graduation-cap',
+    '全部': 'books'
+  };
+  for (const key in titleIconMap) {
+    if (item.title && item.title.includes(key)) {
+      return titleIconMap[key];
+    }
+  }
+  return 'books';
+};
+
+// 删除进度
+const deleteProgress = (index) => {
+  practiceProgressList.value.splice(index, 1);
+  uni.setStorageSync('practiceProgressList', practiceProgressList.value);
+};
+
+// 获取当前进度（最新的一个）
+const getCurrentProgress = () => {
+  return practiceProgressList.value.length > 0 ? practiceProgressList.value[0] : null;
+};
+
+// 获取当前进度标题
+const getCurrentProgressTitle = () => {
+  const current = getCurrentProgress();
+  if (current) {
+    return current.bookTitle || current.title || '开始学习';
+  }
+  return '开始学习';
+};
+
+// 获取当前进度图标
+const getCurrentProgressIcon = () => {
+  const current = getCurrentProgress();
+  if (current) {
+    return getPracticeIcon(current);
+  }
+  return 'books';
+};
+
 // 处理继续练习
-const handleContinuePractice = () => {
+const handleContinuePractice = (item) => {
   if (!checkLoginAndAlert()) return;
 
-  if (lastPracticeSubject.value) {
-    // 如果有直接的URL，使用URL跳转
-    if (lastPracticeSubject.value.url) {
-      uni.navigateTo({ url: lastPracticeSubject.value.url });
+  if (item) {
+    if (item.url) {
+      uni.navigateTo({ url: item.url });
       return;
     }
-    // 否则使用默认跳转
-    const url = `/pages/practice/practice-detail?id=${lastPracticeSubject.value.id}`;
-    if (lastPracticeSubject.value.isTab) {
+    const url = `/pages/practice/practice-detail?id=${item.id}`;
+    if (item.isTab) {
       uni.switchTab({ url });
     } else {
       uni.navigateTo({ url });
     }
   }
+};
+
+// 保存进度到列表
+const savePracticeProgress = (practiceItem) => {
+  if (!practiceItem || !practiceItem.id && !practiceItem.progressKey) return;
+  
+  const progressKey = practiceItem.progressKey || `${practiceItem.type || 'unknown'}_${practiceItem.id || Date.now()}`;
+  
+  const existingIndex = practiceProgressList.value.findIndex(item => 
+    (item.progressKey && item.progressKey === progressKey) || 
+    (item.id && practiceItem.id && item.id === practiceItem.id && item.type === practiceItem.type)
+  );
+  
+  const newItem = {
+    ...practiceItem,
+    progressKey,
+    timestamp: Date.now()
+  };
+  
+  if (existingIndex !== -1) {
+    practiceProgressList.value.splice(existingIndex, 1);
+  }
+  
+  practiceProgressList.value.unshift(newItem);
+  
+  if (practiceProgressList.value.length > 10) {
+    practiceProgressList.value = practiceProgressList.value.slice(0, 10);
+  }
+  
+  uni.setStorageSync('practiceProgressList', practiceProgressList.value);
 };
 
 // 格式化时间
@@ -753,36 +824,6 @@ const getIconName = (val) => {
   if (n.includes('public') || n.includes('公共')) return 'flag';
   
   return 'books';
-};
-
-// 获取当前练习标题
-const getCurrentPracticeTitle = () => {
-  // 如果有详细的书本标题
-  if (lastPracticeSubject.value.bookTitle) {
-    return lastPracticeSubject.value.bookTitle;
-  }
-  // 如果有标题
-  if (lastPracticeSubject.value.title) {
-    return lastPracticeSubject.value.title;
-  }
-  // 默认返回
-  return '考研数学';
-};
-
-// 获取当前练习图标
-const getCurrentPracticeIcon = () => {
-  // 根据类型返回图标
-  if (lastPracticeSubject.value.type === 'computer' || lastPracticeSubject.value.subject === '计算机') {
-    return 'computer';
-  }
-  if (lastPracticeSubject.value.type === 'math' || lastPracticeSubject.value.subject === '数学') {
-    return 'math';
-  }
-  // 如果有图标字段
-  if (lastPracticeSubject.value.icon) {
-    return getIconName(lastPracticeSubject.value.icon);
-  }
-  return 'math';
 };
 
 // 获取签到数据并自动签到
@@ -877,7 +918,6 @@ const goToExam = () => {
 
 // 开始考试
 const startExam = (examId) => {
-  // 更新最近练习科目
   const exam = originalExamList.value.find(e => e.id === examId);
   if (exam) {
     const practiceItem = {
@@ -885,10 +925,10 @@ const startExam = (examId) => {
       title: exam.title,
       icon: 'books',
       url: `/pages/answer/answer?examId=${examId}`,
-      isTab: false
+      isTab: false,
+      type: 'exam'
     };
-    uni.setStorageSync('lastPracticeSubject', practiceItem);
-    lastPracticeSubject.value = practiceItem;
+    savePracticeProgress(practiceItem);
   }
 
   uni.navigateTo({
@@ -1217,12 +1257,14 @@ const loadAllHomeData = async () => {
         let list = [...recentLearning];
         
         // 处理“当前在刷”标记
-        if (list.length > 0 && lastPracticeSubject.value && lastPracticeSubject.value.id) {
-          // 如果第一项就是最近练习的项目，标记为 isCurrent
-          const firstItem = list[0];
-          const lastId = lastPracticeSubject.value.id;
-          if (firstItem.examId === lastId || firstItem.subjectId === lastId) {
-            firstItem.isCurrent = true;
+        if (list.length > 0 && practiceProgressList.value.length > 0) {
+          const firstProgress = practiceProgressList.value[0];
+          if (firstProgress && firstProgress.id) {
+            const firstItem = list[0];
+            const lastId = firstProgress.id;
+            if (firstItem.examId === lastId || firstItem.subjectId === lastId) {
+              firstItem.isCurrent = true;
+            }
           }
         }
         
@@ -1284,12 +1326,14 @@ const loadRecentLearning = async () => {
       let list = Array.isArray(res.data) ? res.data : [];
       
       // 处理“当前在刷”标记
-      if (list.length > 0 && lastPracticeSubject.value && lastPracticeSubject.value.id) {
-        // 如果第一项就是最近练习的项目，标记为 isCurrent
-        const firstItem = list[0];
-        const lastId = lastPracticeSubject.value.id;
-        if (firstItem.examId === lastId || firstItem.subjectId === lastId) {
-          firstItem.isCurrent = true;
+      if (list.length > 0 && practiceProgressList.value.length > 0) {
+        const firstProgress = practiceProgressList.value[0];
+        if (firstProgress && firstProgress.id) {
+          const firstItem = list[0];
+          const lastId = firstProgress.id;
+          if (firstItem.examId === lastId || firstItem.subjectId === lastId) {
+            firstItem.isCurrent = true;
+          }
         }
       }
       
@@ -1396,10 +1440,10 @@ const navigateToSelection = (item) => {
     title: item.title,
     icon: item.icon,
     url: item.url,
-    isTab: item.isTab || item.is_tab
+    isTab: item.isTab || item.is_tab,
+    type: item.type || 'selection'
   };
-  uni.setStorageSync('lastPracticeSubject', practiceItem);
-  lastPracticeSubject.value = practiceItem;
+  savePracticeProgress(practiceItem);
   
   // 立即刷新最近学习列表（队列逻辑）- 仅登录时
   if (isLoggedIn.value) {
@@ -1558,8 +1602,8 @@ onMounted(async () => {
   // 加载首页概览数据
   loadAllHomeData();
   
-  // 加载最近练习科目
-  loadLastPracticeSubject();
+  // 加载最近练习科目列表
+  loadPracticeProgressList();
 });
 
 // 页面卸载时取消事件监听
@@ -1575,7 +1619,7 @@ onUnmounted(() => {
 onShow(() => {
   // 重新检查登录状态（解决页面缓存问题）
   checkLoginStatus();
-  loadLastPracticeSubject();
+  loadPracticeProgressList();
   loadAllHomeData();
   // 刷新首页卡片数据
   initHomepageCards();

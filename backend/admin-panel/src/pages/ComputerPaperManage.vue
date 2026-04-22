@@ -225,7 +225,7 @@
     </el-dialog>
     
     <!-- 编辑题目对话框 -->
-    <el-dialog v-model="questionEditVisible" title="编辑题目" width="1000px" top="3vh" class="question-edit-dialog">
+    <el-dialog v-model="questionEditVisible" title="编辑题目" width="1000px" top="3vh" class="question-edit-dialog" destroy-on-close>
       <el-form :model="questionEditForm" label-width="100px" class="question-edit-form">
         <!-- 基础信息行 -->
         <el-row :gutter="20">
@@ -1013,32 +1013,54 @@ const savePaper = async () => {
 // 删除试卷
 const deletePaper = async (row) => {
   try {
-    await ElMessageBox.confirm(
-      `确定要删除试卷"${row.title}"吗？此操作将同时删除试卷与题目的关联关系，但不会删除题目本身。`,
+    const result = await ElMessageBox.confirm(
+      `确定要删除试卷"${row.title}"吗？`,
       '确认删除',
-      { type: 'warning' }
+      {
+        type: 'warning',
+        distinguishCancelAndClose: true,
+        confirmButtonText: '仅删除试卷',
+        cancelButtonText: '删除试卷和题目',
+        showClose: true,
+        closeOnClickModal: false
+      }
     )
     
-    await adminApi.deleteComputerPaper(row.id)
-    ElMessage.success('删除成功')
+    // 点击确认 - 仅删除试卷
+    await adminApi.deleteComputerPaper(row.id, false)
+    ElMessage.success('试卷删除成功')
     fetchPaperList()
-  } catch (error) {
-    if (error !== 'cancel') {
-      console.error('删除试卷失败:', error)
-      ElMessage.error('删除失败: ' + (error.response?.data?.message || error.message))
+  } catch (action) {
+    if (action === 'cancel') {
+      // 点击取消按钮 - 删除试卷和题目
+      try {
+        await ElMessageBox.confirm(
+          '确定要同时删除试卷中的所有题目吗？此操作不可恢复！',
+          '警告',
+          { type: 'error', confirmButtonText: '确定删除', cancelButtonText: '取消' }
+        )
+        await adminApi.deleteComputerPaper(row.id, true)
+        ElMessage.success('试卷和题目已删除')
+        fetchPaperList()
+      } catch (e) {
+        if (e !== 'cancel' && e !== 'close') {
+          console.error('删除试卷失败:', e)
+          ElMessage.error('删除失败: ' + (e.response?.data?.message || e.message))
+        }
+      }
+    } else if (action !== 'close') {
+      console.error('删除试卷失败:', action)
     }
   }
 }
 
 // 处理编辑按钮点击
 const handleEditQuestion = async (q) => {
-  console.log('点击编辑按钮:', q)
   await editQuestion(q)
 }
 
 // 编辑题目
 const editQuestion = async (q) => {
-  console.log('编辑题目:', q.question_id)
   
   try {
     // 加载科目列表
@@ -1058,7 +1080,6 @@ const editQuestion = async (q) => {
       if (inferred) {
         inferredMajorId = inferred.major_id
         inferredChapterId = inferred.chapter_id
-        console.log('从标签推断:', inferred)
       }
     }
     
@@ -1134,8 +1155,6 @@ const editQuestion = async (q) => {
       video_url: questionData.video_url || ''
     }
     questionEditVisible.value = true
-    console.log('对话框状态:', questionEditVisible.value)
-    console.log('题目详情（含小题）:', questionEditForm.value)
   } catch (error) {
     console.error('获取题目详情失败:', error)
     ElMessage.error('获取题目详情失败')
@@ -1212,7 +1231,7 @@ const inferSubjectAndChapterFromTags = async (tags) => {
     
     // 如果有标签ID，使用ID查询
     if (tagIds.length > 0) {
-      const res = await adminApi.getComputerTags({ keyword: tagIds.join(','), pageSize: tagIds.length })
+      const res = await adminApi.getComputerKnowledgeTags({ keyword: tagIds.join(','), pageSize: tagIds.length })
       const tagList = res.data?.list || []
       
       for (const tag of tagList) {
@@ -1237,7 +1256,7 @@ const inferSubjectAndChapterFromTags = async (tags) => {
     // 如果没有ID只有名称，使用名称查询
     if (tagNames.length > 0) {
       for (const tagName of tagNames) {
-        const res = await adminApi.getComputerTags({ keyword: tagName, pageSize: 1 })
+        const res = await adminApi.getComputerKnowledgeTags({ keyword: tagName, pageSize: 1 })
         const tagList = res.data?.list || []
         
         if (tagList.length > 0) {
@@ -1346,7 +1365,7 @@ const fetchChapterInfoById = async (chapterId) => {
   if (!chapterId) return null
   try {
     // 尝试通过考点API获取章节信息
-    const res = await adminApi.getComputerTags({ keyword: chapterId, pageSize: 1 })
+    const res = await adminApi.getComputerKnowledgeTags({ keyword: chapterId, pageSize: 1 })
     const tags = res.data?.list || []
     if (tags.length > 0) {
       const tag = tags[0]
@@ -1561,8 +1580,6 @@ const onSelectTagChapterChange = async (chapterId) => {
 const fetchChaptersForSelectTag = async (majorId) => {
   try {
     const res = await adminApi.getComputerChapters({ majorId })
-    console.log('获取章节列表:', res.data)
-    // 处理数据结构：res.data = { code: 0, message: 'success', data: [...] }
     const responseData = res.data?.data || res.data || []
     const chapters = Array.isArray(responseData) ? responseData : (responseData.chapters || [])
     selectTagChapters.value = chapters.map(c => ({
@@ -1578,9 +1595,7 @@ const fetchChaptersForSelectTag = async (majorId) => {
 // 获取考点列表（用于选择考点弹窗）
 const fetchTagsForSelectTag = async (chapterId) => {
   try {
-    const res = await adminApi.getComputerTags({ chapterId, pageSize: 1000 })
-    console.log('获取考点列表:', res.data)
-    // 处理数据结构：res.data = { code: 0, message: 'success', data: { list: [...], total: ... } }
+    const res = await adminApi.getComputerKnowledgeTags({ chapterId, pageSize: 1000 })
     const responseData = res.data?.data || res.data || {}
     const tags = responseData.list || responseData || []
     selectTagList.value = tags.map(t => ({

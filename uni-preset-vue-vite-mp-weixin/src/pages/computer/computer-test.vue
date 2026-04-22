@@ -41,9 +41,22 @@ const fetchPapers = async () => {
 };
 
 const handlePaperClick = (paper) => {
-  uni.navigateTo({
-    url: `/pages/computer/computer-question-list?examGroupId=${paper.id}&mode=year&title=${encodeURIComponent(paper.year + paper.title)}`
-  });
+  // 检查是否有保存的进度
+  const progressKey = `computer_exam_${paper.id}`;
+  const progressList = uni.getStorageSync('practiceProgressList') || [];
+  const savedProgress = progressList.find(item => item.progressKey === progressKey);
+  
+  // 如果有保存的进度且进度中有 URL，直接跳转到刷题页面
+  if (savedProgress && savedProgress.url && savedProgress.currentIndex > 1) {
+    uni.navigateTo({
+      url: savedProgress.url
+    });
+  } else {
+    // 否则跳转到题目列表
+    uni.navigateTo({
+      url: `/pages/computer/computer-question-list?examGroupId=${paper.id}&mode=year&title=${encodeURIComponent(paper.year + paper.title)}`
+    });
+  }
 };
 
 // 原生模板广告事件监听

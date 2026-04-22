@@ -241,6 +241,27 @@ const selectCourse = (course) => {
 };
 
 const goToPractice = (item, mode) => {
+  // 检查是否有保存的进度
+  let progressKey = null;
+  if (mode === 'chapter') {
+    progressKey = `med_chapter_${item.chapterId}`;
+  } else if (mode === 'year') {
+    progressKey = `med_year_${item.year}`;
+  } else if (mode === 'random') {
+    progressKey = `med_course_${activeCourseId.value}`;
+  }
+  
+  if (progressKey) {
+    const progressList = uni.getStorageSync('practiceProgressList') || [];
+    const savedProgress = progressList.find(p => p.progressKey === progressKey);
+    
+    // 如果有保存的进度且进度中有 URL，直接跳转到刷题页面
+    if (savedProgress && savedProgress.url && savedProgress.currentIndex > 1) {
+      uni.navigateTo({ url: savedProgress.url });
+      return;
+    }
+  }
+  
   let url = '/pages/med/med-practice?';
   let title = '西医综合';
   if (mode === 'chapter') {
@@ -260,7 +281,8 @@ const goToPractice = (item, mode) => {
     title: title,
     icon: 'paint-brush',
     url: url,
-    category: 'professional'
+    category: 'professional',
+    progressKey
   };
   uni.setStorageSync('lastPracticeSubject', practiceItem);
   

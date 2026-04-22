@@ -1822,8 +1822,8 @@ const importPaper = async (req, res) => {
             from_school, exam_time, exam_code, exam_full_name, exercise_number, level, total_score)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
-            finalId, examId || null, categoryId || null, extractedMajorId,
-            extractedChapterId, extractedExamGroupId, typeMap[exerciseType] || 1,
+            finalId, examId || null, categoryId || null, extractedMajorId || null,
+            extractedChapterId || null, extractedExamGroupId || null, typeMap[exerciseType] || 1,
             exerciseType, finalStem, finalAnswer, finalAnalysis, videoUrl || null,
             fromSchool || info.school || null, examTime || info.year || null,
             examCode || info.examCode || null, examFullName || info.title || null,
@@ -1915,7 +1915,7 @@ const importPaper = async (req, res) => {
               tagId = Date.now().toString() + Math.floor(Math.random() * 1000).toString();
               await connection.query(
                 'INSERT INTO computer1_knowledge_tag (tag_id, tag_name, chapter_id, exam_group_id) VALUES (?, ?, ?, ?)',
-                [tagId, tag, extractedChapterId, extractedExamGroupId]
+                [tagId, tag, extractedChapterId || null, extractedExamGroupId || null]
               );
             }
             
@@ -2080,9 +2080,9 @@ const importQuestions = async (req, res) => {
           finalId, 
           examId || null,
           categoryId || null,
-          extractedMajorId,
-          extractedChapterId,
-          extractedExamGroupId,
+          extractedMajorId || null,
+          extractedChapterId || null,
+          extractedExamGroupId || null,
           typeMap[exerciseType] || 1,
           exerciseType, 
           finalStem, 
@@ -2191,7 +2191,7 @@ const importQuestions = async (req, res) => {
               // 自动分配一个关联的章节和科目 (取题目的章节和科目)
               await connection.query(
                 'INSERT INTO computer1_knowledge_tag (tag_name, chapter_id) VALUES (?, ?)',
-                [tag, extractedChapterId]
+                [tag, extractedChapterId || null]
               );
               const [insertRes] = await connection.query(
                 'SELECT tag_id FROM computer1_knowledge_tag WHERE tag_name = ?',
@@ -4512,6 +4512,7 @@ const deletePaper = async (req, res) => {
   const connection = await mysqlPool.getConnection();
   try {
     const { paperId } = req.params;
+    const { deleteQuestions } = req.query;
     
     await connection.beginTransaction();
     
@@ -4520,6 +4521,47 @@ const deletePaper = async (req, res) => {
     if (existing.length === 0) {
       await connection.rollback();
       return res.status(404).json(errorResponse('试卷不存在'));
+    }
+    
+    // 如果需要同时删除题目
+    if (deleteQuestions === 'true') {
+      // 获取试卷中的所有题目ID
+      const [questions] = await connection.query(
+        'SELECT question_id FROM computer1_paper_question WHERE paper_id = ?',
+        [paperId]
+      );
+      
+      if (questions.length > 0) {
+        const questionIds = questions.map(q => q.question_id);
+        
+        // 删除题目的关联数据
+        await connection.query(
+          'DELETE FROM computer1_question_tag_relation WHERE question_id IN (?)',
+          [questionIds]
+        );
+        await connection.query(
+          'DELETE FROM computer1_question_option WHERE question_id IN (?)',
+          [questionIds]
+        );
+        await connection.query(
+          'DELETE FROM computer1_question_sub WHERE question_id IN (?)',
+          [questionIds]
+        );
+        await connection.query(
+          'DELETE FROM computer1_feedback WHERE QuestionID IN (?)',
+          [questionIds]
+        );
+        await connection.query(
+          'DELETE FROM computer1_chapter_question_set WHERE question_id IN (?)',
+          [questionIds]
+        );
+        
+        // 删除题目
+        await connection.query(
+          'DELETE FROM computer1_question WHERE question_id IN (?)',
+          [questionIds]
+        );
+      }
     }
     
     // 删除试卷题目关联

@@ -86,9 +86,9 @@
             "bigPackageSizeSupport" : true
         },
         "usingComponents" : true,
-        "lazyCodeLoading" : "requiredComponents",
+        "lazyCodeLoading" : false,
         "optimization" : {
-            "subPackages" : true
+            "subPackages" : false
         },
         "__usePrivacyCheck__" : true,
         "permission" : {},

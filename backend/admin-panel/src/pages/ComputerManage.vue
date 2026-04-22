@@ -107,6 +107,18 @@
       <!-- 试卷导入 -->
       <el-tab-pane label="试卷导入" name="paper-import">
         <div class="import-container">
+          <el-row :gutter="20" class="mb-20">
+            <el-col :span="8">
+              <div class="flex items-center">
+                <span class="mr-10" style="width: 80px;">试卷类型：</span>
+                <el-select v-model="paperImportType" placeholder="选择试卷类型" style="flex: 1;">
+                  <el-option label="真题卷" :value="1" />
+                  <el-option label="模拟卷" :value="2" />
+                </el-select>
+              </div>
+            </el-col>
+          </el-row>
+          
           <el-upload
             class="upload-demo"
             drag
@@ -114,15 +126,16 @@
             :auto-upload="false"
             :on-change="handlePaperFileChange"
             accept=".json"
+            multiple
           >
             <el-icon class="el-icon--upload"><upload-filled /></el-icon>
             <div class="el-upload__text">
-              将试卷 JSON 文件拖到此处，或<em>点击上传</em>
+              将试卷 JSON 文件拖到此处，或<em>点击上传</em>（支持多选）
             </div>
           </el-upload>
 
           <div v-if="paperQuestions.length > 0" class="mt-20">
-            <el-alert :title="`已加载 ${paperQuestions.length} 道题目`" type="info" :closable="false" show-icon />
+            <el-alert :title="`已加载 ${paperQuestions.length} 道题目，检测到 ${detectedPapers.length} 张试卷`" type="info" :closable="false" show-icon />
             
             <div class="mt-20">
               <el-button type="primary" :loading="importing" @click="startPaperImport">开始导入试卷</el-button>
@@ -135,6 +148,11 @@
                 <el-table-column prop="title" label="试卷名称" />
                 <el-table-column prop="school" label="来源学校" />
                 <el-table-column prop="year" label="年份" />
+                <el-table-column label="试卷类型" width="100" align="center">
+                  <template #default>
+                    {{ paperImportType === 1 ? '真题卷' : '模拟卷' }}
+                  </template>
+                </el-table-column>
                 <el-table-column label="题目数量" width="100" align="center">
                   <template #default="{ row }">
                     {{ row.questions.length }}
@@ -393,6 +411,7 @@ const activeTab = ref('corrections')
 const loadingCorrections = ref(false)
 const loadingQuestions = ref(false)
 const importing = ref(false)
+const importLoadingInstance = ref(null)
 
 // 纠错相关
 const corrections = ref([])
@@ -424,6 +443,8 @@ const editingForm = ref(null)
 // 试卷导入
 const paperQuestions = ref([])
 const detectedPapers = ref([])
+const paperImportType = ref(1)
+const processedFiles = ref(new Set())
 
 // 考点管理
 const knowledgeTagList = ref([])
@@ -709,19 +730,26 @@ const removeOption = (index) => {
 }
 
 // 试卷导入相关
-const handlePaperFileChange = (file) => {
+const handlePaperFileChange = (file, fileList) => {
+  const fileKey = `${file.name}-${file.size}`
+  if (processedFiles.value.has(fileKey)) {
+    return
+  }
+  processedFiles.value.add(fileKey)
+  
   const reader = new FileReader()
   reader.onload = (e) => {
     try {
       const data = JSON.parse(e.target.result)
       if (Array.isArray(data)) {
-        paperQuestions.value = data
-        detectPapers(data)
+        paperQuestions.value = [...paperQuestions.value, ...data]
+        detectPapers(paperQuestions.value)
+        ElMessage.success(`已加载文件 ${file.name}，共 ${data.length} 道题目`)
       } else {
-        ElMessage.error('JSON 格式错误，期望数组')
+        ElMessage.error(`文件 ${file.name} 格式错误，期望数组`)
       }
     } catch (err) {
-      ElMessage.error('解析 JSON 失败')
+      ElMessage.error(`解析文件 ${file.name} 失败`)
     }
   }
   reader.readAsText(file.raw)
@@ -747,20 +775,87 @@ const detectPapers = (questions) => {
 const clearPaperData = () => {
   paperQuestions.value = []
   detectedPapers.value = []
+  processedFiles.value = new Set()
 }
 
 const startPaperImport = async () => {
   if (paperQuestions.value.length === 0) return
+  
+  const questionCount = paperQuestions.value.length
+  const paperCount = detectedPapers.value.length
+  
+  // 显示进度对话框
+  importLoadingInstance.value = ElMessageBox.alert(
+    `<div style="text-align: center; padding: 20px;">
+      <p style="font-size: 16px; margin-bottom: 10px;">正在导入试卷，请耐心等待...</p>
+      <p style="color: #666;">共 ${questionCount} 道题目，${paperCount} 张试卷</p>
+      <p style="color: #999; font-size: 12px; margin-top: 10px;">导入过程可能需要几分钟，请勿关闭页面</p>
+    </div>`,
+    '导入中',
+    {
+      dangerouslyUseHTMLString: true,
+      showConfirmButton: false,
+      showClose: false,
+      closeOnClickModal: false,
+      closeOnPressEscape: false
+    }
+  )
+  
   importing.value = true
+  
   try {
     await adminApi.importComputerPaper({
-      questions: paperQuestions.value
+      questions: paperQuestions.value,
+      paperInfo: {
+        paperType: paperImportType.value
+      }
     })
+    
+    // 关闭进度对话框
+    if (importLoadingInstance.value) {
+      importLoadingInstance.value.close()
+      importLoadingInstance.value = null
+    }
+    
     ElMessage.success('导入成功')
     clearPaperData()
   } catch (error) {
     console.error('导入失败:', error)
-    ElMessage.error('导入失败: ' + (error.response?.data?.message || error.message))
+    
+    // 关闭进度对话框
+    if (importLoadingInstance.value) {
+      importLoadingInstance.value.close()
+      importLoadingInstance.value = null
+    }
+    
+    // 判断是否是超时错误
+    const isTimeout = error.message?.includes('timeout') || error.code === 'ECONNABORTED'
+    
+    if (isTimeout) {
+      // 超时情况下，询问用户是否查看结果
+      ElMessageBox.confirm(
+        `<div style="text-align: center;">
+          <p style="color: #e6a23c; font-size: 16px; margin-bottom: 10px;">⚠️ 导入请求超时</p>
+          <p>由于数据量较大，导入操作可能需要更长时间。</p>
+          <p style="color: #666; margin-top: 10px;">数据可能已经成功导入，请检查试卷列表确认。</p>
+        </div>`,
+        '导入超时',
+        {
+          dangerouslyUseHTMLString: true,
+          confirmButtonText: '查看试卷列表',
+          cancelButtonText: '继续等待',
+          type: 'warning'
+        }
+      ).then(() => {
+        // 跳转到试卷管理页面
+        window.open('/admin-panel/#/computer/papers', '_blank')
+        clearPaperData()
+      }).catch(() => {
+        // 用户选择继续等待，不做任何操作
+      })
+    } else {
+      ElMessage.error('导入失败: ' + (error.response?.data?.message || error.message))
+    }
   } finally {
     importing.value = false
   }

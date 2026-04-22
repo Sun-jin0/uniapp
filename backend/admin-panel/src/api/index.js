@@ -303,7 +303,7 @@ export const adminApi = {
   updateComputerQuestion: (id, data) => service.put(`/computer1/admin/questions/${id}`, data),
   deleteComputerQuestion: (id) => service.delete(`/computer1/admin/questions/${id}`),
   updateComputerFeedbackStatus: (id, data) => service.put(`/computer1/feedbacks/${id}`, data),
-  importComputerPaper: (data) => service.post('/computer1/import-paper', data),
+  importComputerPaper: (data) => service.post('/computer1/import-paper', data, { timeout: 300000 }),
   // 考点分类管理
   getComputerKnowledgeTags: (params) => service.get('/computer1/admin/tags', { params }),
   getAllComputerKnowledgeTags: () => service.get('/computer1/admin/tags/all'),
@@ -315,7 +315,9 @@ export const adminApi = {
   // 计算机试卷管理
   getComputerPaperList: (params) => service.get('/computer1/admin/papers', { params }),
   getComputerPaperDetail: (id) => service.get(`/computer1/admin/papers/${id}`),
-  deleteComputerPaper: (id) => service.delete(`/computer1/admin/papers/${id}`),
+  updateComputerPaper: (id, data) => service.put(`/computer1/admin/papers/${id}`, data),
+  updateComputerPaperQuestions: (id, data) => service.put(`/computer1/admin/papers/${id}/questions`, data),
+  deleteComputerPaper: (id, deleteQuestions = false) => service.delete(`/computer1/admin/papers/${id}`, { params: { deleteQuestions } }),
   calibrateComputerPaper: (id) => service.post(`/computer1/admin/papers/${id}/calibrate`),
   syncComputerPaperInfo: (id) => service.post(`/computer1/admin/papers/${id}/sync`),
 

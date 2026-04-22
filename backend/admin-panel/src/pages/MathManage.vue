@@ -496,7 +496,7 @@
                       v-model="entrySourceCode"
                       type="textarea"
                       :rows="25"
-                      placeholder="请输入JSON格式的题目数据"
+                      placeholder="请输入JSON格式的题目数据，支持单题对象或题目数组 [{...}, {...}]"
                       class="source-code-input"
                       @change="onEntrySourceChange"
                     />
@@ -508,28 +508,40 @@
                 </el-col>
                 <el-col :span="12">
                   <div class="source-preview-section">
-                    <h4>预览</h4>
-                    <div v-if="entrySourcePreview" class="source-preview-content">
-                      <div class="preview-block">
-                        <div class="preview-label">题型</div>
-                        <div class="preview-content">{{ entrySourcePreview.QuestionType || entrySourcePreview.questionType }}</div>
+                    <div class="preview-header">
+                      <h4>题目编辑 ({{ entryCurrentIndex + 1 }} / {{ entrySourcePreviewList.length }})</h4>
+                      <div class="preview-nav">
+                        <el-button size="small" @click="prevEntryQuestion" :disabled="entryCurrentIndex <= 0">上一题</el-button>
+                        <el-button size="small" @click="nextEntryQuestion" :disabled="entryCurrentIndex >= entrySourcePreviewList.length - 1">下一题</el-button>
                       </div>
-                      <div class="preview-block">
-                        <div class="preview-label">难度</div>
-                        <div class="preview-content">{{ entrySourcePreview.Difficulty || entrySourcePreview.difficulty }}</div>
-                      </div>
-                      <div class="preview-block">
-                        <div class="preview-label">题干</div>
-                        <div class="preview-content" v-html="renderLatex(entrySourcePreview.QuestionText || entrySourcePreview.questionText)"></div>
-                      </div>
-                      <div class="preview-block">
-                        <div class="preview-label">答案</div>
-                        <div class="preview-content" v-html="renderLatex(entrySourcePreview.OriginalAnswerText || entrySourcePreview.answerText)"></div>
-                      </div>
-                      <div v-for="(detail, index) in (entrySourcePreview.details || entrySourcePreview.Details)" :key="index" class="preview-block">
-                        <div class="preview-label">{{ detail.BusType }} {{ detail.Title ? '- ' + detail.Title : '' }}</div>
-                        <div class="preview-content" v-html="renderLatex(detail.Context)"></div>
-                      </div>
+                    </div>
+                    <div v-if="entrySourcePreviewList.length > 0 && entrySourcePreviewList[entryCurrentIndex]" class="source-edit-form">
+                      <el-form :model="entrySourcePreviewList[entryCurrentIndex]" label-width="80px" size="small">
+                        <el-form-item label="题型">
+                          <el-select v-model="entrySourcePreviewList[entryCurrentIndex].QuestionType" placeholder="选择题型" style="width: 100%">
+                            <el-option label="单选题" value="单选题" />
+                            <el-option label="多选题" value="多选题" />
+                            <el-option label="填空题" value="填空题" />
+                            <el-option label="解答题" value="解答题" />
+                          </el-select>
+                        </el-form-item>
+                        <el-form-item label="难度">
+                          <el-slider v-model="entrySourcePreviewList[entryCurrentIndex].Difficulty" :min="0" :max="1" :step="0.1" show-stops />
+                        </el-form-item>
+                        <el-form-item label="题干">
+                          <el-input v-model="entrySourcePreviewList[entryCurrentIndex].QuestionText" type="textarea" :rows="4" />
+                        </el-form-item>
+                        <el-form-item label="答案">
+                          <el-input v-model="entrySourcePreviewList[entryCurrentIndex].OriginalAnswerText" type="textarea" :rows="3" />
+                        </el-form-item>
+                        <el-form-item label="详解">
+                          <div v-for="(detail, dIdx) in (entrySourcePreviewList[entryCurrentIndex].details || entrySourcePreviewList[entryCurrentIndex].Details || [])" :key="dIdx" class="detail-edit-item">
+                            <el-input v-model="detail.BusType" placeholder="类型" size="small" style="width: 100px; margin-bottom: 5px;" />
+                            <el-input v-model="detail.Title" placeholder="标题" size="small" style="width: 100%; margin-bottom: 5px;" />
+                            <el-input v-model="detail.Context" placeholder="内容" type="textarea" :rows="3" size="small" />
+                          </div>
+                        </el-form-item>
+                      </el-form>
                     </div>
                     <el-empty v-else description="请输入有效的JSON数据" />
                   </div>
@@ -537,9 +549,19 @@
               </el-row>
             </template>
 
+            <!-- 题目导航（表单模式下显示） -->
+            <div v-if="entryMode === 'form' && entrySourcePreviewList.length > 1" class="entry-question-nav mt-20">
+              <div class="nav-info">题目 {{ entryCurrentIndex + 1 }} / {{ entrySourcePreviewList.length }}</div>
+              <div class="nav-buttons">
+                <el-button size="large" @click="prevEntryQuestion" :disabled="entryCurrentIndex <= 0">上一题</el-button>
+                <el-button size="large" @click="nextEntryQuestion" :disabled="entryCurrentIndex >= entrySourcePreviewList.length - 1">下一题</el-button>
+              </div>
+            </div>
+
             <!-- 底部操作按钮 -->
             <div class="entry-actions mt-20">
               <el-button type="primary" size="large" @click="saveEntryQuestion" :loading="saving">保存题目</el-button>
+              <el-button v-if="entrySourcePreviewList.length > 1" type="success" size="large" @click="saveEntryQuestionsBatch" :loading="saving">批量保存 ({{ entrySourcePreviewList.length }} 题)</el-button>
               <el-button size="large" @click="clearEntryQuestion">清空</el-button>
             </div>
           </div>
@@ -1473,44 +1495,144 @@
     <el-dialog
       v-model="addQuestionsModalVisible"
       :title="isAddingToChapter ? `添加题目到章节: ${targetChapterName}` : '添加题目到书籍'"
-      width="80%"
+      width="90%"
+      top="3vh"
       destroy-on-close
+      class="add-questions-dialog"
     >
-      <div class="mb-20">
-        <el-input
-          v-model="searchForAddQuestions.keyword"
-          placeholder="搜索题目..."
-          clearable
-          @keyup.enter="searchQuestionsForSelection"
-        >
-          <template #append>
-            <el-button @click="searchQuestionsForSelection">搜索</el-button>
-          </template>
-        </el-input>
-      </div>
+      <div class="add-questions-container">
+        <!-- 左侧：书籍和章节选择 -->
+        <div class="book-tree-sidebar">
+          <div class="sidebar-section">
+            <div class="section-title">选择来源</div>
+            <el-select
+              v-model="sourceBookId"
+              placeholder="选择书籍/试卷"
+              filterable
+              clearable
+              @change="onSourceBookChange"
+              style="width: 100%; margin-bottom: 15px;"
+            >
+              <el-option
+                v-for="book in allBooks"
+                :key="book.BookID"
+                :label="book.BookTitle"
+                :value="book.BookID"
+              >
+                <span>{{ book.BookTitle }}</span>
+                <span style="float: right; color: #8492a6; font-size: 13px">
+                  {{ book.QuestionCount || 0 }}题
+                </span>
+              </el-option>
+            </el-select>
+          </div>
 
-      <el-table
-        :key="questionsForSelection.length"
-        :data="questionsForSelection"
-        v-loading="loadingQuestionsForSelection"
-        border
-        stripe
-        @selection-change="handleSelectionChange"
-      >
-        <el-table-column type="selection" width="55" align="center" />
-        <el-table-column prop="QuestionID" label="题目ID" width="100" align="center" />
-        <el-table-column prop="QuestionText" label="题干" min-width="300" show-overflow-tooltip />
-        <el-table-column prop="QuestionType" label="题型" width="100" align="center" />
-      </el-table>
+          <div class="sidebar-section" v-if="sourceBookId && sourceBookChapters.length > 0">
+            <div class="section-title">选择章节</div>
+            <div class="chapter-tree">
+              <div
+                v-for="chapter in sourceBookChapters"
+                :key="chapter.name"
+                class="chapter-tree-item"
+                :class="{ active: selectedSourceChapter?.name === chapter.name }"
+                @click="selectSourceChapter(chapter)"
+              >
+                <span class="chapter-name">{{ chapter.name || '未分类' }}</span>
+                <span class="chapter-count">({{ chapter.questionCount }}题)</span>
+              </div>
+            </div>
+          </div>
 
-      <div class="pagination-container mt-20">
-        <el-pagination
-          v-model:current-page="searchForAddQuestions.page"
-          v-model:page-size="searchForAddQuestions.pageSize"
-          :total="questionsForSelectionTotal"
-          layout="total, prev, pager, next"
-          @current-change="searchQuestionsForSelection"
-        />
+          <div class="sidebar-section">
+            <div class="section-title">筛选条件</div>
+            <el-input
+              v-model="searchForAddQuestions.keyword"
+              placeholder="搜索题目内容或ID..."
+              clearable
+              size="small"
+              @keyup.enter="searchQuestionsForSelection"
+              style="margin-bottom: 10px;"
+            />
+            <el-select
+              v-model="searchForAddQuestions.questionType"
+              placeholder="选择题型"
+              clearable
+              size="small"
+              @change="searchQuestionsForSelection"
+              style="width: 100%; margin-bottom: 10px;"
+            >
+              <el-option label="选择题" value="选择题" />
+              <el-option label="填空题" value="填空题" />
+              <el-option label="解答题" value="解答题" />
+            </el-select>
+            <el-button size="small" @click="resetAddQuestionFilters" style="width: 100%;">
+              重置筛选
+            </el-button>
+          </div>
+        </div>
+
+        <!-- 右侧：题目列表 -->
+        <div class="questions-list-main">
+          <div class="list-header">
+            <div class="header-info">
+              <span v-if="sourceBookId && selectedSourceChapter">
+                {{ getBookTitle(sourceBookId) }} / {{ selectedSourceChapter.name }}
+              </span>
+              <span v-else-if="sourceBookId">
+                {{ getBookTitle(sourceBookId) }} - 全部章节
+              </span>
+              <span v-else>请选择书籍和章节</span>
+            </div>
+            <div class="header-count">共 {{ questionsForSelectionTotal }} 题</div>
+          </div>
+
+          <el-table
+            :key="questionsForSelection.length"
+            :data="questionsForSelection"
+            v-loading="loadingQuestionsForSelection"
+            border
+            stripe
+            @selection-change="handleSelectionChange"
+            height="450"
+          >
+            <el-table-column type="selection" width="55" align="center" />
+            <el-table-column prop="QuestionID" label="题目ID" width="90" align="center" />
+            <el-table-column prop="QuestionSort" label="排序" width="70" align="center" sortable>
+              <template #default="{ row }">
+                {{ row.QuestionSort || row.Sort || '-' }}
+              </template>
+            </el-table-column>
+            <el-table-column prop="QuestionText" label="题干" min-width="280" show-overflow-tooltip>
+              <template #default="{ row }">
+                <div v-html="stripHtml(row.QuestionText).substring(0, 80)"></div>
+              </template>
+            </el-table-column>
+            <el-table-column prop="QuestionType" label="题型" width="90" align="center" />
+            <el-table-column prop="Difficulty" label="难度" width="90" align="center">
+              <template #default="{ row }">
+                <el-rate v-model="row.Difficulty" :max="5" disabled />
+              </template>
+            </el-table-column>
+            <el-table-column prop="BookChapter" label="原章节" width="120" show-overflow-tooltip>
+              <template #default="{ row }">
+                <el-tag v-if="row.BookChapter" size="small" type="info">{{ row.BookChapter }}</el-tag>
+                <span v-else>-</span>
+              </template>
+            </el-table-column>
+          </el-table>
+
+          <div class="pagination-container mt-15">
+            <el-pagination
+              v-model:current-page="searchForAddQuestions.page"
+              v-model:page-size="searchForAddQuestions.pageSize"
+              :total="questionsForSelectionTotal"
+              layout="total, sizes, prev, pager, next"
+              :page-sizes="[10, 20, 50, 100]"
+              @current-change="searchQuestionsForSelection"
+              @size-change="searchQuestionsForSelection"
+            />
+          </div>
+        </div>
       </div>
 
       <template #footer>
@@ -1884,11 +2006,18 @@ const questionsForSelectionTotal = ref(0)
 const selectedQuestions = ref([])
 const searchForAddQuestions = reactive({
   keyword: '',
+  questionType: '',
   page: 1,
   pageSize: 20
 })
 const isAddingToChapter = ref(false)
 const targetChapterName = ref('')
+
+// 来源书籍选择相关
+const sourceBookId = ref('')
+const sourceBookChapters = ref([])
+const selectedSourceChapter = ref(null)
+const allBooks = ref([])
 
 // 录入试题
 const entryBookId = ref(null)
@@ -1905,6 +2034,8 @@ const entryForm = reactive({
 const entryMode = ref('form') // 'form' | 'source'
 const entrySourceCode = ref('')
 const entrySourcePreview = ref(null)
+const entrySourcePreviewList = ref([])
+const entryCurrentIndex = ref(0) // 当前编辑的题目索引
 
 // 试题导入（新版三文件导入）
 const fileImportForm = reactive({
@@ -3497,7 +3628,7 @@ const openAddChapterModal = () => {
 }
 
 // 打开添加题目到章节弹窗
-const openAddQuestionsToChapter = () => {
+const openAddQuestionsToChapter = async () => {
   if (!selectedChapter.value) {
     ElMessage.warning('请先选择一个章节')
     return
@@ -3505,24 +3636,112 @@ const openAddQuestionsToChapter = () => {
   currentBook.value = currentBookDetail.value
   questionsForSelection.value = []
   selectedQuestions.value = []
+  
+  // 初始化来源选择相关数据
+  sourceBookId.value = ''
+  sourceBookChapters.value = []
+  selectedSourceChapter.value = null
+  
+  // 初始化筛选条件
   searchForAddQuestions.keyword = ''
+  searchForAddQuestions.questionType = ''
   searchForAddQuestions.page = 1
+  searchForAddQuestions.pageSize = 20
+  
+  // 加载所有书籍列表
+  await loadAllBooksForSelection()
+  
   addQuestionsModalVisible.value = true
   isAddingToChapter.value = true
   targetChapterName.value = selectedChapter.value.name
   searchQuestionsForSelection()
 }
 
+// 获取书籍标题
+const getBookTitle = (bookId) => {
+  const book = allBooks.value.find(b => b.BookID === bookId)
+  return book ? book.BookTitle : '未知书籍'
+}
+
+// 加载所有书籍列表（用于来源选择）
+const loadAllBooksForSelection = async () => {
+  try {
+    const res = await adminApi.getMathBooks({
+      page: 1,
+      pageSize: 1000  // 获取足够多的书籍
+    })
+    allBooks.value = res.data.list || []
+  } catch (error) {
+    console.error('加载书籍列表失败:', error)
+    allBooks.value = []
+  }
+}
+
+// 来源书籍变更处理
+const onSourceBookChange = async (bookId) => {
+  sourceBookChapters.value = []
+  selectedSourceChapter.value = null
+  questionsForSelection.value = []
+  questionsForSelectionTotal.value = 0
+  
+  if (!bookId) {
+    // 如果没有选择书籍，搜索所有题目
+    searchQuestionsForSelection()
+    return
+  }
+  
+  try {
+    const res = await adminApi.getMathBookChapters(bookId)
+    sourceBookChapters.value = res.data || []
+    
+    // 默认加载该书籍的所有题目
+    searchQuestionsForSelection()
+  } catch (error) {
+    console.error('获取章节列表失败:', error)
+    sourceBookChapters.value = []
+  }
+}
+
+// 选择来源章节
+const selectSourceChapter = (chapter) => {
+  selectedSourceChapter.value = chapter
+  searchForAddQuestions.page = 1
+  searchQuestionsForSelection()
+}
+
 // 打开添加题目到书籍弹窗
-const openAddQuestionsToBook = (book) => {
+const openAddQuestionsToBook = async (book) => {
   currentBook.value = book
   questionsForSelection.value = []
   selectedQuestions.value = []
+  
+  // 初始化来源选择相关数据
+  sourceBookId.value = ''
+  sourceBookChapters.value = []
+  selectedSourceChapter.value = null
+  
+  // 初始化筛选条件
   searchForAddQuestions.keyword = ''
+  searchForAddQuestions.questionType = ''
   searchForAddQuestions.page = 1
+  searchForAddQuestions.pageSize = 20
+  
+  // 加载所有书籍列表
+  await loadAllBooksForSelection()
+  
   addQuestionsModalVisible.value = true
   isAddingToChapter.value = false
   targetChapterName.value = ''
+  
+  // 默认搜索所有题目
+  searchQuestionsForSelection()
+}
+
+// 重置添加题目筛选条件
+const resetAddQuestionFilters = () => {
+  searchForAddQuestions.keyword = ''
+  searchForAddQuestions.questionType = ''
+  searchForAddQuestions.page = 1
   searchQuestionsForSelection()
 }
 
@@ -3530,15 +3749,99 @@ const openAddQuestionsToBook = (book) => {
 const searchQuestionsForSelection = async () => {
   loadingQuestionsForSelection.value = true
   try {
-    const res = await adminApi.searchMathQuestions({
+    let res
+    
+    // 如果选择了来源章节，从该章节加载题目
+    if (sourceBookId.value && selectedSourceChapter.value) {
+      const chapterRes = await adminApi.getMathBookChapterQuestions(
+        sourceBookId.value,
+        selectedSourceChapter.value.name
+      )
+      let questions = chapterRes.data || []
+      
+      // 按QuestionSort排序（题目顺序）
+      questions.sort((a, b) => {
+        const sortA = parseInt(a.QuestionSort) || parseInt(a.Sort) || 0
+        const sortB = parseInt(b.QuestionSort) || parseInt(b.Sort) || 0
+        return sortA - sortB
+      })
+      
+      // 本地筛选
+      if (searchForAddQuestions.keyword) {
+        const keyword = searchForAddQuestions.keyword.toLowerCase()
+        questions = questions.filter(q => 
+          (q.QuestionText && q.QuestionText.toLowerCase().includes(keyword)) ||
+          (q.QuestionID && q.QuestionID.toString().includes(keyword))
+        )
+      }
+      if (searchForAddQuestions.questionType) {
+        questions = questions.filter(q => q.QuestionType === searchForAddQuestions.questionType)
+      }
+      
+      // 本地分页
+      const start = (searchForAddQuestions.page - 1) * searchForAddQuestions.pageSize
+      const end = start + searchForAddQuestions.pageSize
+      questionsForSelection.value = questions.slice(start, end)
+      questionsForSelectionTotal.value = questions.length
+      return
+    }
+    
+    // 如果选择了来源书籍但没选择章节，从该书籍加载所有题目
+    if (sourceBookId.value) {
+      const bookRes = await adminApi.getMathBookQuestions(sourceBookId.value)
+      let questions = bookRes.data || []
+      
+      // 按章节排序，然后按题目排序
+      questions.sort((a, b) => {
+        // 先按章节排序
+        const chapterA = a.BookChapter || ''
+        const chapterB = b.BookChapter || ''
+        if (chapterA !== chapterB) {
+          return chapterA.localeCompare(chapterB, 'zh-CN')
+        }
+        // 同一章节内按QuestionSort排序
+        const sortA = parseInt(a.QuestionSort) || parseInt(a.Sort) || 0
+        const sortB = parseInt(b.QuestionSort) || parseInt(b.Sort) || 0
+        return sortA - sortB
+      })
+      
+      // 本地筛选
+      if (searchForAddQuestions.keyword) {
+        const keyword = searchForAddQuestions.keyword.toLowerCase()
+        questions = questions.filter(q => 
+          (q.QuestionText && q.QuestionText.toLowerCase().includes(keyword)) ||
+          (q.QuestionID && q.QuestionID.toString().includes(keyword))
+        )
+      }
+      if (searchForAddQuestions.questionType) {
+        questions = questions.filter(q => q.QuestionType === searchForAddQuestions.questionType)
+      }
+      
+      // 本地分页
+      const start = (searchForAddQuestions.page - 1) * searchForAddQuestions.pageSize
+      const end = start + searchForAddQuestions.pageSize
+      questionsForSelection.value = questions.slice(start, end)
+      questionsForSelectionTotal.value = questions.length
+      return
+    }
+    
+    // 没有选择来源书籍，使用通用搜索
+    const params = {
       keyword: searchForAddQuestions.keyword,
       page: searchForAddQuestions.page,
       pageSize: searchForAddQuestions.pageSize
-    })
+    }
+    // 添加题型筛选
+    if (searchForAddQuestions.questionType) {
+      params.questionType = searchForAddQuestions.questionType
+    }
+    res = await adminApi.searchMathQuestions(params)
     questionsForSelection.value = res.data.list || []
     questionsForSelectionTotal.value = res.data.total || 0
   } catch (error) {
     console.error('搜索题目失败:', error)
+    questionsForSelection.value = []
+    questionsForSelectionTotal.value = 0
   } finally {
     loadingQuestionsForSelection.value = false
   }
@@ -3667,6 +3970,80 @@ const clearEntryQuestion = () => {
   entryForm.details = []
   entrySourceCode.value = ''
   entrySourcePreview.value = null
+  entrySourcePreviewList.value = []
+  entryCurrentIndex.value = 0
+}
+
+// 上一题
+const prevEntryQuestion = () => {
+  if (entryCurrentIndex.value > 0) {
+    // 先保存当前表单数据到数组
+    syncEntryFormToList()
+    // 切换到上一题
+    entryCurrentIndex.value--
+    // 加载新题目到表单
+    loadEntryQuestionToForm(entryCurrentIndex.value)
+  }
+}
+
+// 下一题
+const nextEntryQuestion = () => {
+  if (entryCurrentIndex.value < entrySourcePreviewList.value.length - 1) {
+    // 先保存当前表单数据到数组
+    syncEntryFormToList()
+    // 切换到下一题
+    entryCurrentIndex.value++
+    // 加载新题目到表单
+    loadEntryQuestionToForm(entryCurrentIndex.value)
+  }
+}
+
+// 将当前表单数据同步到数组
+const syncEntryFormToList = () => {
+  if (entrySourcePreviewList.value.length === 0) return
+  const currentData = entrySourcePreviewList.value[entryCurrentIndex.value]
+  if (!currentData) return
+
+  currentData.QuestionText = entryForm.questionText
+  currentData.questionText = entryForm.questionText
+  currentData.QuestionType = entryForm.questionType
+  currentData.questionType = entryForm.questionType
+  currentData.OriginalAnswerText = entryForm.answerText
+  currentData.answerText = entryForm.answerText
+  currentData.Difficulty = entryForm.difficulty
+  currentData.difficulty = entryForm.difficulty
+  currentData.QuestionSort = entryForm.questionSort
+  currentData.Sort = entryForm.questionSort
+
+  // 同步 details
+  const details = entryForm.details.map(d => ({
+    BusType: d.BusType,
+    Title: d.Title,
+    Context: d.Context
+  }))
+  currentData.details = details
+  currentData.Details = details
+}
+
+// 从数组加载题目到表单
+const loadEntryQuestionToForm = (index) => {
+  if (index < 0 || index >= entrySourcePreviewList.value.length) return
+  const data = entrySourcePreviewList.value[index]
+  if (!data) return
+
+  entryForm.questionText = data.QuestionText || data.questionText || ''
+  entryForm.questionType = data.QuestionType || data.questionType || ''
+  entryForm.answerText = data.OriginalAnswerText || data.answerText || ''
+  entryForm.difficulty = data.Difficulty || data.difficulty || 0.5
+  entryForm.questionSort = data.QuestionSort || data.Sort || ''
+
+  // 加载 details
+  const details = data.details || data.Details || []
+  entryForm.details = details.map(d => ({
+    BusType: d.BusType || '题目详解',
+    Title: d.Title || '',
+    Context: d.Context || ''
+  }))
 }
 
 const resetEntryForm = () => {
@@ -3682,12 +4059,24 @@ const onEntrySourceChange = () => {
   try {
     if (entrySourceCode.value.trim()) {
       const data = JSON.parse(entrySourceCode.value)
-      entrySourcePreview.value = data
+      // 支持单题对象或题目数组
+      if (Array.isArray(data)) {
+        entrySourcePreviewList.value = data
+        entrySourcePreview.value = data[0] || null
+      } else {
+        entrySourcePreviewList.value = [data]
+        entrySourcePreview.value = data
+      }
+      entryCurrentIndex.value = 0
     } else {
       entrySourcePreview.value = null
+      entrySourcePreviewList.value = []
+      entryCurrentIndex.value = 0
     }
   } catch (e) {
     // JSON解析失败，不更新预览
+    entrySourcePreviewList.value = []
+    entryCurrentIndex.value = 0
   }
 }
 
@@ -3749,14 +4138,34 @@ const applyEntrySourceCode = () => {
       data = JSON.parse(jsonStr)
     }
 
+    // 支持单题对象或题目数组
+    let questionData = data
+    if (Array.isArray(data)) {
+      if (data.length === 0) {
+        ElMessage.warning('题目数组为空')
+        return
+      }
+      questionData = data[0]
+      // 更新预览列表
+      entrySourcePreviewList.value = data
+      entrySourcePreview.value = questionData
+      entryCurrentIndex.value = 0
+      ElMessage.success(`已应用到表单（共 ${data.length} 题，显示第 1 题）`)
+    } else {
+      entrySourcePreviewList.value = [data]
+      entrySourcePreview.value = data
+      entryCurrentIndex.value = 0
+      ElMessage.success('已应用到表单')
+    }
+
     // 应用到表单
-    entryForm.questionText = data.QuestionText || ''
-    entryForm.questionType = data.QuestionType || ''
-    entryForm.answerText = data.OriginalAnswerText || ''
-    entryForm.difficulty = data.Difficulty || 0.5
+    entryForm.questionText = questionData.QuestionText || questionData.questionText || ''
+    entryForm.questionType = questionData.QuestionType || questionData.questionType || ''
+    entryForm.answerText = questionData.OriginalAnswerText || questionData.answerText || ''
+    entryForm.difficulty = questionData.Difficulty || questionData.difficulty || 0.5
 
     // 处理details
-    const details = data.details || []
+    const details = questionData.details || questionData.Details || []
     entryForm.details = details.map(d => ({
       BusType: d.BusType || '题目详解',
       Title: d.Title || '',
@@ -3764,10 +4173,8 @@ const applyEntrySourceCode = () => {
     }))
 
     // 如果有QuestionSort或Sort字段，可以在保存时使用
-    // 这里存储在entryForm中供保存时使用
-    entryForm.questionSort = data.QuestionSort || data.Sort || ''
+    entryForm.questionSort = questionData.QuestionSort || questionData.Sort || ''
 
-    ElMessage.success('已应用到表单')
     entryMode.value = 'form'
   } catch (e) {
     ElMessage.error('JSON解析失败：' + e.message)
@@ -3792,6 +4199,7 @@ const generateEntrySourceCode = () => {
     Sort: questionSort,
     details: entryForm.details.map(d => ({
       BusType: d.BusType || '题目详解',
+      Title: d.Title || '',
       Context: d.Context || ''
     }))
   } : {
@@ -3804,6 +4212,7 @@ const generateEntrySourceCode = () => {
     details: [
       {
         BusType: "题目详解",
+        Title: "",
         Context: "根据导数定义，$f'(x) = \\lim_{h \\to 0} \\frac{f(x+h)-f(x)}{h} = 2x$。"
       }
     ]
@@ -3822,6 +4231,7 @@ const generateEntrySourceCode = () => {
 // - Sort: 题目排序号（数字格式，如 1, 2）
 // - details: 题目详情列表
 //   - BusType: 业务类型（题目详解/考点/疑难点/一题多解/答疑/其他）
+//   - Title: 详情标题（可选，如"【思路分析】"）
 //   - Context: 详情内容，支持LaTeX公式
 
 `
@@ -3889,6 +4299,92 @@ const saveEntryQuestion = async () => {
   }
 }
 
+// 批量保存多个题目
+const saveEntryQuestionsBatch = async () => {
+  if (entrySourcePreviewList.value.length === 0) {
+    ElMessage.warning('没有可保存的题目')
+    return
+  }
+  if (!entryBookId.value) {
+    ElMessage.warning('请选择书籍')
+    return
+  }
+  if (!entryChapterName.value) {
+    ElMessage.warning('请选择章节')
+    return
+  }
+
+  // 确认框
+  try {
+    await ElMessageBox.confirm(
+      `确定要批量保存 ${entrySourcePreviewList.value.length} 道题目吗？`,
+      '确认批量保存',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }
+    )
+  } catch {
+    return
+  }
+
+  saving.value = true
+  const total = entrySourcePreviewList.value.length
+  let success = 0
+  let failed = 0
+
+  try {
+    // 获取当前章节的题目数量作为起始排序号
+    const currentChapter = entryChapters.value.find(c => c.name === entryChapterName.value)
+    let baseSort = currentChapter ? (currentChapter.questionCount || 0) + 1 : 1
+
+    for (let i = 0; i < entrySourcePreviewList.value.length; i++) {
+      const item = entrySourcePreviewList.value[i]
+      try {
+        const questionSort = item.QuestionSort || item.Sort || (baseSort + i)
+        const details = item.details || item.Details || []
+
+        const data = {
+          questionText: item.QuestionText || item.questionText || '',
+          answerText: item.OriginalAnswerText || item.answerText || '',
+          questionType: item.QuestionType || item.questionType || '',
+          difficulty: item.Difficulty || item.difficulty || 0.5,
+          details: details.map(d => ({
+            BusType: d.BusType || '题目详解',
+            Title: d.Title || '',
+            Context: d.Context || ''
+          })),
+          bookId: entryBookId.value,
+          chapterName: entryChapterName.value,
+          questionSort: questionSort.toString()
+        }
+
+        await adminApi.createMathQuestion(data)
+        success++
+      } catch (error) {
+        console.error(`保存第 ${i + 1} 题失败:`, error)
+        failed++
+      }
+    }
+
+    if (success > 0) {
+      ElMessage.success(`批量保存完成：成功 ${success} 题，失败 ${failed} 题`)
+      clearEntryQuestion()
+      // 刷新章节列表
+      const chaptersRes = await adminApi.getMathBookChapters(entryBookId.value)
+      entryChapters.value = chaptersRes.data || []
+    } else {
+      ElMessage.error('所有题目保存失败')
+    }
+  } catch (error) {
+    console.error('批量保存失败:', error)
+    ElMessage.error('批量保存失败')
+  } finally {
+    saving.value = false
+  }
+}
+
 // --- 题目导入相关方法 ---
 const handleImportFileChange = (file) => {
   const reader = new FileReader()
@@ -3924,7 +4420,13 @@ const showImportTemplate = () => {
         "details": [
           {
             "BusType": "题目详解",
+            "Title": "",
             "Context": "根据导数定义，$f'(x) = \\lim_{h \\to 0} \\frac{f(x+h)-f(x)}{h} = 2x$。"
+          },
+          {
+            "BusType": "疑难点",
+            "Title": "【思路分析】",
+            "Context": "本题主要考察导数的基本概念和计算方法。"
           }
         ]
       }
@@ -6204,6 +6706,89 @@ onMounted(() => {
   min-height: 500px;
 }
 
+/* 录入试题源代码预览列表样式 */
+.source-preview-list {
+  max-height: 520px;
+  overflow-y: auto;
+}
+
+.source-preview-item {
+  background: #fff;
+  border-radius: 6px;
+  padding: 12px;
+  margin-bottom: 10px;
+  border: 1px solid #e4e7ed;
+  transition: all 0.2s;
+}
+
+.source-preview-item:hover {
+  border-color: #409eff;
+  box-shadow: 0 2px 8px rgba(64, 158, 255, 0.1);
+}
+
+.preview-item-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.preview-item-index {
+  font-weight: 600;
+  color: #409eff;
+  font-size: 14px;
+}
+
+.preview-item-type {
+  font-size: 12px;
+  color: #67c23a;
+  background: #f0f9eb;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.preview-item-content {
+  font-size: 13px;
+  color: #606266;
+  line-height: 1.5;
+}
+
+/* 录入试题源代码编辑表单样式 */
+.preview-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.preview-header h4 {
+  margin: 0;
+}
+
+.preview-nav {
+  display: flex;
+  gap: 8px;
+}
+
+.source-edit-form {
+  background: #fff;
+  border-radius: 6px;
+  padding: 16px;
+  max-height: 520px;
+  overflow-y: auto;
+}
+
+.detail-edit-item {
+  background: #f5f7fa;
+  border-radius: 4px;
+  padding: 10px;
+  margin-bottom: 10px;
+}
+
+.detail-edit-item:last-child {
+  margin-bottom: 0;
+}
+
 /* 导入源代码编辑样式 */
 .import-source-section {
   background: #f5f7fa;
@@ -6412,6 +6997,28 @@ onMounted(() => {
   border-top: 1px solid #e4e7ed;
 }
 
+.entry-question-nav {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 20px;
+  background: #f5f7fa;
+  border-radius: 8px;
+  margin-bottom: 20px;
+}
+
+.entry-question-nav .nav-info {
+  font-size: 16px;
+  font-weight: 600;
+  color: #303133;
+}
+
+.entry-question-nav .nav-buttons {
+  display: flex;
+  gap: 15px;
+}
+
 .empty-tip {
   padding: 60px 0;
 }
@@ -6468,5 +7075,105 @@ onMounted(() => {
 .import-result p {
   margin: 4px 0;
   font-size: 13px;
+}
+
+/* 添加题目对话框样式 */
+.add-questions-container {
+  display: flex;
+  gap: 20px;
+  height: 550px;
+}
+
+.book-tree-sidebar {
+  width: 260px;
+  flex-shrink: 0;
+  border-right: 1px solid #e4e7ed;
+  padding-right: 15px;
+  overflow-y: auto;
+}
+
+.sidebar-section {
+  margin-bottom: 20px;
+}
+
+.section-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #303133;
+  margin-bottom: 10px;
+  padding-left: 5px;
+  border-left: 3px solid #409eff;
+}
+
+.chapter-tree {
+  max-height: 250px;
+  overflow-y: auto;
+  border: 1px solid #e4e7ed;
+  border-radius: 4px;
+  padding: 5px;
+}
+
+.chapter-tree-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 10px;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.3s;
+}
+
+.chapter-tree-item:hover {
+  background-color: #f5f7fa;
+}
+
+.chapter-tree-item.active {
+  background-color: #ecf5ff;
+  color: #409eff;
+}
+
+.chapter-tree-item .chapter-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+}
+
+.chapter-tree-item .chapter-count {
+  font-size: 12px;
+  color: #909399;
+  margin-left: 5px;
+}
+
+.questions-list-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.list-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 15px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #e4e7ed;
+}
+
+.list-header .header-info {
+  font-size: 14px;
+  color: #303133;
+  font-weight: 500;
+}
+
+.list-header .header-count {
+  font-size: 13px;
+  color: #909399;
+}
+
+.mt-15 {
+  margin-top: 15px;
 }
 </style>

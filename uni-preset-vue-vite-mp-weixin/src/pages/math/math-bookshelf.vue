@@ -464,6 +464,18 @@ const loadPageData = async (subjectId) => {
 };
 
 const goToBook = (book) => {
+  // 检查是否有保存的进度
+  const progressKey = `math_book_${book.BookID}`;
+  const progressList = uni.getStorageSync('practiceProgressList') || [];
+  const savedProgress = progressList.find(item => item.progressKey === progressKey);
+  
+  // 如果有保存的进度且进度中有 URL，直接跳转到刷题页面
+  if (savedProgress && savedProgress.url && savedProgress.currentIndex > 1) {
+    uni.navigateTo({ url: savedProgress.url });
+    return;
+  }
+  
+  // 否则检查是否有上次阅读的题目
   const lastQuestionId = uni.getStorageSync(`last_question_${book.BookID}`);
   let url = `/pages/math/math-question-detail?bookId=${book.BookID}&bookTitle=${encodeURIComponent(book.BookTitle)}`;
   if (lastQuestionId) {
@@ -479,7 +491,9 @@ const goToBook = (book) => {
     bookTitle: book.BookTitle,
     bookId: book.BookID,
     url: url,
-    icon: 'math'
+    icon: 'math',
+    progressKey,
+    timestamp: Date.now()
   };
   uni.setStorageSync('lastPracticeSubject', practiceItem);
 

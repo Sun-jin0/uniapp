@@ -451,6 +451,28 @@ const fetchChapterTags = async (chapterId) => {
 };
 
 const goToPractice = (item, mode, parentChapter = null) => {
+  // 检查是否有保存的进度
+  let progressKey = null;
+  if (mode === 'tag') {
+    progressKey = `computer_tag_${item.id}`;
+  } else if (mode === 'chapter') {
+    progressKey = `computer_chapter_${item.id}`;
+  } else if (mode === 'year') {
+    progressKey = `computer_exam_${item.id}`;
+  }
+  
+  if (progressKey) {
+    const progressList = uni.getStorageSync('practiceProgressList') || [];
+    const savedProgress = progressList.find(p => p.progressKey === progressKey);
+    
+    // 如果有保存的进度且进度中有 URL，直接跳转到刷题页面
+    if (savedProgress && savedProgress.url && savedProgress.currentIndex > 1) {
+      uni.navigateTo({ url: savedProgress.url });
+      return;
+    }
+  }
+  
+  // 否则跳转到题目列表
   let url = '/pages/computer/computer-question-list?';
   
   if (mode === 'tag') {

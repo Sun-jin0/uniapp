@@ -374,16 +374,48 @@ const goToDetail = (question) => {
   if (options.majorId) practiceUrl += `&majorId=${options.majorId}`;
   if (options.examGroupId) practiceUrl += `&examGroupId=${options.examGroupId}`;
   
-  // 保存为最近练习科目，以便在首页显示
+  // 生成 progressKey
+  let progressKey = 'computer_general';
+  if (options.chapterId) {
+    progressKey = `computer_chapter_${options.chapterId}`;
+  } else if (options.tagId) {
+    progressKey = `computer_tag_${options.tagId}`;
+  } else if (options.examGroupId) {
+    progressKey = `computer_exam_${options.examGroupId}`;
+  }
+  
+  // 保存到进度列表
   const practiceItem = {
     type: 'computer',
     subject: '计算机',
-    id: options.chapterId || options.tagId || 'computer',
+    id: options.chapterId || options.tagId || options.examGroupId || 'computer',
     title: displayTitle.value || '计算机刷题',
     url: practiceUrl,
-    icon: 'computer'
+    icon: 'computer',
+    progressKey,
+    currentIndex: filteredQuestions.value.findIndex(q => q.question_id === question.question_id) + 1,
+    totalQuestions: filteredQuestions.value.length,
+    timestamp: Date.now()
   };
-  uni.setStorageSync('lastPracticeSubject', practiceItem);
+  
+  // 保存到进度列表
+  let progressList = uni.getStorageSync('practiceProgressList') || [];
+  if (!Array.isArray(progressList)) {
+    progressList = [];
+  }
+  
+  const existingIndex = progressList.findIndex(item => item.progressKey === progressKey);
+  if (existingIndex !== -1) {
+    progressList.splice(existingIndex, 1);
+  }
+  
+  progressList.unshift(practiceItem);
+  
+  if (progressList.length > 10) {
+    progressList = progressList.slice(0, 10);
+  }
+  
+  uni.setStorageSync('practiceProgressList', progressList);
   
   uni.navigateTo({
     url: practiceUrl
