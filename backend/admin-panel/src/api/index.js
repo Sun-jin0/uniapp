@@ -224,6 +224,20 @@ export const adminApi = {
   getKnowledgePointQuestionCount: (kpTitle) => service.get('/math/admin/knowledge-point-question-count', { params: { kpTitle } }),
   getKnowledgePointQuestionCountsBatch: (kpTitles) => service.post('/math/admin/knowledge-point-question-counts', { kpTitles }),
   searchKnowledgePoints: (keyword) => service.get('/math/admin/knowledge-points/search', { params: { keyword } }),
+  
+  // Math Import
+  importMathFromFiles: (data) => {
+    // 将前端参数映射到后端 importComplexQuestions 需要的格式
+    const payload = {
+      mapping: data.structData || [],
+      details: data.detailsData || {},
+      config: {
+        subjectId: data.subjectId,
+        contentType: data.contentType
+      }
+    }
+    return service.post('/math/admin/import-complex-questions', payload)
+  },
 
   // Med Management Aliases (Specific to Med Module)
   getMedCourses: () => service.get('/med/admin/courses'),
